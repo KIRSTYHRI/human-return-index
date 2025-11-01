@@ -1,0 +1,116 @@
+/* src/app/globals.css */
+
+/* BRAND COLOURS */
+:root {
+  --hri-yellow: #fee000;
+  --hri-black: #000000;
+  --hri-white: #ffffff;
+  --hri-grey: #f6f6f6;
+}
+
+/* RESET */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  height: 100%;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background-color: var(--hri-white);
+  color: var(--hri-black);
+  line-height: 1.6;
+}
+
+/* HEADINGS */
+h1,
+h2,
+h3,
+h4,
+h5 {
+  font-weight: 700;
+  color: var(--hri-black);
+}
+
+/* LINKS */
+a {
+  color: var(--hri-yellow);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+/* BUTTONS */
+button {
+  background-color: var(--hri-yellow);
+  color: var(--hri-black);
+  border: none;
+  padding: 0.7rem 1.2rem;
+  border-radius: 8px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+button:hover {
+  background-color: #ffef5b;
+}
+
+/* MAIN LAYOUT */
+main {
+  padding: 2rem;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+/* SECTIONS */
+section {
+  margin-top: 2rem;
+  background: var(--hri-white);
+  border: 1px solid #eee;
+  border-radius: 16px;
+  padding: 1.5rem;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.05);
+}
+
+/* DARK MODE SUPPORT */
+@media (prefers-color-scheme: dark) {
+  body {
+    background-color: var(--hri-black);
+    color: var(--hri-white);
+  }
+  section {
+    background: #111;
+    border-color: #333;
+  }
+  a {
+    color: var(--hri-yellow);
+  }
+  button {
+    background-color: var(--hri-yellow);
+    color: var(--hri-black);
+  }
+  button:hover {
+    background-color: #ffef5b;
+  }
+}
+
+/* SUBTLE FADE-IN */
+body {
+  opacity: 0;
+  animation: fadeIn 0.4s ease-in forwards;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
