@@ -9,4 +9,3 @@ This is a test commit to confirm that:
 - The front-end + Supabase backend are linked 💛
 
 If this deploys successfully, you’ll know everything is configured right.
-
