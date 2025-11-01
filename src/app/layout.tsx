@@ -8,9 +8,7 @@ export const metadata = {
 
 export default function RootLayout({
   children,
-}: {
-  children: React.ReactNode;
-}) {
+}: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <body>
@@ -28,9 +26,7 @@ export default function RootLayout({
         >
           Human Return Index™
         </header>
-
         <main>{children}</main>
-
         <footer
           style={{
             marginTop: "3rem",
