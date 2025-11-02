@@ -1,4 +1,6 @@
 {
+  "name": "human-return-index",
+  "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -6,9 +8,15 @@
     "vercel-build": "next build"
   },
   "dependencies": {
+    "@supabase/supabase-js": "2.45.4",
     "next": "14.2.5",
     "react": "18.2.0",
-    "react-dom": "18.2.0",
-    "@supabase/supabase-js": "2.45.4"
+    "react-dom": "18.2.0"
+  },
+  "devDependencies": {
+    "typescript": "5.6.3",
+    "@types/react": "18.2.79",
+    "@types/react-dom": "18.2.25",
+    "@types/node": "20.11.30"
   }
 }
