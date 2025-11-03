@@ -1,21 +1,10 @@
-// src/app/dashboard/page.tsx
 "use client";
 import { useEffect, useState } from "react";
 
-type Overview = {
-  assessment_id: string;
-  title: string;
-  status: "DRAFT"|"OPEN"|"CLOSED";
-  assessment_created_at: string;
-  badge_level: "NONE" | "HRI Accredited" | "HRI Accredited Plus" | null;
-  badge_awarded_at: string | null;
-};
-type Score = { pillar: string; score: number; assessment_id: string };
-
 export default function Dashboard() {
-  const [overview, setOverview] = useState<Overview | null>(null);
-  const [scores, setScores] = useState<Score[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [overview, setOverview] = useState(null);
+  const [scores, setScores] = useState([]);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     (async () => {
