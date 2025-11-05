@@ -1,6 +1,21 @@
 "use client";
 import { useEffect, useState } from "react";
 
+function Logout() {
+  async function out() {
+    try {
+      await fetch("/api/unlock", { method: "DELETE" });
+    } finally {
+      location.href = "/lock"; // send back to lock screen
+    }
+  }
+  return (
+    <button onClick={out} style={{ marginLeft: 12 }}>
+      Logout
+    </button>
+  );
+}
+
 export default function Dashboard() {
   const [overview, setOverview] = useState(null);
   const [scores, setScores] = useState([]);
@@ -8,48 +23,61 @@ export default function Dashboard() {
 
   useEffect(() => {
     (async () => {
-      const r = await fetch("/api/overview", { cache: "no-store" });
-      const j = await r.json();
-      if (!r.ok) { setError(j.error || "Error"); return; }
-      setOverview(j.overview); setScores(j.scores);
+      try {
+        const r = await fetch("/api/overview", { cache: "no-store" });
+        const j = await r.json();
+        if (!r.ok) { setError(j.error || "Error"); return; }
+        setOverview(j.overview);
+        setScores(j.scores || []);
+      } catch (e) {
+        setError(String(e));
+      }
     })();
   }, []);
 
-  if (error) return <main style={{padding:24,color:"crimson"}}>Error: {error}</main>;
-  if (!overview) return <main style={{padding:24}}>Loading…</main>;
+  if (error) return <main style={{ padding: 24, color: "crimson" }}>Error: {error}</main>;
+  if (!overview) return <main style={{ padding: 24 }}>Loading…</main>;
 
   return (
     <main>
-      <h1>HRI Dashboard</h1>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <h1>HRI Dashboard</h1>
+        <Logout />
+      </div>
+
       <section>
-        <div style={{display:"flex", justifyContent:"space-between", gap:16}}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
           <div>
-            <div style={{opacity:.6}}>Latest Assessment</div>
-            <div style={{fontWeight:700}}>{overview.title}</div>
-            <div style={{fontSize:12, opacity:.7}}>
+            <div style={{ opacity: .6 }}>Latest Assessment</div>
+            <div style={{ fontWeight: 700 }}>{overview.title}</div>
+            <div style={{ fontSize: 12, opacity: .7 }}>
               Status: {overview.status} • Created: {new Date(overview.assessment_created_at).toLocaleDateString()}
             </div>
           </div>
-          <div style={{textAlign:"right"}}>
-            <div style={{opacity:.6}}>Badge</div>
-            <div style={{fontWeight:700}}>{overview.badge_level ?? "NONE"}</div>
+          <div style={{ textAlign: "right" }}>
+            <div style={{ opacity: .6 }}>Badge</div>
+            <div style={{ fontWeight: 700 }}>{overview.badge_level ?? "NONE"}</div>
             {overview.badge_awarded_at && (
-              <div style={{fontSize:12, opacity:.7}}>
+              <div style={{ fontSize: 12, opacity: .7 }}>
                 Awarded: {new Date(overview.badge_awarded_at).toLocaleDateString()}
               </div>
             )}
           </div>
         </div>
 
-        <h3 style={{marginTop:16}}>Pillar Scores</h3>
-        <div style={{display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))", gap:12}}>
-          {scores.map(s => (
-            <div key={s.pillar} style={{border:"1px solid #eee", borderRadius:10, padding:12}}>
-              <div style={{opacity:.6}}>{s.pillar}</div>
-              <div style={{fontSize:24, fontWeight:800}}>{Math.round(s.score)}</div>
+        <h3 style={{ marginTop: 16 }}>Pillar Scores</h3>
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill,minmax(180px,1fr))",
+          gap: 12
+        }}>
+          {scores.map((s) => (
+            <div key={s.pillar} style={{ border: "1px solid #eee", borderRadius: 10, padding: 12 }}>
+              <div style={{ opacity: .6 }}>{s.pillar}</div>
+              <div style={{ fontSize: 24, fontWeight: 800 }}>{Math.round(s.score)}</div>
             </div>
           ))}
-          {scores.length === 0 && <div style={{opacity:.7}}>No scores yet.</div>}
+          {scores.length === 0 && <div style={{ opacity: .7 }}>No scores yet.</div>}
         </div>
       </section>
     </main>
