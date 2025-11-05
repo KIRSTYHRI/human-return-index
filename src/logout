@@ -1,7 +1,0 @@
-function Logout() {
-  async function out() {
-    await fetch("/api/unlock", { method: "DELETE" });
-    location.href = "/lock";
-  }
-  return <button onClick={out} style={{marginLeft:12}}>Logout</button>;
-}
