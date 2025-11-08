@@ -5,12 +5,10 @@ const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabase = createClient(url, key, { auth: { persistSession: false } });
 
-// TEMP: your organisation (matches the UUID we just seeded)
 const ORG_ID = "9499b1b9-7fce-43a1-9590-d533f00dc71d";
 
 export async function GET() {
   try {
-    // 1) Latest assessment for your org
     const { data: latestAssess, error: aErr } = await supabase
       .from("assessments")
       .select("id,title,status,created_at,period_start,period_end")
@@ -24,7 +22,6 @@ export async function GET() {
       return NextResponse.json({ ok: true, overview: null, scores: [] });
     }
 
-    // 2) Scores for that assessment
     const { data: scores, error: sErr } = await supabase
       .from("scores")
       .select("pillar,score")
@@ -33,7 +30,6 @@ export async function GET() {
 
     if (sErr) throw sErr;
 
-    // 3) Latest badge for that org
     const { data: badge, error: bErr } = await supabase
       .from("badges")
       .select("level,awarded_at")
