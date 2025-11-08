@@ -1,21 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
 
-function Logout() {
-  async function out() {
-    try {
-      await fetch("/api/unlock", { method: "DELETE" });
-    } finally {
-      location.href = "/lock"; // send back to lock screen
-    }
-  }
-  return (
-    <button onClick={out} style={{ marginLeft: 12 }}>
-      Logout
-    </button>
-  );
-}
-
 export default function Dashboard() {
   const [overview, setOverview] = useState(null);
   const [scores, setScores] = useState([]);
@@ -39,19 +24,18 @@ export default function Dashboard() {
   if (!overview) return <main style={{ padding: 24 }}>Loading…</main>;
 
   return (
-    <main>
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <h1>HRI Dashboard</h1>
-        <Logout />
-      </div>
-
-      <section>
+    <main style={{ padding: 24 }}>
+      <h1>HRI Dashboard</h1>
+      <section style={{ marginTop: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
           <div>
             <div style={{ opacity: .6 }}>Latest Assessment</div>
             <div style={{ fontWeight: 700 }}>{overview.title}</div>
             <div style={{ fontSize: 12, opacity: .7 }}>
-              Status: {overview.status} • Created: {new Date(overview.assessment_created_at).toLocaleDateString()}
+              Status: {overview.status} • Created:{" "}
+              {overview.assessment_created_at
+                ? new Date(overview.assessment_created_at).toLocaleDateString()
+                : "—"}
             </div>
           </div>
           <div style={{ textAlign: "right" }}>
@@ -66,11 +50,7 @@ export default function Dashboard() {
         </div>
 
         <h3 style={{ marginTop: 16 }}>Pillar Scores</h3>
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fill,minmax(180px,1fr))",
-          gap: 12
-        }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(180px,1fr))", gap: 12 }}>
           {scores.map((s) => (
             <div key={s.pillar} style={{ border: "1px solid #eee", borderRadius: 10, padding: 12 }}>
               <div style={{ opacity: .6 }}>{s.pillar}</div>
