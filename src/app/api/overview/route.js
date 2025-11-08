@@ -4,19 +4,18 @@ import { createClient } from "@supabase/supabase-js";
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-// safety check
 if (!url || !key) {
   console.warn("Missing Supabase env vars in /api/overview");
 }
 
 const supabase = createClient(url, key, { auth: { persistSession: false } });
 
-// TEMP: your org id
+// Your organisation
 const ORG_ID = "9499b1b9-7fce-43a1-9590-d533f00dc71d";
 
 export async function GET() {
   try {
-    // 1) latest assessment for this org
+    // 1) Latest assessment for this org
     const { data: latestAssess, error: aErr } = await supabase
       .from("assessments")
       .select("id,title,status,created_at,period_start,period_end")
@@ -30,7 +29,7 @@ export async function GET() {
       return NextResponse.json({ ok: true, overview: null, scores: [] });
     }
 
-    // 2) scores for that assessment
+    // 2) Scores for that assessment
     const { data: scores, error: sErr } = await supabase
       .from("scores")
       .select("pillar,score")
@@ -39,7 +38,7 @@ export async function GET() {
 
     if (sErr) throw sErr;
 
-    // 3) latest badge for this org
+    // 3) Latest badge for this org
     const { data: badge, error: bErr } = await supabase
       .from("badges")
       .select("level,awarded_at")
@@ -57,7 +56,7 @@ export async function GET() {
       assessment_created_at: latestAssess.created_at,
       period_start: latestAssess.period_start,
       period_end: latestAssess.period_end,
-      // these are just JSON fields, NOT DB columns:
+      // These are just JSON keys – NOT DB columns
       badge_level: badge?.level ?? null,
       badge_awarded_at: badge?.awarded_at ?? null,
     };
