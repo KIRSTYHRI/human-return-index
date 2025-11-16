@@ -14,7 +14,7 @@ const ORG_ID = "9499b1b9-7fce-43a1-9590-d533f00dc71d"; // your seeded org
 
 export async function GET() {
   try {
-    // Quick env + client sanity check
+    // 1) ENV sanity check
     if (!url || !key) {
       return NextResponse.json(
         {
@@ -40,7 +40,7 @@ export async function GET() {
       );
     }
 
-    // 1) Try a simple ping first – this should work if db + network are OK
+    // 2) Check org exists
     const { data: orgs, error: orgError } = await supabase
       .from("organisations")
       .select("id, name")
@@ -58,7 +58,7 @@ export async function GET() {
       );
     }
 
-    // 2) Real assessment query
+    // 3) Get latest assessment
     const { data: assessment, error: aError } = await supabase
       .from("assessments")
       .select(
@@ -83,7 +83,7 @@ export async function GET() {
       );
     }
 
-    // 3) Scores query
+    // 4) Scores
     const { data: scores, error: sError } = await supabase
       .from("scores")
       .select("pillar, score")
@@ -131,4 +131,3 @@ export async function GET() {
     );
   }
 }
-
