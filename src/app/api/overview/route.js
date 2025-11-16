@@ -5,16 +5,60 @@ import { createClient } from "@supabase/supabase-js";
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-if (!url) console.warn("Missing NEXT_PUBLIC_SUPABASE_URL");
-if (!key) console.warn("Missing SUPABASE_SERVICE_ROLE_KEY");
-
-const supabase = createClient(url, key, { auth: { persistSession: false } });
+const supabase =
+  url && key
+    ? createClient(url, key, { auth: { persistSession: false } })
+    : null;
 
 const ORG_ID = "9499b1b9-7fce-43a1-9590-d533f00dc71d"; // your seeded org
 
 export async function GET() {
   try {
-    // 1) Get latest assessment for your org
+    // Quick env + client sanity check
+    if (!url || !key) {
+      return NextResponse.json(
+        {
+          ok: false,
+          step: "env-check",
+          urlPresent: !!url,
+          keyPresent: !!key,
+          message:
+            "Supabase URL or SERVICE ROLE key missing in environment variables",
+        },
+        { status: 500 }
+      );
+    }
+
+    if (!supabase) {
+      return NextResponse.json(
+        {
+          ok: false,
+          step: "client-check",
+          message: "Supabase client was not created",
+        },
+        { status: 500 }
+      );
+    }
+
+    // 1) Try a simple ping first – this should work if db + network are OK
+    const { data: orgs, error: orgError } = await supabase
+      .from("organisations")
+      .select("id, name")
+      .eq("id", ORG_ID)
+      .limit(1);
+
+    if (orgError) {
+      return NextResponse.json(
+        {
+          ok: false,
+          step: "org-query",
+          message: orgError.message,
+        },
+        { status: 500 }
+      );
+    }
+
+    // 2) Real assessment query
     const { data: assessment, error: aError } = await supabase
       .from("assessments")
       .select(
@@ -26,35 +70,32 @@ export async function GET() {
       .maybeSingle();
 
     if (aError) {
-      console.error("Assessment error:", aError);
       return NextResponse.json(
-        { ok: false, error: aError.message },
+        { ok: false, step: "assessment-query", message: aError.message },
         { status: 500 }
       );
     }
 
     if (!assessment) {
       return NextResponse.json(
-        { ok: false, error: "No assessments found" },
+        { ok: false, step: "no-assessment", message: "No assessments found" },
         { status: 404 }
       );
     }
 
-    // 2) Get scores for that assessment
+    // 3) Scores query
     const { data: scores, error: sError } = await supabase
       .from("scores")
       .select("pillar, score")
       .eq("assessment_id", assessment.id);
 
     if (sError) {
-      console.error("Scores error:", sError);
       return NextResponse.json(
-        { ok: false, error: sError.message },
+        { ok: false, step: "scores-query", message: sError.message },
         { status: 500 }
       );
     }
 
-    // 3) Shape the response for the dashboard
     const overview = {
       assessment_id: assessment.id,
       title: assessment.title,
@@ -69,14 +110,25 @@ export async function GET() {
     return NextResponse.json({
       ok: true,
       source: "supabase",
+      debug: {
+        urlPresent: !!url,
+        keyPresent: !!key,
+        orgCount: orgs?.length ?? 0,
+      },
       overview,
       scores: scores ?? [],
     });
   } catch (err) {
-    console.error("Unexpected /api/overview error:", err);
     return NextResponse.json(
-      { ok: false, error: "Unexpected server error" },
+      {
+        ok: false,
+        step: "exception",
+        message: String(err),
+        urlPresent: !!url,
+        keyPresent: !!key,
+      },
       { status: 500 }
     );
   }
 }
+
