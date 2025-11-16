@@ -15,6 +15,8 @@ const ORG_ID = "9499b1b9-7fce-43a1-9590-d533f00dc71d";
 
 export async function GET() {
   try {
+    console.log("USING REAL /api/overview HANDLER");
+
     // 1) Latest assessment for your org
     const { data: assessment, error: aErr } = await supabase
       .from("assessments")
