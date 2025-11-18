@@ -9,8 +9,7 @@ if (!key) console.warn("Missing SUPABASE_SERVICE_ROLE_KEY");
 
 const supabase = createClient(url, key, { auth: { persistSession: false } });
 
-// For now we hard-code your org id.
-// Later we’ll make this dynamic per logged-in customer.
+// Hard-coded org for now – later this will be per logged-in customer
 const ORG_ID = "9499b1b9-7fce-43a1-9590-d533f00dc71d";
 
 export async function GET() {
@@ -67,10 +66,22 @@ export async function GET() {
       overall_score: overallScore,
     };
 
+    // 3) Org-level inputs for ROI
+    const { data: org, error: oErr } = await supabase
+      .from("organisations")
+      .select(
+        "name, employee_count, avg_salary, turnover_rate, absent_days_per_employee, annual_wellbeing_spend, engagement_score"
+      )
+      .eq("id", ORG_ID)
+      .maybeSingle();
+
+    if (oErr) throw oErr;
+
     return NextResponse.json({
       ok: true,
       overview,
       scores: scores || [],
+      org_metrics: org || null,
     });
   } catch (err) {
     console.error("Error in /api/overview:", err);
