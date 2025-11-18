@@ -9,7 +9,7 @@ if (!key) console.warn("Missing SUPABASE_SERVICE_ROLE_KEY");
 
 const supabase = createClient(url, key, { auth: { persistSession: false } });
 
-// Hard-coded org for now – later this will be per logged-in customer
+// Hard-coded org for now – later this will come from the logged-in user
 const ORG_ID = "9499b1b9-7fce-43a1-9590-d533f00dc71d";
 
 export async function GET() {
@@ -28,6 +28,7 @@ export async function GET() {
       .maybeSingle();
 
     if (aErr) throw aErr;
+
     if (!assessment) {
       return NextResponse.json(
         { ok: false, error: "No assessment found for this organisation" },
@@ -35,7 +36,7 @@ export async function GET() {
       );
     }
 
-    // 2) All pillar scores for that assessment
+    // 2) Pillar scores for that assessment
     const { data: scores, error: sErr } = await supabase
       .from("scores")
       .select("pillar, score")
@@ -57,8 +58,7 @@ export async function GET() {
       assessment_id: assessment.id,
       title: assessment.title,
       status: assessment.status,
-      assessment_created_at:
-        assessment.created_at || assessment.period_start,
+      assessment_created_at: assessment.created_at || assessment.period_start,
       period_start: assessment.period_start,
       period_end: assessment.period_end,
       badge_level: assessment.badge_level,
@@ -66,8 +66,8 @@ export async function GET() {
       overall_score: overallScore,
     };
 
-    // 3) Org-level inputs for ROI
-    const { data: org, error: oErr } = await supabase
+    // 3) Org metrics (employees, salary, etc.)
+    const { data: orgMetrics, error: oErr } = await supabase
       .from("organisations")
       .select(
         "name, employee_count, avg_salary, turnover_rate, absent_days_per_employee, annual_wellbeing_spend, engagement_score"
@@ -77,11 +77,48 @@ export async function GET() {
 
     if (oErr) throw oErr;
 
+    // 4) Simple ROI summary based on those org metrics
+    let roiSummary = null;
+
+    if (orgMetrics && orgMetrics.employee_count && orgMetrics.avg_salary) {
+      const employees = Number(orgMetrics.employee_count) || 0;
+      const avgSalary = Number(orgMetrics.avg_salary) || 0;
+      const turnoverRate = Number(orgMetrics.turnover_rate) || 0; // %
+      const absentDays = Number(orgMetrics.absent_days_per_employee) || 0;
+      const wellbeingSpend = Number(orgMetrics.annual_wellbeing_spend) || 0;
+
+      // Very simple v1 assumptions:
+      // - Turnover cost ≈ 30% of salary for each leaver
+      // - 220 working days per year
+      const totalPayroll = employees * avgSalary;
+      const estimatedTurnoverCost =
+        employees * (turnoverRate / 100) * avgSalary * 0.3;
+
+      const dailyCostPerEmployee = avgSalary / 220;
+      const estimatedAbsenceCost =
+        employees * absentDays * dailyCostPerEmployee;
+
+      const totalPeopleRisk = estimatedTurnoverCost + estimatedAbsenceCost;
+
+      const roiMultiplier =
+        wellbeingSpend > 0 ? totalPeopleRisk / wellbeingSpend : null;
+
+      roiSummary = {
+        total_payroll: totalPayroll,
+        estimated_turnover_cost: estimatedTurnoverCost,
+        estimated_absence_cost: estimatedAbsenceCost,
+        total_people_risk: totalPeopleRisk,
+        annual_wellbeing_spend: wellbeingSpend,
+        roi_multiplier: roiMultiplier,
+      };
+    }
+
     return NextResponse.json({
       ok: true,
       overview,
       scores: scores || [],
-      org_metrics: org || null,
+      org_metrics: orgMetrics || null,
+      roi_summary: roiSummary,
     });
   } catch (err) {
     console.error("Error in /api/overview:", err);
