@@ -5,6 +5,7 @@ export default function Dashboard() {
   const [overview, setOverview] = useState(null);
   const [scores, setScores] = useState([]);
   const [orgMetrics, setOrgMetrics] = useState(null);
+  const [roiSummary, setRoiSummary] = useState(null);
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -20,6 +21,7 @@ export default function Dashboard() {
         setOverview(j.overview);
         setScores(j.scores || []);
         setOrgMetrics(j.org_metrics || null);
+        setRoiSummary(j.roi_summary || null);
       } catch (err) {
         console.error("Dashboard load error:", err);
         setError(err.message);
@@ -47,13 +49,21 @@ export default function Dashboard() {
   }
 
   return (
-    <main style={{ padding: 24, fontFamily: "system-ui", maxWidth: 960, margin: "0 auto" }}>
+    <main
+      style={{
+        padding: 24,
+        fontFamily: "system-ui",
+        maxWidth: 960,
+        margin: "0 auto",
+      }}
+    >
       <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 8 }}>
         Human Return Index™ – Pilot Dashboard
       </h1>
       <p style={{ marginBottom: 24, opacity: 0.8 }}>
-        This is your live preview of the Human Return Index™ dashboard. The data below is
-        coming from your Supabase “Pilot Test” assessment and organisation settings.
+        This is your live preview of the Human Return Index™ dashboard. The
+        data below is coming from your Supabase “Pilot Test” assessment and
+        organisation settings.
       </p>
 
       {/* TOP SUMMARY */}
@@ -73,7 +83,8 @@ export default function Dashboard() {
           <div style={{ opacity: 0.6, fontSize: 12 }}>Latest Assessment</div>
           <div style={{ fontWeight: 700, fontSize: 18 }}>{overview.title}</div>
           <div style={{ fontSize: 12, opacity: 0.7, marginTop: 4 }}>
-            Status: {overview.status} • Period: {overview.period_start} → {overview.period_end}
+            Status: {overview.status} • Period: {overview.period_start} →{" "}
+            {overview.period_end}
           </div>
           <div style={{ fontSize: 12, opacity: 0.7 }}>
             Created:{" "}
@@ -85,7 +96,9 @@ export default function Dashboard() {
         <div style={{ textAlign: "right" }}>
           <div style={{ opacity: 0.6, fontSize: 12 }}>Overall HRI Score</div>
           <div style={{ fontSize: 32, fontWeight: 800 }}>
-            {overview.overall_score != null ? Math.round(overview.overall_score) : "–"}
+            {overview.overall_score != null
+              ? Math.round(overview.overall_score)
+              : "–"}
           </div>
           <div style={{ marginTop: 12 }}>
             <div style={{ opacity: 0.6, fontSize: 12 }}>Badge</div>
@@ -94,7 +107,8 @@ export default function Dashboard() {
             </div>
             {overview.badge_awarded_at && (
               <div style={{ fontSize: 12, opacity: 0.7 }}>
-                Awarded: {new Date(overview.badge_awarded_at).toLocaleDateString()}
+                Awarded:{" "}
+                {new Date(overview.badge_awarded_at).toLocaleDateString()}
               </div>
             )}
           </div>
@@ -133,13 +147,17 @@ export default function Dashboard() {
             <MetricCard
               label="Average salary"
               value={
-                orgMetrics.avg_salary != null ? `£${orgMetrics.avg_salary.toLocaleString()}` : "–"
+                orgMetrics.avg_salary != null
+                  ? `£${orgMetrics.avg_salary.toLocaleString()}`
+                  : "–"
               }
             />
             <MetricCard
               label="Turnover rate"
               value={
-                orgMetrics.turnover_rate != null ? `${orgMetrics.turnover_rate}%` : "–"
+                orgMetrics.turnover_rate != null
+                  ? `${orgMetrics.turnover_rate}%`
+                  : "–"
               }
             />
             <MetricCard
@@ -163,6 +181,74 @@ export default function Dashboard() {
               value={
                 orgMetrics.engagement_score != null
                   ? `${orgMetrics.engagement_score}/100`
+                  : "–"
+              }
+            />
+          </div>
+        </section>
+      )}
+
+      {/* QUICK ROI SNAPSHOT */}
+      {roiSummary && (
+        <section
+          style={{
+            border: "1px solid #f5e58a",
+            background: "#fffdf0",
+            borderRadius: 12,
+            padding: 16,
+            marginBottom: 24,
+          }}
+        >
+          <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>
+            Quick ROI snapshot
+          </h2>
+          <p style={{ fontSize: 13, opacity: 0.8, marginBottom: 12 }}>
+            Based on your current headcount, salary levels, turnover and
+            absence, here’s an estimated annual cost of people risk versus your
+            wellbeing investment.
+          </p>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+              gap: 12,
+            }}
+          >
+            <MetricCard
+              label="Total payroll"
+              value={`£${Math.round(
+                roiSummary.total_payroll || 0
+              ).toLocaleString()}`}
+            />
+            <MetricCard
+              label="Estimated turnover cost / year"
+              value={`£${Math.round(
+                roiSummary.estimated_turnover_cost || 0
+              ).toLocaleString()}`}
+            />
+            <MetricCard
+              label="Estimated absence cost / year"
+              value={`£${Math.round(
+                roiSummary.estimated_absence_cost || 0
+              ).toLocaleString()}`}
+            />
+            <MetricCard
+              label="Total people risk / year"
+              value={`£${Math.round(
+                roiSummary.total_people_risk || 0
+              ).toLocaleString()}`}
+            />
+            <MetricCard
+              label="Wellbeing investment / year"
+              value={`£${Math.round(
+                roiSummary.annual_wellbeing_spend || 0
+              ).toLocaleString()}`}
+            />
+            <MetricCard
+              label="People risk : wellbeing ratio"
+              value={
+                roiSummary.roi_multiplier != null
+                  ? `${roiSummary.roi_multiplier.toFixed(1)}x`
                   : "–"
               }
             />
