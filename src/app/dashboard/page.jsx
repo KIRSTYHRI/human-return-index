@@ -188,73 +188,112 @@ export default function Dashboard() {
         </section>
       )}
 
-      {/* QUICK ROI SNAPSHOT */}
-      {roiSummary && (
-        <section
-          style={{
-            border: "1px solid #f5e58a",
-            background: "#fffdf0",
-            borderRadius: 12,
-            padding: 16,
-            marginBottom: 24,
-          }}
-        >
-          <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>
-            Quick ROI snapshot
-          </h2>
-          <p style={{ fontSize: 13, opacity: 0.8, marginBottom: 12 }}>
-            Based on your current headcount, salary levels, turnover and
-            absence, here’s an estimated annual cost of people risk versus your
-            wellbeing investment.
-          </p>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
-              gap: 12,
-            }}
-          >
-            <MetricCard
-              label="Total payroll"
-              value={`£${Math.round(
-                roiSummary.total_payroll || 0
-              ).toLocaleString()}`}
-            />
-            <MetricCard
-              label="Estimated turnover cost / year"
-              value={`£${Math.round(
-                roiSummary.estimated_turnover_cost || 0
-              ).toLocaleString()}`}
-            />
-            <MetricCard
-              label="Estimated absence cost / year"
-              value={`£${Math.round(
-                roiSummary.estimated_absence_cost || 0
-              ).toLocaleString()}`}
-            />
-            <MetricCard
-              label="Total people risk / year"
-              value={`£${Math.round(
-                roiSummary.total_people_risk || 0
-              ).toLocaleString()}`}
-            />
-            <MetricCard
-              label="Wellbeing investment / year"
-              value={`£${Math.round(
-                roiSummary.annual_wellbeing_spend || 0
-              ).toLocaleString()}`}
-            />
-            <MetricCard
-              label="People risk : wellbeing ratio"
-              value={
-                roiSummary.roi_multiplier != null
-                  ? `${roiSummary.roi_multiplier.toFixed(1)}x`
-                  : "–"
-              }
-            />
-          </div>
-        </section>
-      )}
+{/* ------------------------- */}
+{/* QUICK ROI SNAPSHOT SECTION */}
+{/* ------------------------- */}
+
+{roiSummary && (
+  <section
+    style={{
+      border: "1px solid #f5e58a",
+      background: "#fffdf0",
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 24,
+    }}
+  >
+    <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>
+      Quick ROI snapshot
+    </h2>
+
+    <p style={{ fontSize: 13, opacity: 0.8, marginBottom: 12 }}>
+      Based on your current headcount, salary levels, turnover and absence,
+      here’s an estimated annual cost of people risk versus your wellbeing
+      investment.
+    </p>
+
+    {/* ROI Metric Cards */}
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+        gap: 12,
+      }}
+    >
+      <MetricCard
+        label="Total payroll"
+        value={
+          roiSummary.total_payroll != null
+            ? `£${roiSummary.total_payroll.toLocaleString("en-GB")}`
+            : "–"
+        }
+      />
+
+      <MetricCard
+        label="Estimated turnover cost / year"
+        value=
+          {
+            roiSummary.estimated_turnover_cost != null
+              ? `£${roiSummary.estimated_turnover_cost.toLocaleString("en-GB")}`
+              : "–"
+          }
+      />
+
+      <MetricCard
+        label="Estimated absence cost / year"
+        value={
+          roiSummary.estimated_absence_cost != null
+            ? `£${roiSummary.estimated_absence_cost.toLocaleString("en-GB")}`
+            : "–"
+        }
+      />
+
+      <MetricCard
+        label="Total people risk / year"
+        value={
+          roiSummary.total_people_risk != null
+            ? `£${roiSummary.total_people_risk.toLocaleString("en-GB")}`
+            : "–"
+        }
+      />
+
+      <MetricCard
+        label="Wellbeing investment / year"
+        value={
+          roiSummary.annual_wellbeing_spend != null
+            ? `£${roiSummary.annual_wellbeing_spend.toLocaleString("en-GB")}`
+            : "–"
+        }
+      />
+
+      <MetricCard
+        label="People risk : wellbeing ratio"
+        value={
+          roiSummary.roi_multiplier != null
+            ? `${roiSummary.roi_multiplier.toFixed(1)}x`
+            : "–"
+        }
+      />
+    </div>
+
+    {/* Explainer Text */}
+    {roiSummary.roi_multiplier != null && (
+      <p
+        style={{
+          marginTop: 12,
+          fontSize: 13,
+          opacity: 0.85,
+        }}
+      >
+        In simple terms: for every £1 you invest in wellbeing, you&apos;re
+        currently carrying around {roiSummary.roi_multiplier.toFixed(1)}x that
+        in people risk (turnover + absence). Human Return Index™ exists to close
+        that gap.
+      </p>
+    )}
+  </section>
+)}
+
 
       {/* PILLAR SCORES */}
       <section>
