@@ -60,7 +60,7 @@ export default function SettingsPage() {
     setMessage("");
     setError("");
 
-    try:
+    try {
       const res = await fetch("/api/org-metrics", {
         method: "POST",
         headers: {
@@ -75,7 +75,9 @@ export default function SettingsPage() {
         throw new Error(json.error || "Failed to save settings");
       }
 
-      setMessage("Settings saved successfully. Your dashboard will now reflect these inputs.");
+      setMessage(
+        "Settings saved successfully. Your dashboard will now reflect these inputs."
+      );
     } catch (err) {
       console.error("Settings save error:", err);
       setError(err.message);
