@@ -126,19 +126,18 @@ export default function AssessmentsPage() {
                   <Td>{a.badge_level || "—"}</Td>
                   <Td>{a.is_current ? "✅ Yes" : "—"}</Td>
                   <Td style={{ textAlign: "right" }}>
-                    <a
-                      href={`/api/assessments/${a.id}`}
-                      style={{
-                        fontSize: 13,
-                        textDecoration: "underline",
-                        opacity: 0.8,
-                      }}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      View JSON
-                    </a>
-                  </Td>
+  <a
+    href={`/dashboard/assessments/${a.id}`}
+    style={{
+      fontSize: 13,
+      textDecoration: "underline",
+      opacity: 0.8,
+    }}
+  >
+    View assessment
+  </a>
+</Td>
+
                 </tr>
               ))}
             </tbody>
