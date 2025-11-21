@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 
 export default function AssessmentsPage() {
   const [assessments, setAssessments] = useState([]);
-  const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     (async () => {
@@ -37,10 +37,10 @@ export default function AssessmentsPage() {
           margin: "0 auto",
         }}
       >
-        <h1 style={{ fontSize: 26, fontWeight: 800, marginBottom: 12 }}>
-          Assessments
+        <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 8 }}>
+          Human Return Index™ – Assessments
         </h1>
-        <p>Loading your assessments…</p>
+        <p style={{ opacity: 0.8 }}>Loading your assessments…</p>
       </main>
     );
   }
@@ -53,14 +53,14 @@ export default function AssessmentsPage() {
           fontFamily: "system-ui",
           maxWidth: 960,
           margin: "0 auto",
+          color: "crimson",
         }}
       >
-        <h1 style={{ fontSize: 26, fontWeight: 800, marginBottom: 12 }}>
-          Assessments
+        <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 8 }}>
+          Human Return Index™ – Assessments
         </h1>
-        <p style={{ color: "crimson" }}>
-          Something went wrong loading your assessments: {error}
-        </p>
+        <p>Something went wrong:</p>
+        <pre style={{ whiteSpace: "pre-wrap" }}>{error}</pre>
       </main>
     );
   }
@@ -74,13 +74,12 @@ export default function AssessmentsPage() {
         margin: "0 auto",
       }}
     >
-      <h1 style={{ fontSize: 26, fontWeight: 800, marginBottom: 8 }}>
-        Assessments
+      <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 8 }}>
+        Human Return Index™ – Assessments
       </h1>
-      <p style={{ marginBottom: 20, opacity: 0.8 }}>
-        This view shows all HRI assessments for your organisation. Right now
-        it&apos;s just your Pilot Test, but as you add more, they&apos;ll show
-        here with status, period, and overall HRI score.
+      <p style={{ marginBottom: 24, opacity: 0.8 }}>
+        Every assessment you run appears here. Click into any row to view its
+        scores and ROI impact.
       </p>
 
       {assessments.length === 0 ? (
@@ -107,9 +106,8 @@ export default function AssessmentsPage() {
                 <Th>Period</Th>
                 <Th>Created</Th>
                 <Th>Badge</Th>
-                <Th style={{ textAlign: "right", paddingRight: 16 }}>
-                  Overall HRI
-                </Th>
+                <Th>Current?</Th>
+                <Th></Th>
               </tr>
             </thead>
             <tbody>
@@ -126,10 +124,20 @@ export default function AssessmentsPage() {
                       : "-"}
                   </Td>
                   <Td>{a.badge_level || "—"}</Td>
-                  <Td style={{ textAlign: "right", paddingRight: 16 }}>
-                    {a.overall_score != null
-                      ? Math.round(a.overall_score)
-                      : "—"}
+                  <Td>{a.is_current ? "✅ Yes" : "—"}</Td>
+                  <Td style={{ textAlign: "right" }}>
+                    <a
+                      href={`/api/assessments/${a.id}`}
+                      style={{
+                        fontSize: 13,
+                        textDecoration: "underline",
+                        opacity: 0.8,
+                      }}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      View JSON
+                    </a>
                   </Td>
                 </tr>
               ))}
@@ -141,16 +149,17 @@ export default function AssessmentsPage() {
   );
 }
 
-// Tiny helper components for table cells
-function Th({ children, style }) {
+function Th({ children }) {
   return (
     <th
       style={{
         textAlign: "left",
         padding: "10px 12px",
-        fontWeight: 600,
         borderBottom: "1px solid #eee",
-        ...style,
+        fontWeight: 600,
+        fontSize: 12,
+        textTransform: "uppercase",
+        letterSpacing: "0.04em",
       }}
     >
       {children}
@@ -158,13 +167,12 @@ function Th({ children, style }) {
   );
 }
 
-function Td({ children, style }) {
+function Td({ children }) {
   return (
     <td
       style={{
         padding: "10px 12px",
         verticalAlign: "top",
-        ...style,
       }}
     >
       {children}
