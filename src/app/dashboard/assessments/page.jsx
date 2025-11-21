@@ -53,7 +53,7 @@ export default function AssessmentsPage() {
           fontFamily: "system-ui",
           maxWidth: 960,
           margin: "0 auto",
-          color: "crimson",
+          color: "#ff6b6b",
         }}
       >
         <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 8 }}>
@@ -72,6 +72,7 @@ export default function AssessmentsPage() {
         fontFamily: "system-ui",
         maxWidth: 960,
         margin: "0 auto",
+        color: "#f7f7f7",
       }}
     >
       <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 8 }}>
@@ -87,9 +88,10 @@ export default function AssessmentsPage() {
       ) : (
         <div
           style={{
-            border: "1px solid #eee",
+            border: "1px solid #333333",
             borderRadius: 12,
             overflow: "hidden",
+            background: "#0d0d0d",
           }}
         >
           <table
@@ -99,7 +101,7 @@ export default function AssessmentsPage() {
               fontSize: 14,
             }}
           >
-            <thead style={{ background: "#fafafa" }}>
+            <thead style={{ background: "#111111" }}>
               <tr>
                 <Th>Title</Th>
                 <Th>Status</Th>
@@ -112,7 +114,10 @@ export default function AssessmentsPage() {
             </thead>
             <tbody>
               {assessments.map((a) => (
-                <tr key={a.id} style={{ borderTop: "1px solid #f2f2f2" }}>
+                <tr
+                  key={a.id}
+                  style={{ borderTop: "1px solid #222222", background: "#0d0d0d" }}
+                >
                   <Td>{a.title}</Td>
                   <Td>{a.status}</Td>
                   <Td>
@@ -126,18 +131,18 @@ export default function AssessmentsPage() {
                   <Td>{a.badge_level || "—"}</Td>
                   <Td>{a.is_current ? "✅ Yes" : "—"}</Td>
                   <Td style={{ textAlign: "right" }}>
-  <a
-    href={`/dashboard/assessments/${a.id}`}
-    style={{
-      fontSize: 13,
-      textDecoration: "underline",
-      opacity: 0.8,
-    }}
-  >
-    View assessment
-  </a>
-</Td>
-
+                    <a
+                      href={`/dashboard/assessments/${a.id}`}
+                      style={{
+                        fontSize: 13,
+                        textDecoration: "underline",
+                        opacity: 0.9,
+                        color: "#fee000",
+                      }}
+                    >
+                      View details
+                    </a>
+                  </Td>
                 </tr>
               ))}
             </tbody>
@@ -154,11 +159,12 @@ function Th({ children }) {
       style={{
         textAlign: "left",
         padding: "10px 12px",
-        borderBottom: "1px solid #eee",
+        borderBottom: "1px solid #333333",
         fontWeight: 600,
         fontSize: 12,
         textTransform: "uppercase",
         letterSpacing: "0.04em",
+        color: "#f7f7f7",
       }}
     >
       {children}
@@ -172,6 +178,7 @@ function Td({ children }) {
       style={{
         padding: "10px 12px",
         verticalAlign: "top",
+        color: "#f7f7f7",
       }}
     >
       {children}
