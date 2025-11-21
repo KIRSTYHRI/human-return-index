@@ -9,65 +9,84 @@ if (!key) console.warn("Missing SUPABASE_SERVICE_ROLE_KEY");
 
 const supabase = createClient(url, key, { auth: { persistSession: false } });
 
-// Same org id we used in /api/overview for now.
-// Later this will come from the logged-in user.
+// Same org id we’ve been using
 const ORG_ID = "9499b1b9-7fce-43a1-9590-d533f00dc71d";
 
-// GET = list assessments for this org
-export async function GET() {
+export async function GET(request) {
   try {
-    const { data, error } = await supabase
+    // Optional ?limit= param (default 20)
+    const { searchParams } = new URL(request.url);
+    const limitParam = searchParams.get("limit");
+    const limit = limitParam ? Number(limitParam) || 20 : 20;
+
+    // 1) Get all assessments for this org
+    const { data: assessments, error: aErr } = await supabase
       .from("assessments")
       .select(
-        "id, title, status, period_start, period_end, created_at"
+        "id, title, status, created_at, period_start, period_end, badge_level, badge_awarded_at"
       )
       .eq("organisation_id", ORG_ID)
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .limit(limit);
 
-    if (error) throw error;
+    if (aErr) throw aErr;
 
-    return NextResponse.json({ ok: true, assessments: data ?? [] });
-  } catch (err) {
-    console.error("GET /api/assessments error:", err);
-    return NextResponse.json(
-      { ok: false, error: err.message || "Unknown error" },
-      { status: 500 }
-    );
-  }
-}
-
-// POST = create a new assessment cycle
-export async function POST(request) {
-  try {
-    const body = await request.json();
-    const { title, period_start, period_end, status } = body || {};
-
-    if (!title) {
-      return NextResponse.json(
-        { ok: false, error: "Title is required" },
-        { status: 400 }
-      );
+    if (!assessments || assessments.length === 0) {
+      return NextResponse.json({
+        ok: true,
+        assessments: [],
+      });
     }
 
-    const insertData = {
-      organisation_id: ORG_ID,
-      title,
-      status: status || "OPEN",
-      period_start: period_start || null,
-      period_end: period_end || null,
-    };
+    const assessmentIds = assessments.map((a) => a.id);
 
-    const { data, error } = await supabase
-      .from("assessments")
-      .insert(insertData)
-      .select("id, title, status, period_start, period_end, created_at")
-      .single();
+    // 2) Pull all scores for those assessments
+    const { data: scores, error: sErr } = await supabase
+      .from("scores")
+      .select("assessment_id, pillar, score")
+      .in("assessment_id", assessmentIds);
 
-    if (error) throw error;
+    if (sErr) throw sErr;
 
-    return NextResponse.json({ ok: true, assessment: data });
+    // 3) Group scores by assessment and calculate overall
+    const scoresByAssessment = {};
+    for (const row of scores || []) {
+      if (!scoresByAssessment[row.assessment_id]) {
+        scoresByAssessment[row.assessment_id] = [];
+      }
+      scoresByAssessment[row.assessment_id].push(row);
+    }
+
+    const enriched = assessments.map((a) => {
+      const s = scoresByAssessment[a.id] || [];
+      const numericScores = s
+        .map((r) => Number(r.score))
+        .filter((n) => Number.isFinite(n));
+
+      const overall =
+        numericScores.length > 0
+          ? numericScores.reduce((sum, n) => sum + n, 0) / numericScores.length
+          : null;
+
+      return {
+        id: a.id,
+        title: a.title,
+        status: a.status,
+        period_start: a.period_start,
+        period_end: a.period_end,
+        created_at: a.created_at,
+        badge_level: a.badge_level,
+        badge_awarded_at: a.badge_awarded_at,
+        overall_score: overall,
+      };
+    });
+
+    return NextResponse.json({
+      ok: true,
+      assessments: enriched,
+    });
   } catch (err) {
-    console.error("POST /api/assessments error:", err);
+    console.error("Error in /api/assessments:", err);
     return NextResponse.json(
       { ok: false, error: err.message || "Unknown error" },
       { status: 500 }
