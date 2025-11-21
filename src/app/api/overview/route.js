@@ -16,16 +16,18 @@ export async function GET() {
   try {
     console.log("USING REAL /api/overview HANDLER");
 
-    // 1) Latest assessment for your org
-    const { data: assessment, error: aErr } = await supabase
-      .from("assessments")
-      .select(
-        "id, title, status, created_at, period_start, period_end, badge_level, badge_awarded_at"
-      )
-      .eq("organisation_id", ORG_ID)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    // 1) Latest assessment for your org – prefer is_current = true
+const { data: assessment, error: aErr } = await supabase
+  .from("assessments")
+  .select(
+    "id, title, status, created_at, period_start, period_end, badge_level, badge_awarded_at, is_current"
+  )
+  .eq("organisation_id", ORG_ID)
+  .order("is_current", { ascending: false })  // true (1) comes before false (0)
+  .order("created_at", { ascending: false }) // latest after that
+  .limit(1)
+  .maybeSingle();
+
 
     if (aErr) throw aErr;
 
