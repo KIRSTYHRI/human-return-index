@@ -167,6 +167,25 @@ export default function AssessmentDetailPage({ params }) {
         </div>
       </section>
 
+            {/* ACTION BUTTON */}
+      <div style={{ marginBottom: 24 }}>
+        <Link
+          href={`/dashboard/assessments/${assessment.id}/run`}
+          style={{
+            display: "inline-block",
+            padding: "10px 18px",
+            background: "#000",
+            color: "#fff",
+            borderRadius: 8,
+            fontSize: 14,
+            textDecoration: "none",
+            fontWeight: 600,
+          }}
+        >
+          Start / Edit Assessment
+        </Link>
+      </div>
+
       <section>
         <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>
           Pillar Scores
