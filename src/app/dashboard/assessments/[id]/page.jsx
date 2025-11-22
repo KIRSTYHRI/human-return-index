@@ -1,8 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 
+const PILLARS = [
+  "Leadership",
+  "Wellbeing & Mental Health",
+  "Inclusion & Belonging",
+  "Growth & Development",
+  "Trust & Communication",
+];
 
 export default function AssessmentDetailPage({ params }) {
   const { id } = params;
@@ -11,6 +17,14 @@ export default function AssessmentDetailPage({ params }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  // editing state
+  const [editing, setEditing] = useState(false);
+  const [formScores, setFormScores] = useState([]);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [saveMessage, setSaveMessage] = useState("");
+
+  // Load assessment + scores
   useEffect(() => {
     if (!id) return;
 
@@ -33,12 +47,23 @@ export default function AssessmentDetailPage({ params }) {
           .filter((n) => Number.isFinite(n));
 
         if (nums.length > 0) {
-          const avg =
-            nums.reduce((sum, n) => sum + n, 0) / nums.length;
+          const avg = nums.reduce((sum, n) => sum + n, 0) / nums.length;
           setOverallScore(avg);
         } else {
           setOverallScore(null);
         }
+
+        // Build formScores array for editing, one row per pillar
+        const byPillar = new Map(
+          (scores || []).map((s) => [s.pillar, s.score])
+        );
+
+        const initialFormScores = PILLARS.map((pillar) => ({
+          pillar,
+          score: byPillar.has(pillar) ? String(byPillar.get(pillar)) : "",
+        }));
+
+        setFormScores(initialFormScores);
       } catch (err) {
         console.error("Error loading assessment:", err);
         setError(err.message);
@@ -47,6 +72,62 @@ export default function AssessmentDetailPage({ params }) {
       }
     })();
   }, [id]);
+
+  async function handleSave(e) {
+    e.preventDefault();
+    setSaving(true);
+    setSaveError("");
+    setSaveMessage("");
+
+    try {
+      // Send scores to the API
+      const res = await fetch(`/api/assessments/${id}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          scores: formScores,
+        }),
+      });
+
+      const json = await res.json();
+
+      if (!res.ok || !json.ok) {
+        throw new Error(json.error || "Failed to save scores");
+      }
+
+      // Update local state with fresh data from API
+      setData(json);
+
+      const scores = json.scores || [];
+      const nums = scores
+        .map((s) => Number(s.score))
+        .filter((n) => Number.isFinite(n));
+      if (nums.length > 0) {
+        const avg = nums.reduce((sum, n) => sum + n, 0) / nums.length;
+        setOverallScore(avg);
+      } else {
+        setOverallScore(null);
+      }
+
+      setSaveMessage("Assessment scores saved successfully.");
+      setEditing(false);
+    } catch (err) {
+      console.error("Save error:", err);
+      setSaveError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function handleScoreChange(idx, value) {
+    setFormScores((prev) =>
+      prev.map((row, i) =>
+        i === idx ? { ...row, score: value } : row
+      )
+    );
+  }
 
   if (loading) {
     return (
@@ -122,6 +203,7 @@ export default function AssessmentDetailPage({ params }) {
         • Status: {assessment.status}
       </p>
 
+      {/* Top summary */}
       <section
         style={{
           border: "1px solid #eee",
@@ -167,31 +249,135 @@ export default function AssessmentDetailPage({ params }) {
         </div>
       </section>
 
-            {/* ACTION BUTTON */}
-      <div style={{ marginBottom: 24 }}>
-        <Link
-          href={`/dashboard/assessments/${assessment.id}/run`}
+      {/* Edit button + messages */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: 16,
+          gap: 16,
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setEditing((prev) => !prev)}
           style={{
-            display: "inline-block",
-            padding: "10px 18px",
-            background: "#000",
-            color: "#fff",
-            borderRadius: 8,
+            padding: "8px 14px",
+            borderRadius: 999,
+            border: "none",
+            background: "black",
+            color: "white",
             fontSize: 14,
-            textDecoration: "none",
-            fontWeight: 600,
+            cursor: "pointer",
           }}
         >
-          Start / Edit Assessment
-        </Link>
+          {editing ? "Cancel editing" : "Start / Edit Assessment"}
+        </button>
+
+        {saveMessage && (
+          <span style={{ fontSize: 13, color: "green" }}>{saveMessage}</span>
+        )}
+        {saveError && (
+          <span style={{ fontSize: 13, color: "crimson" }}>{saveError}</span>
+        )}
       </div>
 
+      {/* Edit form (simple sliders/inputs) */}
+      {editing && (
+        <section
+          style={{
+            border: "1px solid #eee",
+            borderRadius: 12,
+            padding: 16,
+            marginBottom: 24,
+          }}
+        >
+          <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>
+            Edit pillar scores
+          </h2>
+          <p style={{ fontSize: 13, opacity: 0.8, marginBottom: 12 }}>
+            Enter a score from 0 to 100 for each pillar based on your latest
+            assessment results.
+          </p>
+
+          <form onSubmit={handleSave}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))",
+                gap: 12,
+                marginBottom: 16,
+              }}
+            >
+              {formScores.map((row, idx) => (
+                <div
+                  key={row.pillar}
+                  style={{
+                    border: "1px solid #f2f2f2",
+                    borderRadius: 10,
+                    padding: 10,
+                    background: "#fafafa",
+                  }}
+                >
+                  <div
+                    style={{
+                      opacity: 0.7,
+                      fontSize: 12,
+                      marginBottom: 4,
+                    }}
+                  >
+                    {row.pillar}
+                  </div>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={row.score}
+                    onChange={(e) =>
+                      handleScoreChange(idx, e.target.value)
+                    }
+                    style={{
+                      width: "100%",
+                      padding: "6px 8px",
+                      borderRadius: 6,
+                      border: "1px solid #ddd",
+                      fontSize: 14,
+                    }}
+                    placeholder="0–100"
+                  />
+                </div>
+              ))}
+            </div>
+
+            <button
+              type="submit"
+              disabled={saving}
+              style={{
+                padding: "8px 16px",
+                borderRadius: 999,
+                border: "none",
+                background: saving ? "#555" : "black",
+                color: "white",
+                fontSize: 14,
+                cursor: saving ? "default" : "pointer",
+              }}
+            >
+              {saving ? "Saving…" : "Save assessment scores"}
+            </button>
+          </form>
+        </section>
+      )}
+
+      {/* Read-only pillar scores below */}
       <section>
         <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>
           Pillar Scores
         </h2>
-        {(!scores || scores.length === 0) ? (
-          <p style={{ opacity: 0.7 }}>No pillar scores recorded for this assessment yet.</p>
+        {!scores || scores.length === 0 ? (
+          <p style={{ opacity: 0.7 }}>
+            No pillar scores recorded for this assessment yet.
+          </p>
         ) : (
           <div
             style={{
