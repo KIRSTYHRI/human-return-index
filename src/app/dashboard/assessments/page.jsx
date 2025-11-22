@@ -1,15 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 export default function AssessmentsPage() {
+  const router = useRouter();
+
   const [assessments, setAssessments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [creating, setCreating] = useState(false);
-  const [statusMessage, setStatusMessage] = useState("");
+  const [createError, setCreateError] = useState("");
 
-  // Load all assessments
+  // Load existing assessments
   useEffect(() => {
     (async () => {
       try {
@@ -30,16 +33,16 @@ export default function AssessmentsPage() {
     })();
   }, []);
 
+  // Handler: create a new assessment via API, then navigate to it
   async function handleCreateAssessment() {
     try {
+      setCreateError("");
       setCreating(true);
-      setStatusMessage("");
-      setError("");
 
       const res = await fetch("/api/assessments/new", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify({}), // empty body for now
       });
 
       const json = await res.json();
@@ -48,22 +51,16 @@ export default function AssessmentsPage() {
         throw new Error(json.error || "Failed to create assessment");
       }
 
-      setStatusMessage(
-        `New assessment created: "${json.assessment.title}". Refreshing list…`
-      );
-
-      // Re-fetch the assessments list
-      const res2 = await fetch("/api/assessments", { cache: "no-store" });
-      const json2 = await res2.json();
-
-      if (!res2.ok || !json2.ok) {
-        throw new Error(json2.error || "Failed to reload assessments");
+      const newId = json.assessment?.id;
+      if (!newId) {
+        throw new Error("No assessment ID returned from API");
       }
 
-      setAssessments(json2.assessments || []);
+      // Navigate to the new assessment detail page
+      router.push(`/dashboard/assessments/${newId}`);
     } catch (err) {
       console.error("Error creating assessment:", err);
-      setError(err.message);
+      setCreateError(err.message);
     } finally {
       setCreating(false);
     }
@@ -116,54 +113,51 @@ export default function AssessmentsPage() {
         margin: "0 auto",
       }}
     >
-      <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 8 }}>
-        Human Return Index™ – Assessments
-      </h1>
-      <p style={{ marginBottom: 16, opacity: 0.8 }}>
-        Every assessment you run appears here. Click into any row to view its
-        scores and ROI impact.
-      </p>
-
-      {/* Top bar: button + message */}
       <div
         style={{
-          marginBottom: 20,
           display: "flex",
           justifyContent: "space-between",
+          gap: 16,
           alignItems: "center",
-          gap: 12,
-          flexWrap: "wrap",
+          marginBottom: 16,
         }}
       >
+        <div>
+          <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 4 }}>
+            Human Return Index™ – Assessments
+          </h1>
+          <p style={{ marginBottom: 0, opacity: 0.8 }}>
+            Every assessment you run appears here. Click into any row to view
+            its scores and ROI impact.
+          </p>
+        </div>
+
         <button
+          type="button"
           onClick={handleCreateAssessment}
           disabled={creating}
           style={{
-            padding: "8px 14px",
+            padding: "10px 16px",
             borderRadius: 999,
             border: "none",
-            background: "#111",
-            color: "#fff",
-            fontSize: 14,
             fontWeight: 600,
+            fontSize: 14,
             cursor: creating ? "default" : "pointer",
-            opacity: creating ? 0.7 : 1,
+            background: "#FEE000",
+            color: "#111",
+            boxShadow: "0 2px 6px rgba(0,0,0,0.1)",
+            whiteSpace: "nowrap",
           }}
         >
-          {creating ? "Creating…" : "➕ New assessment"}
+          {creating ? "Creating…" : "Start new assessment"}
         </button>
-
-        {statusMessage && (
-          <div
-            style={{
-              fontSize: 13,
-              opacity: 0.8,
-            }}
-          >
-            {statusMessage}
-          </div>
-        )}
       </div>
+
+      {createError && (
+        <p style={{ color: "crimson", fontSize: 13, marginBottom: 12 }}>
+          {createError}
+        </p>
+      )}
 
       {assessments.length === 0 ? (
         <p style={{ opacity: 0.7 }}>No assessments found yet.</p>
