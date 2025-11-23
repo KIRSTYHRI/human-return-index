@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import CurrentAssessmentCard from "./CurrentAssessmentCard";
 
 export default function Dashboard() {
   const [overview, setOverview] = useState(null);
   const [scores, setScores] = useState([]);
   const [orgMetrics, setOrgMetrics] = useState(null);
   const [roiSummary, setRoiSummary] = useState(null);
+  const [pulseSummary, setPulseSummary] = useState(null); // 👈 NEW
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -24,6 +24,7 @@ export default function Dashboard() {
         setScores(j.scores || []);
         setOrgMetrics(j.org_metrics || null);
         setRoiSummary(j.roi_summary || null);
+        setPulseSummary(j.pulse_summary || null); // 👈 NEW
       } catch (err) {
         console.error("Dashboard load error:", err);
         setError(err.message);
@@ -67,9 +68,6 @@ export default function Dashboard() {
         data below is coming from your Supabase “Pilot Test” assessment and
         organisation settings.
       </p>
-
-      {/* ✅ NEW – Live HRI card */}
-      <CurrentAssessmentCard />
 
       {/* TOP SUMMARY */}
       <section
@@ -175,7 +173,7 @@ export default function Dashboard() {
             />
             <MetricCard
               label="Annual wellbeing spend"
-              value={
+              value(
                 orgMetrics.annual_wellbeing_spend != null
                   ? `£${orgMetrics.annual_wellbeing_spend.toLocaleString()}`
                   : "–"
@@ -193,7 +191,7 @@ export default function Dashboard() {
         </section>
       )}
 
-      {/* QUICK ROI SNAPSHOT */}
+      {/* QUICK ROI SNAPSHOT SECTION */}
       {roiSummary && (
         <section
           style={{
@@ -331,6 +329,51 @@ export default function Dashboard() {
           )}
         </div>
       </section>
+
+      {/* EMPLOYEE PULSE SUMMARY */}
+      {pulseSummary && pulseSummary.length > 0 && (
+        <section
+          style={{
+            border: "1px solid #dff0ff",
+            background: "#f7fbff",
+            borderRadius: 12,
+            padding: 16,
+            marginTop: 24,
+          }}
+        >
+          <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>
+            Latest Employee Pulse
+          </h2>
+          <p style={{ fontSize: 13, opacity: 0.8, marginBottom: 12 }}>
+            Live sentiment snapshot across the 5 HRI pillars.
+          </p>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill,minmax(180px,1fr))",
+              gap: 12,
+            }}
+          >
+            {pulseSummary.map((p) => (
+              <div
+                key={p.pillar}
+                style={{
+                  border: "1px solid #e6f0fa",
+                  borderRadius: 10,
+                  padding: 12,
+                  background: "white",
+                }}
+              >
+                <div style={{ opacity: 0.7, fontSize: 12 }}>{p.pillar}</div>
+                <div style={{ fontSize: 24, fontWeight: 800 }}>
+                  {Math.round(Number(p.score))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
     </main>
   );
 }
