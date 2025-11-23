@@ -236,7 +236,7 @@ export default function HriAssessmentPage() {
       return;
     }
 
-    // 3) Build per-pillar scores based on answers
+    // 1) Build per-pillar scores based on answers
     const scoresPayload = [];
 
     for (const pillar of pillars) {
@@ -264,6 +264,23 @@ export default function HriAssessmentPage() {
 
     try {
       setSaving(true);
+
+      // 🔹 1) Save raw answers
+      const answersRes = await fetch("/api/employer-responses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          assessment_id: overview.assessment_id,
+          answers, // e.g. { growth_q1: "4", wellbeing_q2: "3", ... }
+        }),
+      });
+
+      const answersJson = await answersRes.json();
+      if (!answersRes.ok || !answersJson.ok) {
+        throw new Error(answersJson.error || "Failed to save raw answers");
+      }
+
+      // 🔹 2) Save pillar scores (existing behaviour)
       const res = await fetch("/api/scores", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -280,7 +297,7 @@ export default function HriAssessmentPage() {
       }
 
       setMessage(
-        "Assessment saved. Your dashboard and assessments list will now reflect these pillar scores."
+        "Assessment saved. Your responses and pillar scores are now stored against this assessment."
       );
     } catch (err) {
       console.error("Error submitting HRI assessment:", err);
