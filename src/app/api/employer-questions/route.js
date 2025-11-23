@@ -1,33 +1,33 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-if (!url) console.warn("Missing NEXT_PUBLIC_SUPABASE_URL");
-if (!key) console.warn("Missing SUPABASE_SERVICE_ROLE_KEY");
-
-const supabase = createClient(url, key, { auth: { persistSession: false } });
+// ⬇️ IMPORTANT: copy your Supabase import/client from db-ping here
+// e.g. import { supabase } from "@/lib/supabaseClient";
+// or createClient(...) – same as db-ping
 
 export async function GET() {
   try {
-    // Pull all employer questions, grouped/sorted nicely
+    // Adjust this line to match your Supabase client
     const { data, error } = await supabase
       .from("employer_questions")
-      .select("*")
-      .order("pillar", { ascending: true })
-      .order("id", { ascending: true });
+      .select("id, pillar, code, question_text, position")
+      .order("position", { ascending: true });
 
-    if (error) throw error;
+    if (error) {
+      console.error("Error fetching employer questions:", error);
+      return NextResponse.json(
+        { ok: false, error: error.message },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({
       ok: true,
-      questions: data || [],
+      source: "employer-questions endpoint",
+      questions: data,
     });
   } catch (err) {
-    console.error("Error in /api/employer-questions:", err);
+    console.error("Unexpected error:", err);
     return NextResponse.json(
-      { ok: false, error: err.message || "Unknown error" },
+      { ok: false, error: "Unexpected server error" },
       { status: 500 }
     );
   }
