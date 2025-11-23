@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 
-const PILLARS = [
+// 🔹 Fallback questions (used only if API fails)
+const DEFAULT_PILLARS = [
   {
     id: "Leadership",
     label: "Leadership",
@@ -150,6 +151,11 @@ export default function HriAssessmentPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
+  // 🔹 New: live pillars from API (or fallback)
+  const [pillars, setPillars] = useState(null);
+  const [questionsLoading, setQuestionsLoading] = useState(true);
+  const [questionsError, setQuestionsError] = useState("");
+
   // 1) Fetch the current assessment via /api/overview
   useEffect(() => {
     (async () => {
@@ -163,6 +169,47 @@ export default function HriAssessmentPage() {
       } catch (err) {
         console.error("Error loading overview for assessment form:", err);
         setError(err.message);
+      }
+    })();
+  }, []);
+
+  // 2) Fetch employer questions from /api/employer-questions
+  useEffect(() => {
+    (async () => {
+      try {
+        setQuestionsLoading(true);
+        const res = await fetch("/api/employer-questions", { cache: "no-store" });
+        const json = await res.json();
+
+        if (!res.ok || !json.ok || !Array.isArray(json.questions)) {
+          throw new Error(json.error || "Failed to load questions");
+        }
+
+        // Group questions by pillar into the same shape as DEFAULT_PILLARS
+        const grouped = json.questions.reduce((acc, q) => {
+          const label = q.pillar || "Other";
+          let section = acc.find((s) => s.label === label);
+          if (!section) {
+            section = { id: label, label, questions: [] };
+            acc.push(section);
+          }
+
+          section.questions.push({
+            id: q.code || q.id, // use code as the question id where possible
+            text: q.question_text,
+          });
+
+          return acc;
+        }, []);
+
+        setPillars(grouped);
+      } catch (err) {
+        console.error("Error loading employer questions:", err);
+        setQuestionsError(err.message || "Could not load questions. Using defaults.");
+        // Fallback to the hard-coded questions
+        setPillars(DEFAULT_PILLARS);
+      } finally {
+        setQuestionsLoading(false);
       }
     })();
   }, []);
@@ -184,10 +231,15 @@ export default function HriAssessmentPage() {
       return;
     }
 
-    // 2) Build per-pillar scores based on answers
+    if (!pillars || pillars.length === 0) {
+      setError("No questions loaded. Please try again or contact support.");
+      return;
+    }
+
+    // 3) Build per-pillar scores based on answers
     const scoresPayload = [];
 
-    for (const pillar of PILLARS) {
+    for (const pillar of pillars) {
       const qScores = pillar.questions
         .map((q) => toScore(answers[q.id]))
         .filter((s) => s != null);
@@ -237,6 +289,8 @@ export default function HriAssessmentPage() {
       setSaving(false);
     }
   }
+
+  const pillarsToUse = pillars || DEFAULT_PILLARS;
 
   return (
     <main
@@ -292,6 +346,21 @@ export default function HriAssessmentPage() {
         </div>
       )}
 
+      {questionsError && (
+        <div
+          style={{
+            marginBottom: 16,
+            padding: 12,
+            borderRadius: 8,
+            background: "#fff8e6",
+            color: "#7a4b00",
+            fontSize: 13,
+          }}
+        >
+          {questionsError}
+        </div>
+      )}
+
       {message && (
         <div
           style={{
@@ -307,8 +376,23 @@ export default function HriAssessmentPage() {
         </div>
       )}
 
+      {questionsLoading && !pillars && (
+        <div
+          style={{
+            marginBottom: 16,
+            padding: 12,
+            borderRadius: 8,
+            background: "#f4f4f4",
+            color: "#444",
+            fontSize: 13,
+          }}
+        >
+          Loading questions…
+        </div>
+      )}
+
       <form onSubmit={handleSubmit}>
-        {PILLARS.map((pillar) => (
+        {pillarsToUse.map((pillar) => (
           <section
             key={pillar.id}
             style={{
