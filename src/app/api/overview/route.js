@@ -6,6 +6,7 @@ const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabase =
   url && key ? createClient(url, key, { auth: { persistSession: false } }) : null;
 
+// Build ROI summary in the API (using org_metrics)
 function buildRoiSummary(orgMetrics) {
   if (!orgMetrics) return null;
 
@@ -87,6 +88,25 @@ export async function GET() {
       orgMetrics = metrics || null;
     }
 
+    // 2b️⃣ If we have org_metrics, try to fetch the organisation name
+    let orgMetricsWithName = orgMetrics;
+    if (orgMetrics && orgMetrics.organisation_id) {
+      const { data: orgRecord, error: orgErr } = await supabase
+        .from("organisations")
+        .select("id, name")
+        .eq("id", orgMetrics.organisation_id)
+        .maybeSingle();
+
+      if (orgErr) {
+        console.warn("Organisation fetch warning:", orgErr.message);
+      }
+
+      orgMetricsWithName = {
+        ...orgMetrics,
+        name: orgRecord?.name ?? null,
+      };
+    }
+
     // 3️⃣ Scores – 1 row per pillar for this assessment
     const { data: scoresData, error: scoresError } = await supabase
       .from("scores")
@@ -114,8 +134,8 @@ export async function GET() {
       badge_awarded_at: assessment.badge_awarded_at,
     };
 
-    // 5️⃣ ROI summary from org metrics
-    const roiSummary = buildRoiSummary(orgMetrics);
+    // 5️⃣ ROI summary from org metrics (still using org_metrics table)
+    const roiSummary = buildRoiSummary(orgMetricsWithName);
 
     // 6️⃣ Employee pulse summary – latest pulse only
     let pulseSummary = null;
@@ -193,7 +213,7 @@ export async function GET() {
       ok: true,
       overview,
       scores: scoresData || [],
-      org_metrics: orgMetrics,
+      org_metrics: orgMetricsWithName,
       roi_summary: roiSummary,
       pulse_summary: pulseSummary,
     });
