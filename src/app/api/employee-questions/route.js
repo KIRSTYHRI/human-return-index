@@ -15,7 +15,7 @@ export async function GET() {
     }
 
     const { data, error } = await supabase
-      .from("employee_questions") // ✅ if your 10 pulse questions are here
+      .from("employee_questions")   // ✅ correct table
       .select("id, pillar, code, question_text, position")
       .order("position", { ascending: true });
 
