@@ -3,8 +3,10 @@ import { createClient } from "@supabase/supabase-js";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const supabase = url && key ? createClient(url, key, { auth: { persistSession: false } }) : null;
+const supabase =
+  url && key ? createClient(url, key, { auth: { persistSession: false } }) : null;
 
+// Badge rules
 function computeBadge(overallScore) {
   if (overallScore == null) return null;
   if (overallScore >= 80) return "HRI Accredited Plus";
@@ -31,25 +33,27 @@ export async function POST(req) {
       );
     }
 
-    // 1️⃣ Upsert pillar scores into scores table
+    // 1️⃣ Prepare rows
     const scoreRows = scores.map((s) => ({
       assessment_id,
       pillar: s.pillar,
       score: Number(s.score),
     }));
 
+    // 2️⃣ INSERT (no ON CONFLICT)
     const { error: scoresError } = await supabase
       .from("scores")
-      .upsert(scoreRows, { onConflict: "assessment_id,pillar" });
+      .insert(scoreRows);
 
     if (scoresError) {
+      console.error("Scores insert error:", scoresError);
       return NextResponse.json(
         { ok: false, error: scoresError.message },
         { status: 500 }
       );
     }
 
-    // 2️⃣ Compute overall average score
+    // 3️⃣ Calculate overall score
     const numericScores = scoreRows
       .map((s) => (Number.isFinite(s.score) ? s.score : null))
       .filter((v) => v != null);
@@ -59,14 +63,15 @@ export async function POST(req) {
         ? numericScores.reduce((sum, v) => sum + v, 0) / numericScores.length
         : null;
 
-    // 3️⃣ Fetch existing assessment for current badge
+    // 4️⃣ Load assessment to compare badge
     const { data: assessment, error: assessError } = await supabase
       .from("assessments")
-      .select("id, overall_score, badge_level, badge_awarded_at")
+      .select("id, badge_level")
       .eq("id", assessment_id)
       .single();
 
     if (assessError) {
+      console.error("Assessment fetch error:", assessError);
       return NextResponse.json(
         { ok: false, error: assessError.message },
         { status: 500 }
@@ -80,18 +85,20 @@ export async function POST(req) {
       overall_score: overallScore,
     };
 
-    // 4️⃣ Only update badge fields if the level has changed
+    // Only update badge if changed
     if (newBadge !== existingBadge) {
       updates.badge_level = newBadge;
       updates.badge_awarded_at = newBadge ? new Date().toISOString() : null;
     }
 
+    // 5️⃣ Update assessment
     const { error: updateError } = await supabase
       .from("assessments")
       .update(updates)
       .eq("id", assessment_id);
 
     if (updateError) {
+      console.error("Assessment update error:", updateError);
       return NextResponse.json(
         { ok: false, error: updateError.message },
         { status: 500 }
