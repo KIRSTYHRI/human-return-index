@@ -48,7 +48,7 @@ export async function GET() {
       );
     }
 
-    // 1️⃣ Get latest assessment (Pilot / current org)
+    // 1️⃣ Get latest assessment
     const { data: assessments, error: assessError } = await supabase
       .from("assessments")
       .select(
@@ -118,8 +118,9 @@ export async function GET() {
       }
     }
 
-    // 4️⃣ Build overview object for dashboard
+    // 4️⃣ Build overview object for dashboard + assessment form
     const overview = {
+      assessment_id: assessment.id,        // 👈 THIS is what your form needs
       title: assessment.title,
       status: assessment.status,
       period_start: assessment.period_start,
