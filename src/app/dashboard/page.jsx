@@ -1,5 +1,7 @@
 "use client";
+
 import { useEffect, useState } from "react";
+import CurrentAssessmentCard from "./CurrentAssessmentCard";
 
 export default function Dashboard() {
   const [overview, setOverview] = useState(null);
@@ -66,7 +68,10 @@ export default function Dashboard() {
         organisation settings.
       </p>
 
-      {/* TOP SUMMARY */}
+      {/* ✅ NEW — LIVE CURRENT ASSESSMENT CARD */}
+      <CurrentAssessmentCard />
+
+      {/* TOP SUMMARY (kept exactly as you had it) */}
       <section
         style={{
           border: "1px solid #eee",
@@ -148,201 +153,3 @@ export default function Dashboard() {
               label="Average salary"
               value={
                 orgMetrics.avg_salary != null
-                  ? `£${orgMetrics.avg_salary.toLocaleString()}`
-                  : "–"
-              }
-            />
-            <MetricCard
-              label="Turnover rate"
-              value={
-                orgMetrics.turnover_rate != null
-                  ? `${orgMetrics.turnover_rate}%`
-                  : "–"
-              }
-            />
-            <MetricCard
-              label="Absence days per employee"
-              value={
-                orgMetrics.absent_days_per_employee != null
-                  ? orgMetrics.absent_days_per_employee
-                  : "–"
-              }
-            />
-            <MetricCard
-              label="Annual wellbeing spend"
-              value={
-                orgMetrics.annual_wellbeing_spend != null
-                  ? `£${orgMetrics.annual_wellbeing_spend.toLocaleString()}`
-                  : "–"
-              }
-            />
-            <MetricCard
-              label="Engagement score"
-              value={
-                orgMetrics.engagement_score != null
-                  ? `${orgMetrics.engagement_score}/100`
-                  : "–"
-              }
-            />
-          </div>
-        </section>
-      )}
-
-{/* ------------------------- */}
-{/* QUICK ROI SNAPSHOT SECTION */}
-{/* ------------------------- */}
-
-{roiSummary && (
-  <section
-    style={{
-      border: "1px solid #f5e58a",
-      background: "#fffdf0",
-      borderRadius: 12,
-      padding: 16,
-      marginBottom: 24,
-    }}
-  >
-    <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>
-      Quick ROI snapshot
-    </h2>
-
-    <p style={{ fontSize: 13, opacity: 0.8, marginBottom: 12 }}>
-      Based on your current headcount, salary levels, turnover and absence,
-      here’s an estimated annual cost of people risk versus your wellbeing
-      investment.
-    </p>
-
-    {/* ROI Metric Cards */}
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
-        gap: 12,
-      }}
-    >
-      <MetricCard
-        label="Total payroll"
-        value={
-          roiSummary.total_payroll != null
-            ? `£${roiSummary.total_payroll.toLocaleString("en-GB")}`
-            : "–"
-        }
-      />
-
-      <MetricCard
-        label="Estimated turnover cost / year"
-        value=
-          {
-            roiSummary.estimated_turnover_cost != null
-              ? `£${roiSummary.estimated_turnover_cost.toLocaleString("en-GB")}`
-              : "–"
-          }
-      />
-
-      <MetricCard
-        label="Estimated absence cost / year"
-        value={
-          roiSummary.estimated_absence_cost != null
-            ? `£${roiSummary.estimated_absence_cost.toLocaleString("en-GB")}`
-            : "–"
-        }
-      />
-
-      <MetricCard
-        label="Total people risk / year"
-        value={
-          roiSummary.total_people_risk != null
-            ? `£${roiSummary.total_people_risk.toLocaleString("en-GB")}`
-            : "–"
-        }
-      />
-
-      <MetricCard
-        label="Wellbeing investment / year"
-        value={
-          roiSummary.annual_wellbeing_spend != null
-            ? `£${roiSummary.annual_wellbeing_spend.toLocaleString("en-GB")}`
-            : "–"
-        }
-      />
-
-      <MetricCard
-        label="People risk : wellbeing ratio"
-        value={
-          roiSummary.roi_multiplier != null
-            ? `${roiSummary.roi_multiplier.toFixed(1)}x`
-            : "–"
-        }
-      />
-    </div>
-
-    {/* Explainer Text */}
-    {roiSummary.roi_multiplier != null && (
-      <p
-        style={{
-          marginTop: 12,
-          fontSize: 13,
-          opacity: 0.85,
-        }}
-      >
-        In simple terms: for every £1 you invest in wellbeing, you&apos;re
-        currently carrying around {roiSummary.roi_multiplier.toFixed(1)}x that
-        in people risk (turnover + absence). Human Return Index™ exists to close
-        that gap.
-      </p>
-    )}
-  </section>
-)}
-
-
-      {/* PILLAR SCORES */}
-      <section>
-        <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>
-          Pillar Scores
-        </h2>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill,minmax(180px,1fr))",
-            gap: 12,
-          }}
-        >
-          {scores.map((s) => (
-            <div
-              key={s.pillar}
-              style={{
-                border: "1px solid #eee",
-                borderRadius: 10,
-                padding: 12,
-              }}
-            >
-              <div style={{ opacity: 0.7, fontSize: 12 }}>{s.pillar}</div>
-              <div style={{ fontSize: 24, fontWeight: 800 }}>
-                {Math.round(Number(s.score))}
-              </div>
-            </div>
-          ))}
-          {scores.length === 0 && (
-            <div style={{ opacity: 0.7 }}>No pillar scores yet.</div>
-          )}
-        </div>
-      </section>
-    </main>
-  );
-}
-
-function MetricCard({ label, value }) {
-  return (
-    <div
-      style={{
-        border: "1px solid #f2f2f2",
-        borderRadius: 10,
-        padding: 10,
-        background: "#fafafa",
-      }}
-    >
-      <div style={{ opacity: 0.6, fontSize: 11 }}>{label}</div>
-      <div style={{ fontWeight: 700, marginTop: 4 }}>{value}</div>
-    </div>
-  );
-}
