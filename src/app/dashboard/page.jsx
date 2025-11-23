@@ -7,7 +7,7 @@ export default function Dashboard() {
   const [scores, setScores] = useState([]);
   const [orgMetrics, setOrgMetrics] = useState(null);
   const [roiSummary, setRoiSummary] = useState(null);
-  const [pulseSummary, setPulseSummary] = useState(null);
+  const [pulseSummary, setPulseSummary] = useState([]);
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -24,7 +24,7 @@ export default function Dashboard() {
         setScores(j.scores || []);
         setOrgMetrics(j.org_metrics || null);
         setRoiSummary(j.roi_summary || null);
-        setPulseSummary(j.pulse_summary || null);
+        setPulseSummary(j.pulse_summary || []);
       } catch (err) {
         console.error("Dashboard load error:", err);
         setError(err.message);
@@ -51,28 +51,6 @@ export default function Dashboard() {
     );
   }
 
-  // Internal assessment scores (already 0–100)
-  const assessmentScoreByPillar = scores.reduce((acc, s) => {
-    if (s.pillar != null) {
-      acc[s.pillar] = Number(s.score);
-    }
-    return acc;
-  }, {});
-
-  // Pulse scores come back as 1–5 → convert to 0–100
-  const pulseItems = Array.isArray(pulseSummary)
-    ? pulseSummary.map((p) => {
-        const raw = Number(p.score || 0); // 1–5
-        const scaled = raw * 20; // 0–100
-        return { pillar: p.pillar, raw, score: scaled };
-      })
-    : [];
-
-  const overallPulseScore =
-    pulseItems.length > 0
-      ? pulseItems.reduce((sum, p) => sum + p.score, 0) / pulseItems.length
-      : null;
-
   return (
     <main
       style={{
@@ -91,40 +69,35 @@ export default function Dashboard() {
         settings.
       </p>
 
-      {/* TOP SUMMARY – LATEST ASSESSMENT */}
+      {/* LATEST ASSESSMENT */}
       <section
         style={{
           border: "1px solid #eee",
           borderRadius: 12,
           padding: 16,
           marginBottom: 24,
-          display: "flex",
-          justifyContent: "space-between",
-          gap: 16,
-          alignItems: "flex-start",
         }}
       >
-        <div>
-          <div style={{ opacity: 0.6, fontSize: 12 }}>Latest Assessment</div>
-          <div style={{ fontWeight: 700, fontSize: 18 }}>{overview.title}</div>
-          <div style={{ fontSize: 12, opacity: 0.7, marginTop: 4 }}>
-            Status: {overview.status} • Period: {overview.period_start} →{" "}
-            {overview.period_end}
-          </div>
-          <div style={{ fontSize: 12, opacity: 0.7 }}>
-            Created:{" "}
-            {overview.assessment_created_at
-              ? new Date(overview.assessment_created_at).toLocaleDateString()
-              : "-"}
-          </div>
+        <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>
+          Latest Assessment
+        </h2>
+
+        <div style={{ opacity: 0.8, fontSize: 13, marginBottom: 4 }}>
+          {overview.title}
         </div>
-        <div style={{ textAlign: "right" }}>
+        <div style={{ opacity: 0.7, fontSize: 12 }}>
+          Status: {overview.status} • Period: {overview.period_start} →{" "}
+          {overview.period_end}
+        </div>
+
+        <div style={{ marginTop: 12 }}>
           <div style={{ opacity: 0.6, fontSize: 12 }}>Overall HRI Score</div>
           <div style={{ fontSize: 32, fontWeight: 800 }}>
             {overview.overall_score != null
               ? Math.round(overview.overall_score)
               : "–"}
           </div>
+
           <div style={{ marginTop: 12 }}>
             <div style={{ opacity: 0.6, fontSize: 12 }}>Badge</div>
             <div style={{ fontWeight: 700 }}>
@@ -140,190 +113,12 @@ export default function Dashboard() {
         </div>
       </section>
 
-      {/* ORG METRICS */}
-      {orgMetrics && (
-        <section
-          style={{
-            border: "1px solid #eee",
-            borderRadius: 12,
-            padding: 16,
-            marginBottom: 24,
-          }}
-        >
-          <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>
-            Organisation metrics
-          </h2>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
-              gap: 12,
-            }}
-          >
-            <MetricCard label="Organisation" value={orgMetrics.name || "–"} />
-            <MetricCard
-              label="Employees"
-              value={
-                orgMetrics.employee_count != null
-                  ? orgMetrics.employee_count.toLocaleString()
-                  : "–"
-              }
-            />
-            <MetricCard
-              label="Average salary"
-              value={
-                orgMetrics.avg_salary != null
-                  ? `£${orgMetrics.avg_salary.toLocaleString()}`
-                  : "–"
-              }
-            />
-            <MetricCard
-              label="Turnover rate"
-              value={
-                orgMetrics.turnover_rate != null
-                  ? `${orgMetrics.turnover_rate}%`
-                  : "–"
-              }
-            />
-            <MetricCard
-              label="Absence days per employee"
-              value={
-                orgMetrics.absent_days_per_employee != null
-                  ? orgMetrics.absent_days_per_employee
-                  : "–"
-              }
-            />
-            <MetricCard
-              label="Annual wellbeing spend"
-              value={
-                orgMetrics.annual_wellbeing_spend != null
-                  ? `£${orgMetrics.annual_wellbeing_spend.toLocaleString()}`
-                  : "–"
-              }
-            />
-            <MetricCard
-              label="Engagement score"
-              value={
-                orgMetrics.engagement_score != null
-                  ? `${orgMetrics.engagement_score}/100`
-                  : "–"
-              }
-            />
-          </div>
-        </section>
-      )}
-
-      {/* QUICK ROI SNAPSHOT SECTION */}
-      {roiSummary && (
-        <section
-          style={{
-            border: "1px solid #f5e58a",
-            background: "#fffdf0",
-            borderRadius: 12,
-            padding: 16,
-            marginBottom: 24,
-          }}
-        >
-          <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>
-            Quick ROI snapshot
-          </h2>
-
-          <p style={{ fontSize: 13, opacity: 0.8, marginBottom: 12 }}>
-            Based on your current headcount, salary levels, turnover and
-            absence, here’s an estimated annual cost of people risk versus your
-            wellbeing investment.
-          </p>
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
-              gap: 12,
-            }}
-          >
-            <MetricCard
-              label="Total payroll"
-              value={
-                roiSummary.total_payroll != null
-                  ? `£${roiSummary.total_payroll.toLocaleString("en-GB")}`
-                  : "–"
-              }
-            />
-
-            <MetricCard
-              label="Estimated turnover cost / year"
-              value={
-                roiSummary.estimated_turnover_cost != null
-                  ? `£${roiSummary.estimated_turnover_cost.toLocaleString(
-                      "en-GB"
-                    )}`
-                  : "–"
-              }
-            />
-
-            <MetricCard
-              label="Estimated absence cost / year"
-              value={
-                roiSummary.estimated_absence_cost != null
-                  ? `£${roiSummary.estimated_absence_cost.toLocaleString(
-                      "en-GB"
-                    )}`
-                  : "–"
-              }
-            />
-
-            <MetricCard
-              label="Total people risk / year"
-              value={
-                roiSummary.total_people_risk != null
-                  ? `£${roiSummary.total_people_risk.toLocaleString("en-GB")}`
-                  : "–"
-              }
-            />
-
-            <MetricCard
-              label="Wellbeing investment / year"
-              value={
-                roiSummary.annual_wellbeing_spend != null
-                  ? `£${roiSummary.annual_wellbeing_spend.toLocaleString(
-                      "en-GB"
-                    )}`
-                  : "–"
-              }
-            />
-
-            <MetricCard
-              label="People risk : wellbeing ratio"
-              value={
-                roiSummary.roi_multiplier != null
-                  ? `${roiSummary.roi_multiplier.toFixed(1)}x`
-                  : "–"
-              }
-            />
-          </div>
-
-          {roiSummary.roi_multiplier != null && (
-            <p
-              style={{
-                marginTop: 12,
-                fontSize: 13,
-                opacity: 0.85,
-              }}
-            >
-              In simple terms: for every £1 you invest in wellbeing, you&apos;re
-              currently carrying around {roiSummary.roi_multiplier.toFixed(1)}x
-              that in people risk (turnover + absence). Human Return Index™
-              exists to close that gap.
-            </p>
-          )}
-        </section>
-      )}
-
-      {/* PILLAR SCORES – INTERNAL ASSESSMENT */}
-      <section>
+      {/* PILLAR SCORES */}
+      <section style={{ marginBottom: 32 }}>
         <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>
           Pillar Scores (Internal Assessment)
         </h2>
+
         <div
           style={{
             display: "grid",
@@ -332,61 +127,114 @@ export default function Dashboard() {
           }}
         >
           {scores.map((s) => (
-            <div
+            <ScoreCard
               key={s.pillar}
-              style={{
-                border: "1px solid #eee",
-                borderRadius: 10,
-                padding: 12,
-              }}
-            >
-              <div style={{ opacity: 0.7, fontSize: 12 }}>{s.pillar}</div>
-              <div style={{ fontSize: 24, fontWeight: 800 }}>
-                {Math.round(Number(s.score))}
-              </div>
-            </div>
+              label={s.pillar}
+              value={Math.round(Number(s.score))}
+            />
           ))}
-          {scores.length === 0 && (
-            <div style={{ opacity: 0.7 }}>No pillar scores yet.</div>
-          )}
         </div>
       </section>
 
-      {/* EMPLOYEE PULSE SUMMARY + COMPARISON */}
-      {pulseItems.length > 0 && (
+      {/* ORG METRICS */}
+      {orgMetrics && (
         <section
           style={{
-            border: "1px solid #dff0ff",
-            background: "#f7fbff",
+            border: "1px solid #eee",
             borderRadius: 12,
             padding: 16,
-            marginTop: 24,
+            marginBottom: 32,
+          }}
+        >
+          <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>
+            Organisation metrics
+          </h2>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
+              gap: 12,
+            }}
+          >
+            <MetricCard label="Employees" value={orgMetrics.employee_count} />
+            <MetricCard
+              label="Average salary"
+              value={`£${orgMetrics.avg_salary.toLocaleString()}`}
+            />
+            <MetricCard label="Turnover rate" value={`${orgMetrics.turnover_rate}%`} />
+            <MetricCard
+              label="Absence days per employee"
+              value={orgMetrics.absent_days_per_employee}
+            />
+            <MetricCard
+              label="Annual wellbeing spend"
+              value={`£${orgMetrics.annual_wellbeing_spend.toLocaleString()}`}
+            />
+            <MetricCard
+              label="Engagement score"
+              value={`${orgMetrics.engagement_score}/100`}
+            />
+          </div>
+        </section>
+      )}
+
+      {/* ROI SNAPSHOT */}
+      {roiSummary && (
+        <section
+          style={{
+            border: "1px solid #f5e58a",
+            background: "#fffdf0",
+            borderRadius: 12,
+            padding: 16,
+            marginBottom: 32,
           }}
         >
           <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>
-            Latest Employee Pulse
+            Quick ROI snapshot
           </h2>
 
-          <p style={{ fontSize: 13, opacity: 0.8, marginBottom: 12 }}>
-            Live sentiment snapshot across the 5 HRI pillars, compared to your
-            internal assessment scores (all out of 100).
-          </p>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))",
+              gap: 12,
+            }}
+          >
+            <MetricCard
+              label="Total payroll"
+              value={`£${roiSummary.total_payroll.toLocaleString("en-GB")}`}
+            />
+            <MetricCard
+              label="Estimated turnover cost / year"
+              value={`£${roiSummary.estimated_turnover_cost.toLocaleString("en-GB")}`}
+            />
+            <MetricCard
+              label="Estimated absence cost / year"
+              value={`£${roiSummary.estimated_absence_cost.toLocaleString("en-GB")}`}
+            />
+            <MetricCard
+              label="Total people risk / year"
+              value={`£${roiSummary.total_people_risk.toLocaleString("en-GB")}`}
+            />
+            <MetricCard
+              label="Wellbeing investment / year"
+              value={`£${roiSummary.annual_wellbeing_spend.toLocaleString("en-GB")}`}
+            />
+            <MetricCard
+              label="People risk : wellbeing ratio"
+              value={`${roiSummary.roi_multiplier.toFixed(1)}x`}
+            />
+          </div>
+        </section>
+      )}
 
-          {overallPulseScore != null && (
-            <div
-              style={{
-                marginBottom: 16,
-                padding: 10,
-                borderRadius: 10,
-                border: "1px dashed #c7ddff",
-                background: "#f0f6ff",
-                fontSize: 13,
-              }}
-            >
-              <strong>Overall pulse score:</strong>{" "}
-              {Math.round(overallPulseScore)} / 100
-            </div>
-          )}
+      {/* EMPLOYEE PULSE */}
+      {pulseSummary.length > 0 && (
+        <section>
+          <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>
+            Latest Employee Pulse
+          </h2>
 
           <div
             style={{
@@ -395,77 +243,35 @@ export default function Dashboard() {
               gap: 12,
             }}
           >
-            {pulseItems.map((p) => {
-              const pulseScore = p.score; // 0–100
-              const assessmentScore = assessmentScoreByPillar[p.pillar];
-              const hasAssessment = assessmentScore != null;
-              const delta =
-                hasAssessment && Number.isFinite(assessmentScore)
-                  ? pulseScore - Number(assessmentScore)
-                  : null;
-
-              let deltaLabel = "No comparison yet";
-              let deltaColour = "#666";
-
-              if (delta != null && delta !== 0) {
-                const arrow = delta > 0 ? "▲" : "▼";
-                const direction = delta > 0 ? "higher" : "lower";
-                deltaLabel = `${arrow} ${Math.abs(
-                  Math.round(delta)
-                )} vs assessment (${direction})`;
-                deltaColour = delta > 0 ? "#0a7b3f" : "#b00020";
-              } else if (delta === 0) {
-                deltaLabel = "Matches internal assessment";
-                deltaColour = "#444";
-              }
-
-              return (
-                <div
-                  key={p.pillar}
-                  style={{
-                    border: "1px solid #e6f0fa",
-                    borderRadius: 10,
-                    padding: 12,
-                    background: "white",
-                  }}
-                >
-                  <div style={{ opacity: 0.7, fontSize: 12 }}>{p.pillar}</div>
-                  <div
-                    style={{
-                      fontSize: 24,
-                      fontWeight: 800,
-                      marginBottom: 4,
-                    }}
-                  >
-                    {Math.round(pulseScore)}
-                  </div>
-                  {hasAssessment && (
-                    <div
-                      style={{
-                        fontSize: 12,
-                        opacity: 0.8,
-                        marginBottom: 4,
-                      }}
-                    >
-                      Internal assessment:{" "}
-                      <strong>{Math.round(assessmentScore)}</strong>
-                    </div>
-                  )}
-                  <div
-                    style={{
-                      fontSize: 12,
-                      color: deltaColour,
-                    }}
-                  >
-                    {deltaLabel}
-                  </div>
-                </div>
-              );
-            })}
+            {pulseSummary.map((p) => (
+              <PulseCard
+                key={p.pillar}
+                pillar={p.pillar}
+                pulseScore={Math.round(p.score * 20)}
+                assessmentScore={Math.round(
+                  scores.find((s) => s.pillar === p.pillar)?.score || 0
+                )}
+              />
+            ))}
           </div>
         </section>
       )}
     </main>
+  );
+}
+
+function ScoreCard({ label, value }) {
+  return (
+    <div
+      style={{
+        border: "1px solid #eee",
+        borderRadius: 10,
+        padding: 12,
+      }}
+    >
+      <div style={{ opacity: 0.7, fontSize: 12 }}>{label}</div>
+      <div style={{ fontSize: 24, fontWeight: 800 }}>{value}</div>
+    </div>
   );
 }
 
@@ -484,3 +290,22 @@ function MetricCard({ label, value }) {
     </div>
   );
 }
+
+function PulseCard({ pillar, pulseScore, assessmentScore }) {
+  const diff = pulseScore - assessmentScore;
+  const arrow = diff > 0 ? "▲" : diff < 0 ? "▼" : "—";
+  const colour = diff > 0 ? "green" : diff < 0 ? "crimson" : "grey";
+
+  return (
+    <div
+      style={{
+        border: "1px solid #eee",
+        borderRadius: 10,
+        padding: 12,
+      }}
+    >
+      <div style={{ opacity: 0.7, fontSize: 12 }}>{pillar}</div>
+      <div style={{ fontSize: 24, fontWeight: 800 }}>{pulseScore}</div>
+
+      <div style={{ marginTop: 6, fontSize: 12, opacity: 0.8 }}>
+        Internal assessment: <strong>{assessmentScore}</strong>
