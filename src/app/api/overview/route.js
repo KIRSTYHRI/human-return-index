@@ -17,11 +17,9 @@ function buildRoiSummary(orgMetrics) {
 
   const totalPayroll = employees * avgSalary;
 
-  // Assume: cost of turnover ≈ 30% of salary bill for leavers
   const turnoverRate = turnoverRatePct / 100;
   const estimatedTurnoverCost = totalPayroll * turnoverRate * 0.3;
 
-  // Absence: salary / 220 working days * days off * headcount
   const dailyRate = avgSalary / 220 || 0;
   const estimatedAbsenceCost = employees * absentDays * dailyRate;
 
@@ -48,7 +46,7 @@ export async function GET() {
       );
     }
 
-    // 1️⃣ Get latest assessment (no org_id here)
+    // 1️⃣ Get latest assessment
     const { data: assessments, error: assessError } = await supabase
       .from("assessments")
       .select(
@@ -74,7 +72,7 @@ export async function GET() {
       );
     }
 
-    // 2️⃣ Org metrics – just take the first row (single-org MVP)
+    // 2️⃣ Org metrics – just use the latest row (single-org MVP)
     let orgMetrics = null;
     const { data: metrics, error: metricsError } = await supabase
       .from("org_metrics")
@@ -89,12 +87,11 @@ export async function GET() {
       orgMetrics = metrics || null;
     }
 
-    // 3️⃣ Scores – only latest per pillar
-    const { data: rawScores, error: scoresError } = await supabase
+    // 3️⃣ Scores – one row per pillar (because /api/scores wipes first)
+    const { data: scoresData, error: scoresError } = await supabase
       .from("scores")
-      .select("pillar, score, created_at")
-      .eq("assessment_id", assessment.id)
-      .order("created_at", { ascending: false });
+      .select("pillar, score")
+      .eq("assessment_id", assessment.id);
 
     if (scoresError) {
       console.error("Scores fetch error:", scoresError);
@@ -104,22 +101,8 @@ export async function GET() {
       );
     }
 
-    const uniqueScores = [];
-    const seen = new Set();
-
-    for (const row of rawScores || []) {
-      if (!seen.has(row.pillar)) {
-        uniqueScores.push({
-          pillar: row.pillar,
-          score: row.score,
-        });
-        seen.add(row.pillar);
-      }
-    }
-
-    // 4️⃣ Overview object (includes assessment_id for the form)
     const overview = {
-      assessment_id: assessment.id,
+      assessment_id: assessment.id, // needed by the form
       title: assessment.title,
       status: assessment.status,
       period_start: assessment.period_start,
@@ -130,13 +113,12 @@ export async function GET() {
       badge_awarded_at: assessment.badge_awarded_at,
     };
 
-    // 5️⃣ ROI summary from org metrics
     const roiSummary = buildRoiSummary(orgMetrics);
 
     return NextResponse.json({
       ok: true,
       overview,
-      scores: uniqueScores,
+      scores: scoresData || [],
       org_metrics: orgMetrics,
       roi_summary: roiSummary,
     });
