@@ -51,7 +51,7 @@ export default function Dashboard() {
     );
   }
 
-  // Build a quick lookup for assessment pillar scores
+  // Internal assessment scores (already 0–100)
   const assessmentScoreByPillar = scores.reduce((acc, s) => {
     if (s.pillar != null) {
       acc[s.pillar] = Number(s.score);
@@ -59,11 +59,18 @@ export default function Dashboard() {
     return acc;
   }, {});
 
-  // Overall pulse average (0–100) if we have pulseSummary
+  // Pulse scores come back as 1–5 → convert to 0–100
+  const pulseItems = Array.isArray(pulseSummary)
+    ? pulseSummary.map((p) => {
+        const raw = Number(p.score || 0); // 1–5
+        const scaled = raw * 20; // 0–100
+        return { pillar: p.pillar, raw, score: scaled };
+      })
+    : [];
+
   const overallPulseScore =
-    pulseSummary && pulseSummary.length > 0
-      ? pulseSummary.reduce((sum, p) => sum + Number(p.score || 0), 0) /
-        pulseSummary.length
+    pulseItems.length > 0
+      ? pulseItems.reduce((sum, p) => sum + p.score, 0) / pulseItems.length
       : null;
 
   return (
@@ -153,10 +160,7 @@ export default function Dashboard() {
               gap: 12,
             }}
           >
-            <MetricCard
-              label="Organisation"
-              value={orgMetrics.name || "–"}
-            />
+            <MetricCard label="Organisation" value={orgMetrics.name || "–"} />
             <MetricCard
               label="Employees"
               value={
@@ -349,7 +353,7 @@ export default function Dashboard() {
       </section>
 
       {/* EMPLOYEE PULSE SUMMARY + COMPARISON */}
-      {pulseSummary && pulseSummary.length > 0 && (
+      {pulseItems.length > 0 && (
         <section
           style={{
             border: "1px solid #dff0ff",
@@ -365,7 +369,7 @@ export default function Dashboard() {
 
           <p style={{ fontSize: 13, opacity: 0.8, marginBottom: 12 }}>
             Live sentiment snapshot across the 5 HRI pillars, compared to your
-            internal assessment scores.
+            internal assessment scores (all out of 100).
           </p>
 
           {overallPulseScore != null && (
@@ -391,8 +395,8 @@ export default function Dashboard() {
               gap: 12,
             }}
           >
-            {pulseSummary.map((p) => {
-              const pulseScore = Number(p.score || 0);
+            {pulseItems.map((p) => {
+              const pulseScore = p.score; // 0–100
               const assessmentScore = assessmentScoreByPillar[p.pillar];
               const hasAssessment = assessmentScore != null;
               const delta =
@@ -480,4 +484,3 @@ function MetricCard({ label, value }) {
     </div>
   );
 }
-
