@@ -3,129 +3,147 @@ import { createClient } from "@supabase/supabase-js";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabase =
+  url && key ? createClient(url, key, { auth: { persistSession: false } }) : null;
 
-if (!url) console.warn("Missing NEXT_PUBLIC_SUPABASE_URL");
-if (!key) console.warn("Missing SUPABASE_SERVICE_ROLE_KEY");
+function buildRoiSummary(orgMetrics) {
+  if (!orgMetrics) return null;
 
-const supabase = createClient(url, key, { auth: { persistSession: false } });
+  const employees = Number(orgMetrics.employee_count) || 0;
+  const avgSalary = Number(orgMetrics.avg_salary) || 0;
+  const turnoverRatePct = Number(orgMetrics.turnover_rate) || 0;
+  const absentDays = Number(orgMetrics.absent_days_per_employee) || 0;
+  const wellbeingSpend = Number(orgMetrics.annual_wellbeing_spend) || 0;
 
-// Hard-coded org for now – later this will come from the logged-in user
-const ORG_ID = "9499b1b9-7fce-43a1-9590-d533f00dc71d";
+  const totalPayroll = employees * avgSalary;
+
+  // Assume: cost of turnover ≈ 30% of salary bill for leavers
+  const turnoverRate = turnoverRatePct / 100;
+  const estimatedTurnoverCost = totalPayroll * turnoverRate * 0.3;
+
+  // Absence: salary / 220 working days * days off * headcount
+  const dailyRate = avgSalary / 220 || 0;
+  const estimatedAbsenceCost = employees * absentDays * dailyRate;
+
+  const totalPeopleRisk = estimatedTurnoverCost + estimatedAbsenceCost;
+  const roiMultiplier =
+    wellbeingSpend > 0 ? totalPeopleRisk / wellbeingSpend : null;
+
+  return {
+    total_payroll: totalPayroll,
+    estimated_turnover_cost: estimatedTurnoverCost,
+    estimated_absence_cost: estimatedAbsenceCost,
+    total_people_risk: totalPeopleRisk,
+    annual_wellbeing_spend: wellbeingSpend,
+    roi_multiplier: roiMultiplier,
+  };
+}
 
 export async function GET() {
   try {
-    console.log("USING REAL /api/overview HANDLER");
+    if (!supabase) {
+      return NextResponse.json(
+        { ok: false, error: "Missing Supabase env vars" },
+        { status: 500 }
+      );
+    }
 
-    // 1) Latest assessment for your org – prefer is_current = true
-const { data: assessment, error: aErr } = await supabase
-  .from("assessments")
-  .select(
-    "id, title, status, created_at, period_start, period_end, badge_level, badge_awarded_at, is_current"
-  )
-  .eq("organisation_id", ORG_ID)
-  .order("is_current", { ascending: false })  // true (1) comes before false (0)
-  .order("created_at", { ascending: false }) // latest after that
-  .limit(1)
-  .maybeSingle();
+    // 1️⃣ Get latest assessment (Pilot / current org)
+    const { data: assessments, error: assessError } = await supabase
+      .from("assessments")
+      .select(
+        "id, title, status, period_start, period_end, created_at, overall_score, badge_level, badge_awarded_at, org_id"
+      )
+      .order("created_at", { ascending: false })
+      .limit(1);
 
+    if (assessError) {
+      console.error("Assessment fetch error:", assessError);
+      return NextResponse.json(
+        { ok: false, error: assessError.message },
+        { status: 500 }
+      );
+    }
 
-    if (aErr) throw aErr;
+    const assessment = assessments?.[0];
 
     if (!assessment) {
       return NextResponse.json(
-        { ok: false, error: "No assessment found for this organisation" },
+        { ok: false, error: "No assessment found" },
         { status: 404 }
       );
     }
 
-    // 2) Pillar scores for that assessment
-    const { data: scores, error: sErr } = await supabase
+    // 2️⃣ Org metrics for ROI & header cards
+    let orgMetrics = null;
+    if (assessment.org_id) {
+      const { data: metrics, error: metricsError } = await supabase
+        .from("org_metrics")
+        .select("*")
+        .eq("org_id", assessment.org_id)
+        .single();
+
+      if (metricsError) {
+        console.warn("Org metrics fetch warning:", metricsError.message);
+      } else {
+        orgMetrics = metrics;
+      }
+    }
+
+    // 3️⃣ Scores – only latest per pillar
+    const { data: rawScores, error: scoresError } = await supabase
       .from("scores")
-      .select("pillar, score")
-      .eq("assessment_id", assessment.id);
+      .select("pillar, score, created_at")
+      .eq("assessment_id", assessment.id)
+      .order("created_at", { ascending: false });
 
-    if (sErr) throw sErr;
+    if (scoresError) {
+      console.error("Scores fetch error:", scoresError);
+      return NextResponse.json(
+        { ok: false, error: scoresError.message },
+        { status: 500 }
+      );
+    }
 
-    const numericScores =
-      (scores || [])
-        .map((s) => Number(s.score))
-        .filter((n) => Number.isFinite(n));
+    const uniqueScores = [];
+    const seen = new Set();
 
-    const overallScore =
-      numericScores.length > 0
-        ? numericScores.reduce((sum, n) => sum + n, 0) / numericScores.length
-        : null;
+    for (const row of rawScores || []) {
+      if (!seen.has(row.pillar)) {
+        uniqueScores.push({
+          pillar: row.pillar,
+          score: row.score,
+        });
+        seen.add(row.pillar);
+      }
+    }
 
+    // 4️⃣ Build overview object for dashboard
     const overview = {
-      assessment_id: assessment.id,
       title: assessment.title,
       status: assessment.status,
-      assessment_created_at: assessment.created_at || assessment.period_start,
       period_start: assessment.period_start,
       period_end: assessment.period_end,
+      assessment_created_at: assessment.created_at,
+      overall_score: assessment.overall_score,
       badge_level: assessment.badge_level,
       badge_awarded_at: assessment.badge_awarded_at,
-      overall_score: overallScore,
     };
 
-    // 3) Org metrics (employees, salary, etc.)
-    const { data: orgMetrics, error: oErr } = await supabase
-      .from("organisations")
-      .select(
-        "name, employee_count, avg_salary, turnover_rate, absent_days_per_employee, annual_wellbeing_spend, engagement_score"
-      )
-      .eq("id", ORG_ID)
-      .maybeSingle();
-
-    if (oErr) throw oErr;
-
-    // 4) Simple ROI summary based on those org metrics
-    let roiSummary = null;
-
-    if (orgMetrics && orgMetrics.employee_count && orgMetrics.avg_salary) {
-      const employees = Number(orgMetrics.employee_count) || 0;
-      const avgSalary = Number(orgMetrics.avg_salary) || 0;
-      const turnoverRate = Number(orgMetrics.turnover_rate) || 0; // %
-      const absentDays = Number(orgMetrics.absent_days_per_employee) || 0;
-      const wellbeingSpend = Number(orgMetrics.annual_wellbeing_spend) || 0;
-
-      // Very simple v1 assumptions:
-      // - Turnover cost ≈ 30% of salary for each leaver
-      // - 220 working days per year
-      const totalPayroll = employees * avgSalary;
-      const estimatedTurnoverCost =
-        employees * (turnoverRate / 100) * avgSalary * 0.3;
-
-      const dailyCostPerEmployee = avgSalary / 220;
-      const estimatedAbsenceCost =
-        employees * absentDays * dailyCostPerEmployee;
-
-      const totalPeopleRisk = estimatedTurnoverCost + estimatedAbsenceCost;
-
-      const roiMultiplier =
-        wellbeingSpend > 0 ? totalPeopleRisk / wellbeingSpend : null;
-
-      roiSummary = {
-        total_payroll: totalPayroll,
-        estimated_turnover_cost: estimatedTurnoverCost,
-        estimated_absence_cost: estimatedAbsenceCost,
-        total_people_risk: totalPeopleRisk,
-        annual_wellbeing_spend: wellbeingSpend,
-        roi_multiplier: roiMultiplier,
-      };
-    }
+    // 5️⃣ ROI summary from org metrics
+    const roiSummary = buildRoiSummary(orgMetrics);
 
     return NextResponse.json({
       ok: true,
       overview,
-      scores: scores || [],
-      org_metrics: orgMetrics || null,
+      scores: uniqueScores,
+      org_metrics: orgMetrics,
       roi_summary: roiSummary,
     });
   } catch (err) {
-    console.error("Error in /api/overview:", err);
+    console.error("Error in overview API:", err);
     return NextResponse.json(
-      { ok: false, error: err.message || "Unknown error" },
+      { ok: false, error: "Unexpected server error" },
       { status: 500 }
     );
   }
