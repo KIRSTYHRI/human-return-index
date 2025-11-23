@@ -54,7 +54,7 @@ export async function POST(req) {
       score: Number(s.score),
     }));
 
-    // 3️⃣ INSERT fresh scores (no ON CONFLICT)
+    // 3️⃣ INSERT fresh scores
     const { error: scoresError } = await supabase
       .from("scores")
       .insert(scoreRows);
@@ -105,7 +105,7 @@ export async function POST(req) {
       updates.badge_awarded_at = newBadge ? new Date().toISOString() : null;
     }
 
-    // 6️⃣ Update assessment with overall score (+ badge if changed)
+    // 6️⃣ Update assessment
     const { error: updateError } = await supabase
       .from("assessments")
       .update(updates)
