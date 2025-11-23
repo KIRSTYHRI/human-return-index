@@ -7,7 +7,7 @@ export default function Dashboard() {
   const [scores, setScores] = useState([]);
   const [orgMetrics, setOrgMetrics] = useState(null);
   const [roiSummary, setRoiSummary] = useState(null);
-  const [pulseSummary, setPulseSummary] = useState(null); // 👈 NEW
+  const [pulseSummary, setPulseSummary] = useState(null);
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -24,7 +24,7 @@ export default function Dashboard() {
         setScores(j.scores || []);
         setOrgMetrics(j.org_metrics || null);
         setRoiSummary(j.roi_summary || null);
-        setPulseSummary(j.pulse_summary || null); // 👈 NEW
+        setPulseSummary(j.pulse_summary || null);
       } catch (err) {
         console.error("Dashboard load error:", err);
         setError(err.message);
@@ -51,6 +51,21 @@ export default function Dashboard() {
     );
   }
 
+  // Build a quick lookup for assessment pillar scores
+  const assessmentScoreByPillar = scores.reduce((acc, s) => {
+    if (s.pillar != null) {
+      acc[s.pillar] = Number(s.score);
+    }
+    return acc;
+  }, {});
+
+  // Overall pulse average (0–100) if we have pulseSummary
+  const overallPulseScore =
+    pulseSummary && pulseSummary.length > 0
+      ? pulseSummary.reduce((sum, p) => sum + Number(p.score || 0), 0) /
+        pulseSummary.length
+      : null;
+
   return (
     <main
       style={{
@@ -65,11 +80,11 @@ export default function Dashboard() {
       </h1>
       <p style={{ marginBottom: 24, opacity: 0.8 }}>
         This is your live preview of the Human Return Index™ dashboard. The
-        data below is coming from your Supabase “Pilot Test” assessment and
-        organisation settings.
+        data below is coming from your Supabase assessment and organisation
+        settings.
       </p>
 
-      {/* TOP SUMMARY */}
+      {/* TOP SUMMARY – LATEST ASSESSMENT */}
       <section
         style={{
           border: "1px solid #eee",
@@ -138,7 +153,10 @@ export default function Dashboard() {
               gap: 12,
             }}
           >
-            <MetricCard label="Organisation" value={orgMetrics.name} />
+            <MetricCard
+              label="Organisation"
+              value={orgMetrics.name || "–"}
+            />
             <MetricCard
               label="Employees"
               value={
@@ -173,7 +191,7 @@ export default function Dashboard() {
             />
             <MetricCard
               label="Annual wellbeing spend"
-              value(
+              value={
                 orgMetrics.annual_wellbeing_spend != null
                   ? `£${orgMetrics.annual_wellbeing_spend.toLocaleString()}`
                   : "–"
@@ -297,10 +315,10 @@ export default function Dashboard() {
         </section>
       )}
 
-      {/* PILLAR SCORES */}
+      {/* PILLAR SCORES – INTERNAL ASSESSMENT */}
       <section>
         <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>
-          Pillar Scores
+          Pillar Scores (Internal Assessment)
         </h2>
         <div
           style={{
@@ -330,7 +348,7 @@ export default function Dashboard() {
         </div>
       </section>
 
-      {/* EMPLOYEE PULSE SUMMARY */}
+      {/* EMPLOYEE PULSE SUMMARY + COMPARISON */}
       {pulseSummary && pulseSummary.length > 0 && (
         <section
           style={{
@@ -341,36 +359,105 @@ export default function Dashboard() {
             marginTop: 24,
           }}
         >
-          <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>
+          <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>
             Latest Employee Pulse
           </h2>
+
           <p style={{ fontSize: 13, opacity: 0.8, marginBottom: 12 }}>
-            Live sentiment snapshot across the 5 HRI pillars.
+            Live sentiment snapshot across the 5 HRI pillars, compared to your
+            internal assessment scores.
           </p>
+
+          {overallPulseScore != null && (
+            <div
+              style={{
+                marginBottom: 16,
+                padding: 10,
+                borderRadius: 10,
+                border: "1px dashed #c7ddff",
+                background: "#f0f6ff",
+                fontSize: 13,
+              }}
+            >
+              <strong>Overall pulse score:</strong>{" "}
+              {Math.round(overallPulseScore)} / 100
+            </div>
+          )}
 
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fill,minmax(180px,1fr))",
+              gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))",
               gap: 12,
             }}
           >
-            {pulseSummary.map((p) => (
-              <div
-                key={p.pillar}
-                style={{
-                  border: "1px solid #e6f0fa",
-                  borderRadius: 10,
-                  padding: 12,
-                  background: "white",
-                }}
-              >
-                <div style={{ opacity: 0.7, fontSize: 12 }}>{p.pillar}</div>
-                <div style={{ fontSize: 24, fontWeight: 800 }}>
-                  {Math.round(Number(p.score))}
+            {pulseSummary.map((p) => {
+              const pulseScore = Number(p.score || 0);
+              const assessmentScore = assessmentScoreByPillar[p.pillar];
+              const hasAssessment = assessmentScore != null;
+              const delta =
+                hasAssessment && Number.isFinite(assessmentScore)
+                  ? pulseScore - Number(assessmentScore)
+                  : null;
+
+              let deltaLabel = "No comparison yet";
+              let deltaColour = "#666";
+
+              if (delta != null && delta !== 0) {
+                const arrow = delta > 0 ? "▲" : "▼";
+                const direction = delta > 0 ? "higher" : "lower";
+                deltaLabel = `${arrow} ${Math.abs(
+                  Math.round(delta)
+                )} vs assessment (${direction})`;
+                deltaColour = delta > 0 ? "#0a7b3f" : "#b00020";
+              } else if (delta === 0) {
+                deltaLabel = "Matches internal assessment";
+                deltaColour = "#444";
+              }
+
+              return (
+                <div
+                  key={p.pillar}
+                  style={{
+                    border: "1px solid #e6f0fa",
+                    borderRadius: 10,
+                    padding: 12,
+                    background: "white",
+                  }}
+                >
+                  <div style={{ opacity: 0.7, fontSize: 12 }}>{p.pillar}</div>
+                  <div
+                    style={{
+                      fontSize: 24,
+                      fontWeight: 800,
+                      marginBottom: 4,
+                    }}
+                  >
+                    {Math.round(pulseScore)}
+                  </div>
+                  {hasAssessment && (
+                    <div
+                      style={{
+                        fontSize: 12,
+                        opacity: 0.8,
+                        marginBottom: 4,
+                      }}
+                    >
+                      Internal assessment:{" "}
+                      <strong>{Math.round(assessmentScore)}</strong>
+                    </div>
+                  )}
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: deltaColour,
+                    }}
+                  >
+                    {deltaLabel}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </section>
       )}
@@ -393,3 +480,4 @@ function MetricCard({ label, value }) {
     </div>
   );
 }
+
