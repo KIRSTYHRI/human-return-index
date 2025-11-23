@@ -48,11 +48,11 @@ export async function GET() {
       );
     }
 
-    // 1️⃣ Get latest assessment
+    // 1️⃣ Get latest assessment (no org_id here)
     const { data: assessments, error: assessError } = await supabase
       .from("assessments")
       .select(
-        "id, title, status, period_start, period_end, created_at, overall_score, badge_level, badge_awarded_at, org_id"
+        "id, title, status, period_start, period_end, created_at, overall_score, badge_level, badge_awarded_at"
       )
       .order("created_at", { ascending: false })
       .limit(1);
@@ -74,20 +74,19 @@ export async function GET() {
       );
     }
 
-    // 2️⃣ Org metrics for ROI & header cards
+    // 2️⃣ Org metrics – just take the first row (single-org MVP)
     let orgMetrics = null;
-    if (assessment.org_id) {
-      const { data: metrics, error: metricsError } = await supabase
-        .from("org_metrics")
-        .select("*")
-        .eq("org_id", assessment.org_id)
-        .single();
+    const { data: metrics, error: metricsError } = await supabase
+      .from("org_metrics")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-      if (metricsError) {
-        console.warn("Org metrics fetch warning:", metricsError.message);
-      } else {
-        orgMetrics = metrics;
-      }
+    if (metricsError) {
+      console.warn("Org metrics fetch warning:", metricsError.message);
+    } else {
+      orgMetrics = metrics || null;
     }
 
     // 3️⃣ Scores – only latest per pillar
@@ -118,9 +117,9 @@ export async function GET() {
       }
     }
 
-    // 4️⃣ Build overview object for dashboard + assessment form
+    // 4️⃣ Overview object (includes assessment_id for the form)
     const overview = {
-      assessment_id: assessment.id,        // 👈 THIS is what your form needs
+      assessment_id: assessment.id,
       title: assessment.title,
       status: assessment.status,
       period_start: assessment.period_start,
