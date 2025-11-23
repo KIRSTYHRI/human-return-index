@@ -33,14 +33,28 @@ export async function POST(req) {
       );
     }
 
-    // 1️⃣ Prepare rows
+    // 1️⃣ Remove any existing scores for this assessment
+    const { error: deleteError } = await supabase
+      .from("scores")
+      .delete()
+      .eq("assessment_id", assessment_id);
+
+    if (deleteError) {
+      console.error("Scores delete error:", deleteError);
+      return NextResponse.json(
+        { ok: false, error: deleteError.message },
+        { status: 500 }
+      );
+    }
+
+    // 2️⃣ Prepare rows
     const scoreRows = scores.map((s) => ({
       assessment_id,
       pillar: s.pillar,
       score: Number(s.score),
     }));
 
-    // 2️⃣ INSERT (no ON CONFLICT)
+    // 3️⃣ INSERT fresh scores (no ON CONFLICT)
     const { error: scoresError } = await supabase
       .from("scores")
       .insert(scoreRows);
@@ -53,7 +67,7 @@ export async function POST(req) {
       );
     }
 
-    // 3️⃣ Calculate overall score
+    // 4️⃣ Calculate overall score
     const numericScores = scoreRows
       .map((s) => (Number.isFinite(s.score) ? s.score : null))
       .filter((v) => v != null);
@@ -63,7 +77,7 @@ export async function POST(req) {
         ? numericScores.reduce((sum, v) => sum + v, 0) / numericScores.length
         : null;
 
-    // 4️⃣ Load assessment to compare badge
+    // 5️⃣ Load assessment to compare badge
     const { data: assessment, error: assessError } = await supabase
       .from("assessments")
       .select("id, badge_level")
@@ -91,7 +105,7 @@ export async function POST(req) {
       updates.badge_awarded_at = newBadge ? new Date().toISOString() : null;
     }
 
-    // 5️⃣ Update assessment
+    // 6️⃣ Update assessment with overall score (+ badge if changed)
     const { error: updateError } = await supabase
       .from("assessments")
       .update(updates)
