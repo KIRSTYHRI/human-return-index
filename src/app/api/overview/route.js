@@ -72,7 +72,7 @@ export async function GET() {
       );
     }
 
-    // 2️⃣ Org metrics – just use the latest row (single-org MVP)
+    // 2️⃣ Org metrics – latest row (single-org MVP)
     let orgMetrics = null;
     const { data: metrics, error: metricsError } = await supabase
       .from("org_metrics")
@@ -87,7 +87,7 @@ export async function GET() {
       orgMetrics = metrics || null;
     }
 
-    // 3️⃣ Scores – one row per pillar (because /api/scores wipes first)
+    // 3️⃣ Scores – 1 row per pillar for this assessment
     const { data: scoresData, error: scoresError } = await supabase
       .from("scores")
       .select("pillar, score")
@@ -101,8 +101,9 @@ export async function GET() {
       );
     }
 
+    // 4️⃣ Build overview object (used by dashboard + assessment form)
     const overview = {
-      assessment_id: assessment.id, // needed by the form
+      assessment_id: assessment.id,
       title: assessment.title,
       status: assessment.status,
       period_start: assessment.period_start,
@@ -113,7 +114,54 @@ export async function GET() {
       badge_awarded_at: assessment.badge_awarded_at,
     };
 
+    // 5️⃣ ROI summary from org metrics
     const roiSummary = buildRoiSummary(orgMetrics);
+
+    // 6️⃣ Employee pulse summary (average per pillar)
+    let pulseSummary = null;
+
+    // Get all pulse responses
+    const { data: pulseResponses, error: pulseRespError } = await supabase
+      .from("employee_pulse_responses")
+      .select("question_id, response_value");
+
+    if (pulseRespError) {
+      console.warn("Pulse responses fetch warning:", pulseRespError.message);
+    } else if (pulseResponses && pulseResponses.length > 0) {
+      // Get pulse questions (for pillar mapping)
+      const { data: pulseQuestions, error: pulseQError } = await supabase
+        .from("hri_pulse_questions")
+        .select("id, pillar");
+
+      if (pulseQError) {
+        console.warn("Pulse questions fetch warning:", pulseQError.message);
+      } else if (pulseQuestions && pulseQuestions.length > 0) {
+        const pillarByQuestionId = new Map();
+        for (const q of pulseQuestions) {
+          pillarByQuestionId.set(q.id, q.pillar || "Other");
+        }
+
+        const grouped = {};
+
+        for (const r of pulseResponses) {
+          const pillar = pillarByQuestionId.get(r.question_id) || "Other";
+          const value = Number(r.response_value);
+          if (!Number.isFinite(value)) continue;
+
+          if (!grouped[pillar]) grouped[pillar] = [];
+          grouped[pillar].push(value);
+        }
+
+        const entries = Object.entries(grouped);
+        if (entries.length > 0) {
+          pulseSummary = entries.map(([pillar, values]) => ({
+            pillar,
+            score:
+              values.reduce((sum, v) => sum + v, 0) / values.length,
+          }));
+        }
+      }
+    }
 
     return NextResponse.json({
       ok: true,
@@ -121,6 +169,7 @@ export async function GET() {
       scores: scoresData || [],
       org_metrics: orgMetrics,
       roi_summary: roiSummary,
+      pulse_summary: pulseSummary,
     });
   } catch (err) {
     console.error("Error in overview API:", err);
