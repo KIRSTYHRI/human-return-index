@@ -117,48 +117,74 @@ export async function GET() {
     // 5️⃣ ROI summary from org metrics
     const roiSummary = buildRoiSummary(orgMetrics);
 
-    // 6️⃣ Employee pulse summary (average per pillar)
+    // 6️⃣ Employee pulse summary – latest pulse only
     let pulseSummary = null;
 
-    // Get all pulse responses
-    const { data: pulseResponses, error: pulseRespError } = await supabase
+    // 6.1 Get latest pulse_id based on created_at
+    const { data: latestPulseRow, error: latestPulseError } = await supabase
       .from("employee_pulse_responses")
-      .select("question_id, response_value");
+      .select("pulse_id, created_at")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-    if (pulseRespError) {
-      console.warn("Pulse responses fetch warning:", pulseRespError.message);
-    } else if (pulseResponses && pulseResponses.length > 0) {
-      // Get pulse questions (for pillar mapping)
-      const { data: pulseQuestions, error: pulseQError } = await supabase
-        .from("hri_pulse_questions")
-        .select("id, pillar");
+    if (latestPulseError) {
+      console.warn("Latest pulse fetch warning:", latestPulseError.message);
+    } else if (latestPulseRow && latestPulseRow.pulse_id) {
+      const latestPulseId = latestPulseRow.pulse_id;
 
-      if (pulseQError) {
-        console.warn("Pulse questions fetch warning:", pulseQError.message);
-      } else if (pulseQuestions && pulseQuestions.length > 0) {
-        const pillarByQuestionId = new Map();
-        for (const q of pulseQuestions) {
-          pillarByQuestionId.set(q.id, q.pillar || "Other");
-        }
+      // 6.2 Get all responses from that pulse
+      const { data: pulseResponses, error: pulseRespError } = await supabase
+        .from("employee_pulse_responses")
+        .select("question_id, response_value")
+        .eq("pulse_id", latestPulseId);
 
-        const grouped = {};
+      if (pulseRespError) {
+        console.warn("Pulse responses fetch warning:", pulseRespError.message);
+      } else if (pulseResponses && pulseResponses.length > 0) {
+        // 6.3 Get corresponding questions (from employee_questions)
+        const questionIds = [
+          ...new Set(
+            pulseResponses
+              .map((r) => r.question_id)
+              .filter((id) => id != null)
+          ),
+        ];
 
-        for (const r of pulseResponses) {
-          const pillar = pillarByQuestionId.get(r.question_id) || "Other";
-          const value = Number(r.response_value);
-          if (!Number.isFinite(value)) continue;
+        if (questionIds.length > 0) {
+          const { data: pulseQuestions, error: pulseQError } = await supabase
+            .from("employee_questions")
+            .select("id, pillar")
+            .in("id", questionIds);
 
-          if (!grouped[pillar]) grouped[pillar] = [];
-          grouped[pillar].push(value);
-        }
+          if (pulseQError) {
+            console.warn("Pulse questions fetch warning:", pulseQError.message);
+          } else if (pulseQuestions && pulseQuestions.length > 0) {
+            const pillarByQuestionId = new Map();
+            for (const q of pulseQuestions) {
+              pillarByQuestionId.set(q.id, q.pillar || "Other");
+            }
 
-        const entries = Object.entries(grouped);
-        if (entries.length > 0) {
-          pulseSummary = entries.map(([pillar, values]) => ({
-            pillar,
-            score:
-              values.reduce((sum, v) => sum + v, 0) / values.length,
-          }));
+            const grouped = {};
+
+            for (const r of pulseResponses) {
+              const pillar = pillarByQuestionId.get(r.question_id) || "Other";
+              const value = Number(r.response_value);
+              if (!Number.isFinite(value)) continue;
+
+              if (!grouped[pillar]) grouped[pillar] = [];
+              grouped[pillar].push(value);
+            }
+
+            const entries = Object.entries(grouped);
+            if (entries.length > 0) {
+              pulseSummary = entries.map(([pillar, values]) => ({
+                pillar,
+                score:
+                  values.reduce((sum, v) => sum + v, 0) / values.length,
+              }));
+            }
+          }
         }
       }
     }
