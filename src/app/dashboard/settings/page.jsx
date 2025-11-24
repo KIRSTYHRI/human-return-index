@@ -76,7 +76,7 @@ export default function SettingsPage() {
       }
 
       setMessage(
-        "Settings saved successfully. Your dashboard will now reflect these inputs."
+        "Settings saved. Your dashboard and ROI calculations now use these numbers."
       );
     } catch (err) {
       console.error("Settings save error:", err);
@@ -96,12 +96,15 @@ export default function SettingsPage() {
       }}
     >
       <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 8 }}>
-        Human Return Index™ – Organisation Settings
+        Human Return Index™ – Organisation inputs
       </h1>
-      <p style={{ marginBottom: 24, opacity: 0.8 }}>
-        Update the key inputs that power your HRI score and ROI calculations.
-        These figures describe your organisation today – you can adjust them
-        anytime as things change.
+      <p style={{ marginBottom: 8, opacity: 0.8 }}>
+        These are the core people and cost inputs that power your HRI score and
+        people risk model. Update them as your organisation changes.
+      </p>
+      <p style={{ marginBottom: 20, opacity: 0.8, fontSize: 13 }}>
+        Tip: Start with best estimates. You can refine later – your dashboard
+        will always use the latest saved figures.
       </p>
 
       {loading ? (
@@ -188,7 +191,7 @@ export default function SettingsPage() {
 
             <Field
               label="Annual wellbeing / people investment (£)"
-              description="What do you currently invest in wellbeing, EAP, mental health, L&D etc. per year?"
+              description="What you invest per year in wellbeing, mental health, EAP, L&D etc."
               type="number"
               value={form.annual_wellbeing_spend}
               onChange={handleChange("annual_wellbeing_spend")}
@@ -225,7 +228,7 @@ export default function SettingsPage() {
                   opacity: saving ? 0.7 : 1,
                 }}
               >
-                {saving ? "Saving…" : "Save settings"}
+                {saving ? "Saving…" : "Save inputs"}
               </button>
             </div>
           </form>
