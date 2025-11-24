@@ -10,6 +10,7 @@ export default function Dashboard() {
   const [pulseSummary, setPulseSummary] = useState(null);
   const [error, setError] = useState(null);
 
+  // Load all dashboard data from /api/overview
   useEffect(() => {
     (async () => {
       try {
@@ -32,45 +33,62 @@ export default function Dashboard() {
     })();
   }, []);
 
+  // Error state
   if (error) {
     return (
-      <main style={{ padding: 24, color: "crimson", fontFamily: "system-ui" }}>
-        <h1>Human Return Index™ – Pilot Dashboard</h1>
-        <p>Something went wrong loading your data:</p>
-        <pre style={{ whiteSpace: "pre-wrap" }}>{error}</pre>
+      <main
+        style={{
+          padding: 24,
+          fontFamily: "system-ui",
+          maxWidth: 960,
+          margin: "0 auto",
+        }}
+      >
+        <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 8 }}>
+          Human Return Index™ Dashboard
+        </h1>
+        <p style={{ marginBottom: 16, opacity: 0.8 }}>
+          Something went wrong while loading your data:
+        </p>
+        <pre
+          style={{
+            background: "#fff0f0",
+            borderRadius: 8,
+            padding: 12,
+            fontSize: 12,
+            whiteSpace: "pre-wrap",
+          }}
+        >
+          {error}
+        </pre>
       </main>
     );
   }
 
+  // Loading state
   if (!overview) {
     return (
-      <main style={{ padding: 24, fontFamily: "system-ui" }}>
-        <h1>Human Return Index™ – Pilot Dashboard</h1>
-        <p>Loading your latest HRI data…</p>
+      <main
+        style={{
+          padding: 24,
+          fontFamily: "system-ui",
+          maxWidth: 960,
+          margin: "0 auto",
+        }}
+      >
+        <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 8 }}>
+          Human Return Index™ Dashboard
+        </h1>
+        <p style={{ marginBottom: 16, opacity: 0.8 }}>
+          Loading your latest Human Return Index™ data…
+        </p>
       </main>
     );
   }
 
-  // Map assessment scores by pillar for easy lookup
-  const assessmentScoreByPillar = scores.reduce((acc, s) => {
-    if (s.pillar != null) {
-      acc[s.pillar] = Number(s.score);
-    }
-    return acc;
-  }, {});
-
-  // Pulse scores: 1–5 → scale to 0–100
-  const pulseItems = Array.isArray(pulseSummary)
-    ? pulseSummary.map((p) => {
-        const raw = Number(p.score || 0); // 1–5
-        const scaled = raw * 20; // 0–100
-        return { pillar: p.pillar, raw, score: scaled };
-      })
-    : [];
-
-  const overallPulseScore =
-    pulseItems.length > 0
-      ? pulseItems.reduce((sum, p) => sum + p.score, 0) / pulseItems.length
+  const overallScore =
+    overview.overall_score != null
+      ? Math.round(Number(overview.overall_score))
       : null;
 
   return (
@@ -78,402 +96,484 @@ export default function Dashboard() {
       style={{
         padding: 24,
         fontFamily: "system-ui",
-        maxWidth: 960,
+        maxWidth: 1100,
         margin: "0 auto",
       }}
     >
-      <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 8 }}>
-        Human Return Index™ – Pilot Dashboard
-      </h1>
-      <p style={{ marginBottom: 24, opacity: 0.8 }}>
-        This is your live preview of the Human Return Index™ dashboard. The
-        data below is coming from your Supabase assessment and organisation
-        settings.
-      </p>
-
-      {/* LATEST ASSESSMENT */}
-      <section
+      {/* PAGE HEADER */}
+      <header
         style={{
-          border: "1px solid #eee",
-          borderRadius: 12,
-          padding: 16,
-          marginBottom: 24,
+          marginBottom: 20,
+          display: "flex",
+          justifyContent: "space-between",
+          gap: 12,
+          alignItems: "flex-start",
         }}
       >
-        <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>
-          Latest Assessment
-        </h2>
-
-        <div style={{ opacity: 0.8, fontSize: 13, marginBottom: 4 }}>
-          {overview.title}
+        <div>
+          <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 6 }}>
+            Human Return Index™ Dashboard
+          </h1>
+          <p style={{ margin: 0, opacity: 0.8, fontSize: 14 }}>
+            Real-time view of how your people are doing – and what that means
+            for performance, risk and ROI.
+          </p>
         </div>
-        <div style={{ opacity: 0.7, fontSize: 12 }}>
-          Status: {overview.status} • Period: {overview.period_start} →{" "}
-          {overview.period_end}
-        </div>
-        <div style={{ opacity: 0.7, fontSize: 12, marginTop: 4 }}>
-          Created:{" "}
-          {overview.assessment_created_at
-            ? new Date(overview.assessment_created_at).toLocaleDateString()
-            : "-"}
-        </div>
-
-        <div style={{ marginTop: 12 }}>
-          <div style={{ opacity: 0.6, fontSize: 12 }}>Overall HRI Score</div>
-          <div style={{ fontSize: 32, fontWeight: 800 }}>
-            {overview.overall_score != null
-              ? Math.round(overview.overall_score)
-              : "–"}
-          </div>
-
-          <div style={{ marginTop: 12 }}>
-            <div style={{ opacity: 0.6, fontSize: 12 }}>Badge</div>
-            <div style={{ fontWeight: 700 }}>
-              {overview.badge_level || "No badge yet"}
-            </div>
-            {overview.badge_awarded_at && (
-              <div style={{ fontSize: 12, opacity: 0.7 }}>
-                Awarded:{" "}
-                {new Date(overview.badge_awarded_at).toLocaleDateString()}
-              </div>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* PILLAR SCORES – INTERNAL ASSESSMENT */}
-      <section style={{ marginBottom: 32 }}>
-        <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>
-          Pillar Scores (Internal Assessment)
-        </h2>
-
         <div
           style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill,minmax(180px,1fr))",
-            gap: 12,
+            padding: "4px 10px",
+            borderRadius: 999,
+            border: "1px solid #eee",
+            fontSize: 11,
+            textTransform: "uppercase",
+            letterSpacing: 0.6,
+            background: "#fafafa",
           }}
         >
-          {scores.map((s) => (
-            <ScoreCard
-              key={s.pillar}
-              label={s.pillar}
-              value={Math.round(Number(s.score))}
-            />
-          ))}
-          {scores.length === 0 && (
-            <div style={{ opacity: 0.7 }}>No pillar scores yet.</div>
+          Live preview · Internal use
+        </div>
+      </header>
+
+      {/* TOP ROW: ASSESSMENT + PILLAR SUMMARY */}
+      <section
+        style={{
+          display: "grid",
+          gridTemplateColumns: "minmax(0, 1.3fr) minmax(0, 1fr)",
+          gap: 16,
+          marginBottom: 20,
+        }}
+      >
+        {/* Assessment summary */}
+        <div
+          style={{
+            border: "1px solid #eee",
+            borderRadius: 12,
+            padding: 16,
+            background: "#fff",
+          }}
+        >
+          <div
+            style={{
+              fontSize: 12,
+              textTransform: "uppercase",
+              letterSpacing: 0.7,
+              opacity: 0.6,
+              marginBottom: 4,
+            }}
+          >
+            Latest assessment
+          </div>
+          <div style={{ fontSize: 18, fontWeight: 700 }}>
+            {overview.title || "Current Human Return Index™ assessment"}
+          </div>
+          <div
+            style={{
+              fontSize: 12,
+              opacity: 0.7,
+              marginTop: 4,
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 8,
+            }}
+          >
+            <span>
+              Status:{" "}
+              <strong style={{ textTransform: "capitalize" }}>
+                {overview.status?.toLowerCase() || "–"}
+              </strong>
+            </span>
+            <span>•</span>
+            <span>
+              Period:{" "}
+              <strong>
+                {overview.period_start} → {overview.period_end}
+              </strong>
+            </span>
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              alignItems: "flex-end",
+              justifyContent: "space-between",
+              marginTop: 16,
+              gap: 12,
+              flexWrap: "wrap",
+            }}
+          >
+            {/* Overall score */}
+            <div>
+              <div
+                style={{
+                  fontSize: 12,
+                  opacity: 0.6,
+                  textTransform: "uppercase",
+                  letterSpacing: 0.7,
+                  marginBottom: 4,
+                }}
+              >
+                Overall HRI score
+              </div>
+              <div style={{ fontSize: 34, fontWeight: 800 }}>
+                {overallScore != null ? `${overallScore}` : "–"}
+                {overallScore != null && (
+                  <span
+                    style={{
+                      fontSize: 16,
+                      opacity: 0.6,
+                      marginLeft: 4,
+                      fontWeight: 500,
+                    }}
+                  >
+                    / 100
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Badge */}
+            <div style={{ textAlign: "right" }}>
+              <div
+                style={{
+                  fontSize: 12,
+                  opacity: 0.6,
+                  textTransform: "uppercase",
+                  letterSpacing: 0.7,
+                  marginBottom: 4,
+                }}
+              >
+                Badge
+              </div>
+              <div style={{ fontWeight: 700, fontSize: 14 }}>
+                {overview.badge_level || "No badge yet"}
+              </div>
+              {overview.badge_awarded_at && (
+                <div style={{ fontSize: 12, opacity: 0.7, marginTop: 2 }}>
+                  Awarded:{" "}
+                  {new Date(
+                    overview.badge_awarded_at
+                  ).toLocaleDateString()}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Pillar scores */}
+        <div
+          style={{
+            border: "1px solid #eee",
+            borderRadius: 12,
+            padding: 16,
+            background: "#fff",
+          }}
+        >
+          <div
+            style={{
+              fontSize: 12,
+              textTransform: "uppercase",
+              letterSpacing: 0.7,
+              opacity: 0.6,
+              marginBottom: 4,
+            }}
+          >
+            Pillar scores (internal assessment)
+          </div>
+          <p style={{ fontSize: 12, opacity: 0.8, marginBottom: 10 }}>
+            Average scores across your five HRI pillars, all normalised to 0–100.
+          </p>
+          {scores.length === 0 ? (
+            <div style={{ fontSize: 13, opacity: 0.7 }}>
+              No pillar scores yet. Complete an assessment to populate this.
+            </div>
+          ) : (
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                gap: 8,
+              }}
+            >
+              {scores.map((s) => (
+                <div
+                  key={s.pillar}
+                  style={{
+                    border: "1px solid #f2f2f2",
+                    borderRadius: 10,
+                    padding: 10,
+                    background: "#fafafa",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: 8,
+                  }}
+                >
+                  <div style={{ fontSize: 12, opacity: 0.75 }}>
+                    {s.pillar}
+                  </div>
+                  <div style={{ fontSize: 18, fontWeight: 800 }}>
+                    {Math.round(Number(s.score))}
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </div>
       </section>
 
-      {/* ORG METRICS */}
-      {orgMetrics && (
+      {/* ORG METRICS + ROI ROW */}
+      <section
+        style={{
+          display: "grid",
+          gridTemplateColumns: "minmax(0, 1.1fr) minmax(0, 1fr)",
+          gap: 16,
+          marginBottom: 20,
+        }}
+      >
+        {/* Org metrics */}
         <section
           style={{
             border: "1px solid #eee",
             borderRadius: 12,
             padding: 16,
-            marginBottom: 32,
+            background: "#fff",
           }}
         >
-          <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>
+          <h2
+            style={{
+              fontSize: 16,
+              fontWeight: 700,
+              marginBottom: 8,
+            }}
+          >
             Organisation metrics
           </h2>
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
-              gap: 12,
-            }}
-          >
-            <MetricCard
-              label="Organisation"
-              value={orgMetrics.name || "–"}
-            />
-            <MetricCard
-              label="Employees"
-              value={
-                orgMetrics.employee_count != null
-                  ? orgMetrics.employee_count.toLocaleString()
-                  : "–"
-              }
-            />
-            <MetricCard
-              label="Average salary"
-              value={
-                orgMetrics.avg_salary != null
-                  ? `£${orgMetrics.avg_salary.toLocaleString()}`
-                  : "–"
-              }
-            />
-            <MetricCard
-              label="Turnover rate"
-              value={
-                orgMetrics.turnover_rate != null
-                  ? `${orgMetrics.turnover_rate}%`
-                  : "–"
-              }
-            />
-            <MetricCard
-              label="Absence days per employee"
-              value={
-                orgMetrics.absent_days_per_employee != null
-                  ? orgMetrics.absent_days_per_employee
-                  : "–"
-              }
-            />
-            <MetricCard
-              label="Annual wellbeing spend"
-              value={
-                orgMetrics.annual_wellbeing_spend != null
-                  ? `£${orgMetrics.annual_wellbeing_spend.toLocaleString()}`
-                  : "–"
-              }
-            />
-            <MetricCard
-              label="Engagement score"
-              value={
-                orgMetrics.engagement_score != null
-                  ? `${orgMetrics.engagement_score}/100`
-                  : "–"
-              }
-            />
-          </div>
-        </section>
-      )}
-
-      {/* ROI SNAPSHOT */}
-      {roiSummary && (
-        <section
-          style={{
-            border: "1px solid #f5e58a",
-            background: "#fffdf0",
-            borderRadius: 12,
-            padding: 16,
-            marginBottom: 32,
-          }}
-        >
-          <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>
-            Quick ROI snapshot
-          </h2>
-
-          <p style={{ fontSize: 13, opacity: 0.8, marginBottom: 12 }}>
-            Based on your current headcount, salary levels, turnover and
-            absence, here’s an estimated annual cost of people risk versus your
-            wellbeing investment.
+          <p style={{ fontSize: 12, opacity: 0.8, marginBottom: 12 }}>
+            Core people and cost inputs used to model your HRI score and people
+            risk.
           </p>
 
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))",
-              gap: 12,
-            }}
-          >
-            <MetricCard
-              label="Total payroll"
-              value={
-                roiSummary.total_payroll != null
-                  ? `£${roiSummary.total_payroll.toLocaleString("en-GB")}`
-                  : "–"
-              }
-            />
-            <MetricCard
-              label="Estimated turnover cost / year"
-              value={
-                roiSummary.estimated_turnover_cost != null
-                  ? `£${roiSummary.estimated_turnover_cost.toLocaleString(
-                      "en-GB"
-                    )}`
-                  : "–"
-              }
-            />
-            <MetricCard
-              label="Estimated absence cost / year"
-              value={
-                roiSummary.estimated_absence_cost != null
-                  ? `£${roiSummary.estimated_absence_cost.toLocaleString(
-                      "en-GB"
-                    )}`
-                  : "–"
-              }
-            />
-            <MetricCard
-              label="Total people risk / year"
-              value={
-                roiSummary.total_people_risk != null
-                  ? `£${roiSummary.total_people_risk.toLocaleString("en-GB")}`
-                  : "–"
-              }
-            />
-            <MetricCard
-              label="Wellbeing investment / year"
-              value={
-                roiSummary.annual_wellbeing_spend != null
-                  ? `£${roiSummary.annual_wellbeing_spend.toLocaleString(
-                      "en-GB"
-                    )}`
-                  : "–"
-              }
-            />
-            <MetricCard
-              label="People risk : wellbeing ratio"
-              value={
-                roiSummary.roi_multiplier != null
-                  ? `${roiSummary.roi_multiplier.toFixed(1)}x`
-                  : "–"
-              }
-            />
-          </div>
-
-          {roiSummary.roi_multiplier != null && (
-            <p
-              style={{
-                marginTop: 12,
-                fontSize: 13,
-                opacity: 0.85,
-              }}
-            >
-              In simple terms: for every £1 you invest in wellbeing, you&apos;re
-              currently carrying around {roiSummary.roi_multiplier.toFixed(1)}x
-              that in people risk (turnover + absence). Human Return Index™
-              exists to close that gap.
-            </p>
-          )}
-        </section>
-      )}
-
-      {/* EMPLOYEE PULSE */}
-      {pulseItems.length > 0 && (
-        <section
-          style={{
-            border: "1px solid #dff0ff",
-            background: "#f7fbff",
-            borderRadius: 12,
-            padding: 16,
-            marginBottom: 32,
-          }}
-        >
-          <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>
-            Latest Employee Pulse
-          </h2>
-
-          <p style={{ fontSize: 13, opacity: 0.8, marginBottom: 12 }}>
-            Live sentiment snapshot across the 5 HRI pillars, compared to your
-            internal assessment scores (all out of 100).
-          </p>
-
-          {overallPulseScore != null && (
+          {orgMetrics ? (
             <div
               style={{
-                marginBottom: 16,
-                padding: 10,
-                borderRadius: 10,
-                border: "1px dashed #c7ddff",
-                background: "#f0f6ff",
-                fontSize: 13,
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))",
+                gap: 10,
               }}
             >
-              <strong>Overall pulse score:</strong>{" "}
-              {Math.round(overallPulseScore)} / 100
+              <MetricCard
+                label="Organisation"
+                value={orgMetrics.name || "Your organisation"}
+              />
+              <MetricCard
+                label="Employees"
+                value={
+                  orgMetrics.employee_count != null
+                    ? orgMetrics.employee_count.toLocaleString()
+                    : "–"
+                }
+              />
+              <MetricCard
+                label="Average salary"
+                value={
+                  orgMetrics.avg_salary != null
+                    ? `£${orgMetrics.avg_salary.toLocaleString("en-GB")}`
+                    : "–"
+                }
+              />
+              <MetricCard
+                label="Turnover rate"
+                value={
+                  orgMetrics.turnover_rate != null
+                    ? `${orgMetrics.turnover_rate}%`
+                    : "–"
+                }
+              />
+              <MetricCard
+                label="Absence days per employee"
+                value={
+                  orgMetrics.absent_days_per_employee != null
+                    ? orgMetrics.absent_days_per_employee
+                    : "–"
+                }
+              />
+              <MetricCard
+                label="Annual wellbeing spend"
+                value={
+                  orgMetrics.annual_wellbeing_spend != null
+                    ? `£${orgMetrics.annual_wellbeing_spend.toLocaleString(
+                        "en-GB"
+                      )}`
+                    : "–"
+                }
+              />
+              <MetricCard
+                label="Engagement score"
+                value={
+                  orgMetrics.engagement_score != null
+                    ? `${orgMetrics.engagement_score}/100`
+                    : "–"
+                }
+              />
+            </div>
+          ) : (
+            <div style={{ fontSize: 13, opacity: 0.7 }}>
+              No organisation metrics found. Add your data in the Organisation
+              Settings page to unlock ROI insights.
             </div>
           )}
+        </section>
 
-          <div
+        {/* Quick ROI snapshot */}
+        <section
+          style={{
+            border: "1px solid #f7e9a6",
+            borderRadius: 12,
+            padding: 16,
+            background: "#fffdf5",
+          }}
+        >
+          <h2
             style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))",
-              gap: 12,
+              fontSize: 16,
+              fontWeight: 700,
+              marginBottom: 8,
             }}
           >
-            {pulseItems.map((p) => {
-              const pulseScore = p.score; // 0–100
-              const assessmentScore = assessmentScoreByPillar[p.pillar];
-              const hasAssessment = assessmentScore != null;
-              const delta =
-                hasAssessment && Number.isFinite(assessmentScore)
-                  ? pulseScore - Number(assessmentScore)
-                  : null;
+            Quick ROI snapshot
+          </h2>
+          <p style={{ fontSize: 12, opacity: 0.8, marginBottom: 10 }}>
+            A high-level estimate of your annual people risk (turnover +
+            absence) compared with what you&apos;re currently investing in your
+            people.
+          </p>
 
-              let deltaLabel = "No comparison yet";
-              let deltaColour = "#666";
+          {roiSummary ? (
+            <>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))",
+                  gap: 8,
+                  marginBottom: 10,
+                }}
+              >
+                <MetricCard
+                  label="Total payroll"
+                  value={
+                    roiSummary.total_payroll != null
+                      ? `£${roiSummary.total_payroll.toLocaleString("en-GB")}`
+                      : "–"
+                  }
+                />
+                <MetricCard
+                  label="Estimated turnover cost / year"
+                  value={
+                    roiSummary.estimated_turnover_cost != null
+                      ? `£${roiSummary.estimated_turnover_cost.toLocaleString(
+                          "en-GB"
+                        )}`
+                      : "–"
+                  }
+                />
+                <MetricCard
+                  label="Estimated absence cost / year"
+                  value={
+                    roiSummary.estimated_absence_cost != null
+                      ? `£${roiSummary.estimated_absence_cost.toLocaleString(
+                          "en-GB"
+                        )}`
+                      : "–"
+                  }
+                />
+                <MetricCard
+                  label="Total people risk / year"
+                  value={
+                    roiSummary.total_people_risk != null
+                      ? `£${roiSummary.total_people_risk.toLocaleString(
+                          "en-GB"
+                        )}`
+                      : "–"
+                  }
+                />
+                <MetricCard
+                  label="Wellbeing investment / year"
+                  value={
+                    roiSummary.annual_wellbeing_spend != null
+                      ? `£${roiSummary.annual_wellbeing_spend.toLocaleString(
+                          "en-GB"
+                        )}`
+                      : "–"
+                  }
+                />
+                <MetricCard
+                  label="People risk : wellbeing ratio"
+                  value={
+                    roiSummary.roi_multiplier != null
+                      ? `${roiSummary.roi_multiplier.toFixed(1)}x`
+                      : "–"
+                  }
+                />
+              </div>
 
-              if (delta != null && delta !== 0) {
-                const arrow = delta > 0 ? "▲" : "▼";
-                const direction = delta > 0 ? "higher" : "lower";
-                deltaLabel = `${arrow} ${Math.abs(
-                  Math.round(delta)
-                )} vs assessment (${direction})`;
-                deltaColour = delta > 0 ? "#0a7b3f" : "#b00020";
-              } else if (delta === 0) {
-                deltaLabel = "Matches internal assessment";
-                deltaColour = "#444";
-              }
-
-              return (
-                <div
-                  key={p.pillar}
+              {roiSummary.roi_multiplier != null && (
+                <p
                   style={{
-                    border: "1px solid #e6f0fa",
-                    borderRadius: 10,
-                    padding: 12,
-                    background: "#ffffff",
+                    fontSize: 12,
+                    opacity: 0.85,
                   }}
                 >
-                  <div style={{ opacity: 0.7, fontSize: 12 }}>{p.pillar}</div>
-                  <div
-                    style={{
-                      fontSize: 24,
-                      fontWeight: 800,
-                      marginBottom: 4,
-                    }}
-                  >
-                    {Math.round(pulseScore)}
-                  </div>
-                  {hasAssessment && (
-                    <div
-                      style={{
-                        fontSize: 12,
-                        opacity: 0.8,
-                        marginBottom: 4,
-                      }}
-                    >
-                      Internal assessment:{" "}
-                      <strong>{Math.round(assessmentScore)}</strong>
-                    </div>
-                  )}
-                  <div
-                    style={{
-                      fontSize: 12,
-                      color: deltaColour,
-                    }}
-                  >
-                    {deltaLabel}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                  In simple terms: for every £1 you invest in wellbeing, you are
+                  currently carrying around{" "}
+                  <strong>{roiSummary.roi_multiplier.toFixed(1)}x</strong> that
+                  amount in annual people risk. Human Return Index™ exists to
+                  close that gap.
+                </p>
+              )}
+            </>
+          ) : (
+            <div style={{ fontSize: 13, opacity: 0.7 }}>
+              Add your organisation metrics to calculate your people risk and
+              wellbeing ROI.
+            </div>
+          )}
         </section>
-      )}
-    </main>
-  );
-}
+      </section>
 
-function ScoreCard({ label, value }) {
-  return (
-    <div
-      style={{
-        border: "1px solid #eee",
-        borderRadius: 10,
-        padding: 12,
-      }}
-    >
-      <div style={{ opacity: 0.7, fontSize: 12 }}>{label}</div>
-      <div style={{ fontSize: 24, fontWeight: 800 }}>{value}</div>
-    </div>
+      {/* LATEST EMPLOYEE PULSE */}
+      <section
+        style={{
+          border: "1px solid #eee",
+          borderRadius: 12,
+          padding: 16,
+          background: "#fff",
+          marginBottom: 12,
+        }}
+      >
+        <h2
+          style={{
+            fontSize: 16,
+            fontWeight: 700,
+            marginBottom: 8,
+          }}
+        >
+          Latest employee pulse
+        </h2>
+        <p style={{ fontSize: 12, opacity: 0.8, marginBottom: 10 }}>
+          Live sentiment across the five HRI pillars, compared with your
+          internal assessment. Pulse scores are shown on a 0–100 scale.
+        </p>
+
+        {!pulseSummary || pulseSummary.length === 0 ? (
+          <div style={{ fontSize: 13, opacity: 0.7 }}>
+            No recent pulse responses yet. Once employees complete a pulse
+            survey, you&apos;ll see the latest signal here.
+          </div>
+        ) : (
+          <PulseComparisonGrid pulseSummary={pulseSummary} scores={scores} />
+        )}
+      </section>
+    </main>
   );
 }
 
@@ -488,7 +588,175 @@ function MetricCard({ label, value }) {
       }}
     >
       <div style={{ opacity: 0.6, fontSize: 11 }}>{label}</div>
-      <div style={{ fontWeight: 700, marginTop: 4 }}>{value}</div>
+      <div style={{ fontWeight: 700, marginTop: 4, fontSize: 13 }}>{value}</div>
+    </div>
+  );
+}
+
+function PulseComparisonGrid({ pulseSummary, scores }) {
+  // Build a lookup for internal assessment pillar scores
+  const assessmentByPillar = new Map();
+  for (const s of scores || []) {
+    assessmentByPillar.set(s.pillar, Number(s.score));
+  }
+
+  // Convert pulse scores (1–5 average) → 0–100
+  const rows = (pulseSummary || []).map((p) => {
+    const pulseScore01to5 = Number(p.score);
+    const pulseScore100 = Math.round((pulseScore01to5 / 5) * 100);
+    const assessmentScore = assessmentByPillar.has(p.pillar)
+      ? Math.round(assessmentByPillar.get(p.pillar))
+      : null;
+    const diff =
+      assessmentScore != null ? pulseScore100 - assessmentScore : null;
+
+    return {
+      pillar: p.pillar,
+      pulseScore: pulseScore100,
+      assessmentScore,
+      diff,
+    };
+  });
+
+  const validPulse = rows.filter(
+    (r) => Number.isFinite(r.pulseScore) && r.assessmentScore != null
+  );
+  const overallPulse =
+    validPulse.length > 0
+      ? Math.round(
+          validPulse.reduce((sum, r) => sum + r.pulseScore, 0) /
+            validPulse.length
+        )
+      : null;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {/* Overall pulse */}
+      <div
+        style={{
+          borderRadius: 10,
+          padding: 10,
+          background: "#fafafa",
+          border: "1px solid #f0f0f0",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 12,
+        }}
+      >
+        <div>
+          <div
+            style={{
+              fontSize: 12,
+              opacity: 0.7,
+              textTransform: "uppercase",
+              letterSpacing: 0.7,
+            }}
+          >
+            Overall pulse score
+          </div>
+          <div style={{ fontSize: 13, opacity: 0.8 }}>
+            Average across the latest pulse responses by pillar.
+          </div>
+        </div>
+        <div style={{ fontSize: 22, fontWeight: 800 }}>
+          {overallPulse != null ? `${overallPulse} / 100` : "–"}
+        </div>
+      </div>
+
+      {/* Per-pillar comparison */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))",
+          gap: 10,
+        }}
+      >
+        {rows.map((row) => {
+          const { pillar, pulseScore, assessmentScore, diff } = row;
+
+          let diffLabel = "No comparison";
+          let diffSymbol = "";
+          let diffColour = "#666";
+
+          if (diff != null && !Number.isNaN(diff)) {
+            if (diff > 0) {
+              diffLabel = `${Math.abs(diff)} higher than assessment`;
+              diffSymbol = "▲";
+              diffColour = "#0a7a43";
+            } else if (diff < 0) {
+              diffLabel = `${Math.abs(diff)} lower than assessment`;
+              diffSymbol = "▼";
+              diffColour = "#b32525";
+            } else {
+              diffLabel = "Matches assessment";
+              diffSymbol = "●";
+              diffColour = "#777";
+            }
+          }
+
+          return (
+            <div
+              key={pillar}
+              style={{
+                borderRadius: 10,
+                padding: 10,
+                border: "1px solid #f2f2f2",
+                background: "#fafafa",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  marginBottom: 4,
+                }}
+              >
+                {pillar}
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "baseline",
+                  marginBottom: 4,
+                }}
+              >
+                <div style={{ fontSize: 12, opacity: 0.7 }}>
+                  Pulse score (0–100)
+                </div>
+                <div style={{ fontSize: 18, fontWeight: 800 }}>
+                  {Number.isFinite(pulseScore) ? pulseScore : "–"}
+                </div>
+              </div>
+
+              <div style={{ fontSize: 12, opacity: 0.8 }}>
+                Internal assessment:{" "}
+                <strong>
+                  {assessmentScore != null ? assessmentScore : "–"}
+                </strong>
+              </div>
+
+              {diff != null && !Number.isNaN(diff) && (
+                <div
+                  style={{
+                    marginTop: 4,
+                    fontSize: 12,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 4,
+                    color: diffColour,
+                  }}
+                >
+                  <span>{diffSymbol}</span>
+                  <span>{diffLabel}</span>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
