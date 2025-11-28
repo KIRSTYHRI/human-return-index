@@ -1,71 +1,30 @@
-:root {
-  color-scheme: dark;
-  --hri-bg: #050505;
-  --hri-surface: #0d0d0d;
-  --hri-surface-soft: #161616;
-  --hri-border: #333333;
-  --hri-text: #f7f7f7;
-  --hri-muted: #b3b3b3;
-  --hri-accent: #fee000; /* HRI yellow */
-}
-
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-}
-
-html,
-body {
-  margin: 0;
-  padding: 0;
-}
-
-body {
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  background-color: var(--hri-bg);
-  color: var(--hri-text);
-}
-
-/* Links */
-a {
-  color: var(--hri-accent);
-  text-decoration: none;
-}
-
-a:hover {
-  text-decoration: underline;
-}
-
-/* Tables – ensure text is visible and not white-on-white */
-table {
-  width: 100%;
-  border-collapse: collapse;
-  background: transparent;
-  color: var(--hri-text);
-}
-
-th,
-td {
-  border-bottom: 1px solid var(--hri-border);
-}
-
-/* Make placeholder text lighter but still readable */
-input::placeholder,
-textarea::placeholder {
-  color: var(--hri-muted);
-}
-
-/* Inputs / textareas – dark mode */
+ /* White cards / forms everywhere */
+.card,
+form,
 input,
-textarea {
-  background: var(--hri-surface-soft);
-  color: var(--hri-text);
-  border: 1px solid var(--hri-border);
-  border-radius: 6px;
+textarea,
+select {
+  background: #ffffff !important;
+  color: #000000 !important;
 }
 
-/* Basic button reset (your inline styles can still override) */
+/* Buttons */
 button {
-  font-family: inherit;
+  background: #FEE000 !important; /* Yellow brand */
+  color: #000000 !important;
+  border-radius: 999px;
+  font-weight: 700;
+  padding: 10px 20px;
+  border: none;
+  cursor: pointer;
+}
+
+/* Headings */
+h1, h2, h3, h4 {
+  color: #FFFFFF !important;
+}
+
+/* Metric / stat labels */
+label, .label {
+  color: #FFFFFF !important;
 }
