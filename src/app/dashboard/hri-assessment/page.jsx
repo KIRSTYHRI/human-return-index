@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 
-// Local definition of the 5 HRI pillars + questions.
-// These IDs MUST stay in sync with your backend scoring logic.
+// Same 5 pillars, 5 questions each – this is your
+// leadership / internal HRI assessment for 0–100 pillar scores.
 const PILLARS = [
   {
     id: "Leadership",
@@ -137,12 +137,12 @@ const PILLARS = [
   },
 ];
 
-// Helper to turn a 1–5 response into 0–100
+// Turn a 1–5 answer into a 0–100 score
 function toScore(value) {
   if (!value) return null;
   const num = Number(value);
   if (!Number.isFinite(num)) return null;
-  return num * 20; // 1 → 20, 5 → 100
+  return num * 20; // 1 → 20 … 5 → 100
 }
 
 export default function HriAssessmentPage() {
@@ -152,7 +152,7 @@ export default function HriAssessmentPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
-  // 1) Fetch the current assessment via /api/overview
+  // 1) Fetch latest assessment meta so we know which assessment_id to attach scores to
   useEffect(() => {
     (async () => {
       try {
@@ -186,7 +186,7 @@ export default function HriAssessmentPage() {
       return;
     }
 
-    // 2) Build per-pillar scores based on answers
+    // Build per-pillar scores payload
     const scoresPayload = [];
 
     for (const pillar of PILLARS) {
@@ -194,9 +194,7 @@ export default function HriAssessmentPage() {
         .map((q) => toScore(answers[q.id]))
         .filter((s) => s != null);
 
-      if (qScores.length === 0) {
-        continue;
-      }
+      if (qScores.length === 0) continue;
 
       const avg =
         qScores.reduce((sum, s) => sum + s, 0) / qScores.length;
@@ -230,7 +228,7 @@ export default function HriAssessmentPage() {
       }
 
       setMessage(
-        "Assessment saved. Your dashboard will now reflect these pillar scores."
+        "Assessment saved. Your dashboard and ROI view now reflect these updated pillar scores."
       );
     } catch (err) {
       console.error("Error submitting HRI assessment:", err);
@@ -249,40 +247,40 @@ export default function HriAssessmentPage() {
         margin: "0 auto",
       }}
     >
-      <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 8 }}>
-        Human Return Index™ – Internal Assessment
-      </h1>
-
-      <p style={{ marginBottom: 8, opacity: 0.8 }}>
-        This is your leadership-only internal assessment. Score how your
-        organisation is really doing across the five HRI pillars. Each
-        question is rated from 1 (strongly disagree) to 5 (strongly agree).
-      </p>
-      <p style={{ marginBottom: 16, opacity: 0.8 }}>
-        When you submit, we convert your responses into 0–100 pillar scores and
-        update your live HRI dashboard automatically.
-      </p>
+      <header style={{ marginBottom: 24 }}>
+        <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 8 }}>
+          Human Return Index™ – Internal Assessment
+        </h1>
+        <p style={{ marginBottom: 6, opacity: 0.8 }}>
+          This is your leadership view of how things are really working across the
+          five HRI pillars. Rate each statement from 1 (strongly disagree) to 5
+          (strongly agree).
+        </p>
+        <p style={{ fontSize: 13, opacity: 0.75 }}>
+          We’ll convert your responses into 0–100 scores per pillar and update
+          your main dashboard. One clean view for you, your exec team and the
+          board.
+        </p>
+      </header>
 
       {overview && (
-        <div
+        <section
           style={{
             border: "1px solid #eee",
             borderRadius: 12,
             padding: 12,
-            marginBottom: 16,
+            marginBottom: 20,
             fontSize: 13,
             background: "#fafafa",
           }}
         >
-          <div style={{ opacity: 0.7, marginBottom: 4 }}>
-            Current assessment
-          </div>
+          <div style={{ opacity: 0.7, marginBottom: 4 }}>Current assessment</div>
           <div style={{ fontWeight: 600 }}>{overview.title}</div>
           <div style={{ opacity: 0.7 }}>
-            Period: {overview.period_start} → {overview.period_end} • Status:{" "}
+            Period: {overview.period_start} → {overview.period_end} · Status:{" "}
             {overview.status}
           </div>
-        </div>
+        </section>
       )}
 
       {error && (
@@ -324,14 +322,15 @@ export default function HriAssessmentPage() {
               borderRadius: 12,
               padding: 16,
               marginBottom: 20,
+              background: "#fff",
             }}
           >
             <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>
               {pillar.label}
             </h2>
             <p style={{ fontSize: 13, opacity: 0.75, marginBottom: 12 }}>
-              Rate each statement from 1 (strongly disagree) to 5 (strongly
-              agree).
+              Score each statement based on how true it feels today in your
+              organisation.
             </p>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -342,7 +341,7 @@ export default function HriAssessmentPage() {
                     border: "1px solid #f4f4f4",
                     borderRadius: 8,
                     padding: 10,
-                    background: "#fff",
+                    background: "#fcfcfc",
                   }}
                 >
                   <div
@@ -384,23 +383,30 @@ export default function HriAssessmentPage() {
           </section>
         ))}
 
-        <button
-          type="submit"
-          disabled={saving}
+        <div
           style={{
+            display: "flex",
+            justifyContent: "flex-end",
             marginTop: 8,
-            padding: "10px 18px",
-            borderRadius: 999,
-            border: "none",
-            background: "#000",
-            color: "#fff",
-            fontWeight: 600,
-            cursor: "pointer",
-            opacity: saving ? 0.7 : 1,
           }}
         >
-          {saving ? "Saving…" : "Save assessment scores"}
-        </button>
+          <button
+            type="submit"
+            disabled={saving}
+            style={{
+              padding: "10px 18px",
+              borderRadius: 999,
+              border: "none",
+              background: "#000",
+              color: "#fff",
+              fontWeight: 600,
+              cursor: "pointer",
+              opacity: saving ? 0.7 : 1,
+            }}
+          >
+            {saving ? "Saving…" : "Save assessment scores"}
+          </button>
+        </div>
       </form>
     </main>
   );
