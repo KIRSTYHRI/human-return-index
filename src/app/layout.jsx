@@ -12,13 +12,27 @@ export default function RootLayout({ children }) {
         style={{
           margin: 0,
           minHeight: "100vh",
-          backgroundColor: "#f5f5f5", // light grey background
-          color: "#111827",           // dark text (no more white-on-white)
+
+          // === Global Brand Colours ===
+          backgroundColor: "#000000",  // black background
+          color: "#FFFFFF",            // white text
           fontFamily:
             'system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif',
+
+          // Ensure consistent text rendering
+          WebkitFontSmoothing: "antialiased",
+          MozOsxFontSmoothing: "grayscale",
         }}
       >
-        {children}
+        <div
+          style={{
+            maxWidth: "1200px",
+            margin: "0 auto",
+            padding: "24px",
+          }}
+        >
+          {children}
+        </div>
       </body>
     </html>
   );
