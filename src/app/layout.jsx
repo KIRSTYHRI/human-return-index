@@ -1,4 +1,4 @@
-// src/app/layout.jsx
+// src/app/layout.js  (or layout.jsx)
 import "./globals.css";
 
 export const metadata = {
@@ -10,16 +10,8 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body
-        style={{
-          margin: 0,
-          minHeight: "100vh",
-          background: "#020617", // near-black / dark navy
-          color: "#F9FAFB", // off-white
-          fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-        }}
-      >
-        {/* Top yellow demo strip */}
+      <body>
+        {/* Yellow demo strip */}
         <div
           style={{
             width: "100%",
@@ -35,12 +27,12 @@ export default function RootLayout({ children }) {
           powered by people.
         </div>
 
-        {/* Simple HRI nav bar */}
+        {/* Top nav with logo */}
         <header
           style={{
-            borderBottom: "1px solid rgba(148, 163, 184, 0.25)",
             background:
               "linear-gradient(to right, #020617 0%, #020617 40%, #020617 100%)",
+            borderBottom: "1px solid rgba(148, 163, 184, 0.4)",
           }}
         >
           <div
@@ -54,26 +46,26 @@ export default function RootLayout({ children }) {
               gap: 24,
             }}
           >
-            {/* Logo / wordmark */}
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {/* HRI logo / wordmark – simple version inspired by your site */}
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <div
                 style={{
-                  width: 26,
-                  height: 26,
-                  borderRadius: 6,
+                  width: 30,
+                  height: 30,
+                  borderRadius: 8,
                   background:
-                    "linear-gradient(135deg, #FACC15 0%, #F97316 100%)",
+                    "linear-gradient(135deg, #FEE000 0%, #FACC15 40%, #F97316 100%)",
                   display: "flex",
                   alignItems: "flex-end",
                   justifyContent: "center",
                   padding: 4,
                 }}
               >
-                {/* simple bar icon */}
+                {/* three bars icon */}
                 <div
                   style={{
                     display: "flex",
-                    gap: 2,
+                    gap: 3,
                     alignItems: "flex-end",
                     height: "100%",
                   }}
@@ -82,7 +74,7 @@ export default function RootLayout({ children }) {
                     style={{
                       width: 3,
                       height: "40%",
-                      background: "#111827",
+                      background: "#020617",
                       borderRadius: 999,
                     }}
                   />
@@ -90,7 +82,7 @@ export default function RootLayout({ children }) {
                     style={{
                       width: 3,
                       height: "65%",
-                      background: "#111827",
+                      background: "#020617",
                       borderRadius: 999,
                     }}
                   />
@@ -98,53 +90,59 @@ export default function RootLayout({ children }) {
                     style={{
                       width: 3,
                       height: "90%",
-                      background: "#111827",
+                      background: "#020617",
                       borderRadius: 999,
                     }}
                   />
                 </div>
               </div>
-              <span
-                style={{
-                  fontWeight: 800,
-                  letterSpacing: 0.4,
-                  fontSize: 16,
-                }}
-              >
-                HRI
-              </span>
+
+              <div style={{ display: "flex", flexDirection: "column" }}>
+                <span
+                  style={{
+                    fontWeight: 800,
+                    letterSpacing: 0.4,
+                    fontSize: 16,
+                  }}
+                >
+                  Human Return Index™
+                </span>
+                <span
+                  style={{
+                    fontSize: 11,
+                    opacity: 0.7,
+                    textTransform: "uppercase",
+                  }}
+                >
+                  People-first KPI for modern organisations
+                </span>
+              </div>
             </div>
 
-            {/* Nav links */}
+            {/* Simple nav */}
             <nav
               style={{
                 display: "flex",
-                gap: 18,
+                gap: 16,
                 fontSize: 13,
                 alignItems: "center",
               }}
             >
-              <a href="/" style={navLinkStyle}>
-                Overview
-              </a>
-              <a href="/dashboard" style={navLinkStyle}>
-                Dashboard
-              </a>
-              <a href="/dashboard/hri-assessment" style={navLinkStyle}>
+              <NavLink href="/">Overview</NavLink>
+              <NavLink href="/dashboard">Dashboard</NavLink>
+              <NavLink href="/dashboard/hri-assessment">
                 Internal Assessment
-              </a>
-              <a href="/dashboard/employee-pulse" style={navLinkStyle}>
+              </NavLink>
+              <NavLink href="/dashboard/employee-pulse">
                 Employee Pulse
-              </a>
-              <a href="/dashboard/settings" style={navLinkStyle}>
-                Org Inputs
-              </a>
+              </NavLink>
+              <NavLink href="/dashboard/settings">Org Inputs</NavLink>
             </nav>
           </div>
         </header>
 
         {/* Page content wrapper */}
-        <div
+        <main
           style={{
             maxWidth: 1200,
             margin: "0 auto",
@@ -152,21 +150,30 @@ export default function RootLayout({ children }) {
           }}
         >
           {children}
-        </div>
+        </main>
       </body>
     </html>
   );
 }
 
-// small helper for nav links
-const navLinkStyle = {
-  color: "#E5E7EB",
-  textDecoration: "none",
-  fontWeight: 500,
-  padding: "4px 8px",
-  borderRadius: 999,
-  border: "1px solid transparent",
-  display: "inline-flex",
-  alignItems: "center",
-  gap: 6,
-};
+/** Small helper component for nav links */
+function NavLink({ href, children }) {
+  return (
+    <a
+      href={href}
+      style={{
+        color: "#E5E7EB",
+        textDecoration: "none",
+        fontWeight: 500,
+        padding: "6px 10px",
+        borderRadius: 999,
+        border: "1px solid transparent",
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+      }}
+    >
+      {children}
+    </a>
+  );
+}
