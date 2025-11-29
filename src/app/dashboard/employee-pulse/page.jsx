@@ -3,233 +3,150 @@
 import { useEffect, useState } from "react";
 
 export default function EmployeePulsePage() {
-  const [questions, setQuestions] = useState([]);
-  const [answers, setAnswers] = useState({});
+  const [pulse, setPulse] = useState(null);
+  const [assessment, setAssessment] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
-  // Load the 10 pulse questions from /api/employee-questions
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch("/api/employee-questions", { cache: "no-store" });
-        const json = await res.json();
-
-        if (!res.ok || !json.ok) {
-          throw new Error(json.error || "Failed to load employee pulse questions");
-        }
-
-        setQuestions(json.questions || []);
-      } catch (err) {
-        console.error("Error loading employee questions:", err);
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
-
-  function handleChange(questionId, value) {
-    setAnswers((prev) => ({
-      ...prev,
-      [questionId]: value,
-    }));
-  }
-
-  async function handleSubmit(e) {
-    e.preventDefault();
-    setError("");
-    setMessage("");
-
-    const entries = Object.entries(answers).filter(
-      ([, value]) => value != null && value !== ""
-    );
-
-    if (entries.length === 0) {
-      setError("Please answer at least one question before submitting.");
-      return;
-    }
-
-    // Build a simple payload for now
-    const payload = entries.map(([question_id, value]) => ({
-      question_id,
-      response_value: Number(value),
-    }));
-
+  async function loadPulse() {
     try {
-      setSaving(true);
-      const res = await fetch("/api/employee-pulse", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ responses: payload }),
-      });
-
+      const res = await fetch("/api/overview", { cache: "no-store" });
       const json = await res.json();
 
-      if (!res.ok || !json.ok) {
-        throw new Error(json.error || "Failed to submit pulse responses");
+      if (!json.ok) {
+        setError(json.error || "Could not load pulse data");
+        setLoading(false);
+        return;
       }
 
-      setMessage("Thank you. Your responses have been recorded for this pulse check.");
+      setPulse(json.pulse_summary || []);
+      setAssessment(json.scores || []);
+      setLoading(false);
     } catch (err) {
-      console.error("Error submitting employee pulse:", err);
-      setError(err.message);
-    } finally {
-      setSaving(false);
+      setError("Network error loading pulse");
+      setLoading(false);
     }
   }
 
-  // Group questions by pillar for nicer layout
-  const groupedByPillar = questions.reduce((acc, q) => {
-    const key = q.pillar || "Other";
-    if (!acc[key]) acc[key] = [];
-    acc[key].push(q);
-    return acc;
-  }, {});
+  useEffect(() => {
+    loadPulse();
+  }, []);
 
   return (
-    <main
-      style={{
-        padding: 24,
-        fontFamily: "system-ui",
-        maxWidth: 960,
-        margin: "0 auto",
-      }}
-    >
-      <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 8 }}>
-        Employee Pulse – 2-Minute Check-In
-      </h1>
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      {/* PAGE HEADER */}
+      <section>
+        <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>
+          Employee Pulse
+        </h1>
+        <p style={{ fontSize: 13, opacity: 0.8, maxWidth: 600 }}>
+          Quick, anonymous sentiment check across the five HRI pillars –
+          compared directly with your internal assessment.
+        </p>
+      </section>
 
-      <p style={{ marginBottom: 16, opacity: 0.8 }}>
-        This short pulse survey gives you a live view of how people are feeling across
-        the 5 Human Return Index™ pillars. Each statement is rated from 1 (strongly
-        disagree) to 5 (strongly agree).
-      </p>
+      {/* MAIN PANEL */}
+      <div
+        style={{
+          background: "#0b1120",
+          padding: 22,
+          borderRadius: 18,
+          border: "1px solid rgba(148,163,184,0.3)",
+          boxShadow: "0 18px 40px rgba(15,23,42,0.5)",
+        }}
+      >
+        {loading ? (
+          <p style={{ opacity: 0.7 }}>Loading pulse…</p>
+        ) : error ? (
+          <p style={{ color: "#f87171" }}>{error}</p>
+        ) : !pulse || pulse.length === 0 ? (
+          <p style={{ opacity: 0.7 }}>
+            No pulse data yet. Run your first employee pulse to see results
+            here.
+          </p>
+        ) : (
+          <>
+            {/* OVERALL SCORE */}
+            <div style={{ marginBottom: 20 }}>
+              <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>
+                Overall Pulse Score
+              </h2>
+              <p style={{ fontSize: 40, fontWeight: 700, color: "#FEE000" }}>
+                {Math.round(
+                  pulse.reduce((sum, p) => sum + p.score, 0) / pulse.length
+                )}
+                <span style={{ fontSize: 22, opacity: 0.7 }}> / 100</span>
+              </p>
+            </div>
 
-      {loading && <p>Loading pulse questions…</p>}
-
-      {error && (
-        <div
-          style={{
-            marginBottom: 16,
-            padding: 12,
-            borderRadius: 8,
-            background: "#ffe6e6",
-            color: "#7a0000",
-            fontSize: 13,
-          }}
-        >
-          {error}
-        </div>
-      )}
-
-      {message && (
-        <div
-          style={{
-            marginBottom: 16,
-            padding: 12,
-            borderRadius: 8,
-            background: "#e6ffef",
-            color: "#005c2e",
-            fontSize: 13,
-          }}
-        >
-          {message}
-        </div>
-      )}
-
-      {!loading && !error && questions.length > 0 && (
-        <form onSubmit={handleSubmit}>
-          {Object.entries(groupedByPillar).map(([pillar, qs]) => (
-            <section
-              key={pillar}
+            {/* GRID OF PILLARS */}
+            <div
               style={{
-                border: "1px solid #eee",
-                borderRadius: 12,
-                padding: 16,
-                marginBottom: 20,
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))",
+                gap: 16,
               }}
             >
-              <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>
-                {pillar}
-              </h2>
-              <p style={{ fontSize: 13, opacity: 0.75, marginBottom: 12 }}>
-                Rate each statement from 1 (strongly disagree) to 5 (strongly agree).
-              </p>
+              {pulse.map((p) => {
+                const assessmentMatch = assessment.find(
+                  (a) => a.pillar === p.pillar
+                );
 
-              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                {qs.map((q) => (
+                const assessScore = assessmentMatch?.score ?? null;
+                const diff = assessScore ? p.score - assessScore : null;
+
+                return (
                   <div
-                    key={q.id}
+                    key={p.pillar}
                     style={{
-                      border: "1px solid #f4f4f4",
-                      borderRadius: 8,
-                      padding: 10,
+                      background: "rgba(255,255,255,0.03)",
+                      padding: 18,
+                      borderRadius: 14,
+                      border: "1px solid rgba(148,163,184,0.28)",
                     }}
                   >
-                    <div
+                    <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>
+                      {p.pillar}
+                    </h3>
+
+                    <p
                       style={{
-                        fontSize: 14,
-                        marginBottom: 8,
+                        fontSize: 32,
+                        fontWeight: 700,
+                        marginBottom: 4,
+                        color: "#FEE000",
                       }}
                     >
-                      {q.question_text}
-                    </div>
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 12,
-                        fontSize: 13,
-                      }}
-                    >
-                      <select
-                        value={answers[q.id] || ""}
-                        onChange={(e) => handleChange(q.id, e.target.value)}
+                      {Math.round(p.score)}
+                    </p>
+
+                    {assessScore !== null && (
+                      <p style={{ fontSize: 12, opacity: 0.8 }}>
+                        Internal assessment:{" "}
+                        <strong style={{ color: "#fff" }}>{assessScore}</strong>
+                      </p>
+                    )}
+
+                    {diff !== null && (
+                      <p
                         style={{
-                          padding: "4px 8px",
-                          borderRadius: 6,
-                          border: "1px solid #ddd",
+                          fontSize: 12,
+                          marginTop: 6,
+                          color: diff >= 0 ? "#4ade80" : "#f87171",
                         }}
                       >
-                        <option value="">Select…</option>
-                        <option value="1">1 – Strongly disagree</option>
-                        <option value="2">2 – Disagree</option>
-                        <option value="3">3 – Neutral</option>
-                        <option value="4">4 – Agree</option>
-                        <option value="5">5 – Strongly agree</option>
-                      </select>
-                    </div>
+                        {diff >= 0 ? "▲" : "▼"}{" "}
+                        {Math.abs(Math.round(diff))}{" "}
+                        {diff >= 0 ? "higher than assessment" : "lower than assessment"}
+                      </p>
+                    )}
                   </div>
-                ))}
-              </div>
-            </section>
-          ))}
-
-          <button
-            type="submit"
-            disabled={saving}
-            style={{
-              marginTop: 8,
-              padding: "10px 18px",
-              borderRadius: 999,
-              border: "none",
-              background: "#000",
-              color: "#fff",
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
-          >
-            {saving ? "Submitting pulse…" : "Submit pulse responses"}
-          </button>
-        </form>
-      )}
-
-      {!loading && !error && questions.length === 0 && (
-        <p>No pulse questions found. Please check your Supabase employee_questions table.</p>
-      )}
-    </main>
+                );
+              })}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
   );
 }
