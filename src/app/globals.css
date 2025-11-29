@@ -1,30 +1,29 @@
- /* White cards / forms everywhere */
-.card,
-form,
-input,
-textarea,
-select {
-  background: #ffffff !important;
-  color: #000000 !important;
+/* src/app/globals.css */
+
+/* Force dark mode look & feel */
+:root {
+  color-scheme: dark;
 }
 
-/* Buttons */
-button {
-  background: #FEE000 !important; /* Yellow brand */
-  color: #000000 !important;
-  border-radius: 999px;
-  font-weight: 700;
-  padding: 10px 20px;
-  border: none;
-  cursor: pointer;
+html,
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+  background: #020617; /* dark navy / almost black */
+  color: #f9fafb;      /* off-white text */
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
 }
 
-/* Headings */
-h1, h2, h3, h4 {
-  color: #FFFFFF !important;
+/* Make sure links don't go blue/ugly */
+a {
+  color: inherit;
+  text-decoration: none;
 }
 
-/* Metric / stat labels */
-label, .label {
-  color: #FFFFFF !important;
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }
