@@ -69,19 +69,20 @@ export default function DashboardLayout({ children }) {
             </div>
           </a>
 
-          <nav
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 12,
-              fontSize: 12,
-            }}
-          >
-            <NavLink href="/dashboard">Overview</NavLink>
-            <NavLink href="/dashboard/hri-assessment">Assessment</NavLink>
-            <NavLink href="/dashboard/employee-pulse">Employee pulse</NavLink>
-            <NavLink href="/dashboard/settings">Org inputs</NavLink>
-          </nav>
+        <nav
+  style={{
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    fontSize: 12,
+  }}
+>
+  <NavLink href="/dashboard">Overview</NavLink>
+  <NavLink href="/dashboard/hri-assessment">Assessment</NavLink>
+  <NavLink href="/dashboard/employee-pulse">Employee pulse</NavLink>
+  <NavLink href="/dashboard/settings">Org inputs</NavLink>
+</nav>
+
         </div>
       </header>
 
