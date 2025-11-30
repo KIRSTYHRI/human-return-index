@@ -9,18 +9,16 @@ export default function DashboardLayout({ children }) {
     <div
       style={{
         minHeight: "100vh",
-        background:
-          "radial-gradient(circle at top, #020617 0, #020617 40%, #020617 100%)",
-        color: "#E5E7EB",
+        background: "#ffffff",
+        color: "#111827",
         fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
       }}
     >
       {/* Top bar / logo */}
       <header
         style={{
-          borderBottom: "1px solid rgba(148,163,184,0.3)",
-          background:
-            "linear-gradient(to right, #020617, #020617 40%, #111827 100%)",
+          borderBottom: "1px solid #E5E7EB",
+          background: "#ffffff",
         }}
       >
         <div
@@ -34,21 +32,65 @@ export default function DashboardLayout({ children }) {
             gap: 16,
           }}
         >
+          {/* Logo + wordmark (no external file, no 404) */}
           <a
             href="/dashboard"
             style={{
               display: "flex",
               alignItems: "center",
-              gap: 8,
+              gap: 10,
               textDecoration: "none",
-              color: "inherit",
+              color: "#111827",
             }}
           >
-            <img
-              src="/hri-logo.svg"
-              alt="Human Return Index logo"
-              style={{ height: 26 }}
-            />
+            <div
+              style={{
+                width: 30,
+                height: 30,
+                borderRadius: 8,
+                background:
+                  "linear-gradient(135deg, #FEE000 0%, #FACC15 40%, #F97316 100%)",
+                display: "flex",
+                alignItems: "flex-end",
+                justifyContent: "center",
+                padding: 4,
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  gap: 3,
+                  alignItems: "flex-end",
+                  height: "100%",
+                }}
+              >
+                <span
+                  style={{
+                    width: 3,
+                    height: "40%",
+                    background: "#020617",
+                    borderRadius: 999,
+                  }}
+                />
+                <span
+                  style={{
+                    width: 3,
+                    height: "65%",
+                    background: "#020617",
+                    borderRadius: 999,
+                  }}
+                />
+                <span
+                  style={{
+                    width: 3,
+                    height: "90%",
+                    background: "#020617",
+                    borderRadius: 999,
+                  }}
+                />
+              </div>
+            </div>
+
             <div style={{ display: "flex", flexDirection: "column" }}>
               <span
                 style={{
@@ -70,6 +112,7 @@ export default function DashboardLayout({ children }) {
             </div>
           </a>
 
+          {/* Nav */}
           <nav
             style={{
               display: "flex",
@@ -78,72 +121,4 @@ export default function DashboardLayout({ children }) {
               fontSize: 12,
             }}
           >
-            <a
-              href="/dashboard"
-              style={{ opacity: 0.9, textDecoration: "none", color: "#E5E7EB" }}
-            >
-              Overview
-            </a>
-            <a
-              href="/dashboard/assessment"
-              style={{ opacity: 0.8, textDecoration: "none", color: "#CBD5F5" }}
-            >
-              Assessment
-            </a>
-            <a
-              href="/dashboard/employee-pulse"
-              style={{ opacity: 0.8, textDecoration: "none", color: "#CBD5F5" }}
-            >
-              Employee pulse
-            </a>
-            <a
-              href="/dashboard/settings"
-              style={{ opacity: 0.8, textDecoration: "none", color: "#CBD5F5" }}
-            >
-              Org inputs
-            </a>
-          </nav>
-        </div>
-      </header>
-
-      {/* Little yellow pilot strip */}
-      <div
-        style={{
-          background: "#FEE000",
-          color: "#111827",
-          fontSize: 11,
-          textTransform: "uppercase",
-          letterSpacing: 0.08,
-        }}
-      >
-        <div
-          style={{
-            maxWidth: 1120,
-            margin: "0 auto",
-            padding: "4px 16px",
-            display: "flex",
-            justifyContent: "space-between",
-            gap: 12,
-            alignItems: "center",
-          }}
-        >
-          <span>Live pilot environment · Internal use only</span>
-          <span style={{ opacity: 0.8 }}>
-            HRI – the new KPI for human return
-          </span>
-        </div>
-      </div>
-
-      {/* Main dashboard area */}
-      <main
-        style={{
-          maxWidth: 1120,
-          margin: "24px auto 40px",
-          padding: "0 16px 32px",
-        }}
-      >
-        {children}
-      </main>
-    </div>
-  );
-}
+            <N
