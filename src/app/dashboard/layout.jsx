@@ -32,7 +32,7 @@ export default function DashboardLayout({ children }) {
             gap: 16,
           }}
         >
-          {/* Logo + wordmark (no external file, no 404) */}
+          {/* Logo + wordmark (inline SVG – no files, no 404s) */}
           <a
             href="/dashboard"
             style={{
@@ -43,54 +43,52 @@ export default function DashboardLayout({ children }) {
               color: "#111827",
             }}
           >
+            {/* HRI icon – yellow bars + dot */}
             <div
               style={{
-                width: 30,
-                height: 30,
-                borderRadius: 8,
-                background:
-                  "linear-gradient(135deg, #FEE000 0%, #FACC15 40%, #F97316 100%)",
+                height: 32,
                 display: "flex",
-                alignItems: "flex-end",
+                alignItems: "center",
                 justifyContent: "center",
-                padding: 4,
               }}
             >
-              <div
-                style={{
-                  display: "flex",
-                  gap: 3,
-                  alignItems: "flex-end",
-                  height: "100%",
-                }}
+              <svg
+                viewBox="0 0 100 100"
+                width="32"
+                height="32"
+                xmlns="http://www.w3.org/2000/svg"
               >
-                <span
-                  style={{
-                    width: 3,
-                    height: "40%",
-                    background: "#020617",
-                    borderRadius: 999,
-                  }}
+                {/* three yellow bars */}
+                <rect
+                  x="8"
+                  y="55"
+                  width="14"
+                  height="30"
+                  rx="3"
+                  fill="#FEE000"
                 />
-                <span
-                  style={{
-                    width: 3,
-                    height: "65%",
-                    background: "#020617",
-                    borderRadius: 999,
-                  }}
+                <rect
+                  x="28"
+                  y="45"
+                  width="14"
+                  height="40"
+                  rx="3"
+                  fill="#FEE000"
                 />
-                <span
-                  style={{
-                    width: 3,
-                    height: "90%",
-                    background: "#020617",
-                    borderRadius: 999,
-                  }}
+                <rect
+                  x="48"
+                  y="30"
+                  width="14"
+                  height="55"
+                  rx="3"
+                  fill="#FEE000"
                 />
-              </div>
+                {/* circle dot */}
+                <circle cx="70" cy="24" r="6" fill="#FEE000" />
+              </svg>
             </div>
 
+            {/* Text wordmark */}
             <div style={{ display: "flex", flexDirection: "column" }}>
               <span
                 style={{
@@ -121,4 +119,75 @@ export default function DashboardLayout({ children }) {
               fontSize: 12,
             }}
           >
-            <N
+            <NavLink href="/dashboard">Overview</NavLink>
+            <NavLink href="/dashboard/hri-assessment">
+              Internal assessment
+            </NavLink>
+            <NavLink href="/dashboard/employee-pulse">
+              Employee pulse
+            </NavLink>
+            <NavLink href="/dashboard/settings">Org inputs</NavLink>
+          </nav>
+        </div>
+      </header>
+
+      {/* Little yellow pilot strip */}
+      <div
+        style={{
+          background: "#FEE000",
+          color: "#111827",
+          fontSize: 11,
+          textTransform: "uppercase",
+          letterSpacing: 0.08,
+        }}
+      >
+        <div
+          style={{
+            maxWidth: 1120,
+            margin: "0 auto",
+            padding: "4px 16px",
+            display: "flex",
+            justifyContent: "space-between",
+            gap: 12,
+            alignItems: "center",
+          }}
+        >
+          <span>Live pilot environment · Internal use only</span>
+          <span style={{ opacity: 0.8 }}>
+            HRI – the new KPI for human return
+          </span>
+        </div>
+      </div>
+
+      {/* Main dashboard area */}
+      <main
+        style={{
+          maxWidth: 1120,
+          margin: "24px auto 40px",
+          padding: "0 16px 32px",
+        }}
+      >
+        {children}
+      </main>
+    </div>
+  );
+}
+
+/** Small helper for nav links */
+function NavLink({ href, children }) {
+  return (
+    <a
+      href={href}
+      style={{
+        color: "#4B5563",
+        textDecoration: "none",
+        fontWeight: 500,
+        padding: "6px 10px",
+        borderRadius: 999,
+        border: "1px solid transparent",
+      }}
+    >
+      {children}
+    </a>
+  );
+}
