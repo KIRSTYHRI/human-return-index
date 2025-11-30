@@ -18,7 +18,7 @@ export default function DashboardLayout({ children }) {
       <header
         style={{
           borderBottom: "1px solid #E5E7EB",
-          background: "#ffffff",
+          background: "#000000",
         }}
       >
         <div
@@ -32,36 +32,35 @@ export default function DashboardLayout({ children }) {
             gap: 16,
           }}
         >
-          {/* LEFT SIDE — INLINE HRI LOGO */}
+          {/* LEFT SIDE — REAL HRI LOGO FROM MARKETING SITE */}
           <a
             href="/dashboard"
             style={{
               display: "flex",
               alignItems: "center",
-              gap: 10,
+              gap: 12,
               textDecoration: "none",
-              color: "#111827",
+              color: "#ffffff",
             }}
           >
-            {/* INLINE SVG LOGO – sits top left */}
-            <svg
-              viewBox="0 0 100 100"
-              width="32"
-              height="32"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <rect x="8" y="55" width="14" height="30" rx="3" fill="#FEE000" />
-              <rect x="28" y="45" width="14" height="40" rx="3" fill="#FEE000" />
-              <rect x="48" y="30" width="14" height="55" rx="3" fill="#FEE000" />
-              <circle cx="70" cy="24" r="6" fill="#FEE000" />
-            </svg>
+            <img
+              src="https://www.humanreturnindex.com/hri-logo-new.png"
+              alt="Human Return Index logo"
+              style={{
+                height: 40,
+                width: "auto",
+                display: "block",
+              }}
+            />
 
-            <div style={{ display: "flex", flexDirection: "column" }}>
+            {/* (Optional) extra text if you want it beside the logo */}
+            {/* <div style={{ display: "flex", flexDirection: "column" }}>
               <span
                 style={{
                   fontWeight: 700,
                   letterSpacing: 0.04,
                   fontSize: 14,
+                  textTransform: "uppercase",
                 }}
               >
                 Human Return Index™
@@ -69,12 +68,12 @@ export default function DashboardLayout({ children }) {
               <span
                 style={{
                   fontSize: 11,
-                  opacity: 0.7,
+                  opacity: 0.8,
                 }}
               >
                 People-first KPI for modern organisations
               </span>
-            </div>
+            </div> */}
           </a>
 
           {/* RIGHT SIDE — NAV */}
@@ -96,7 +95,7 @@ export default function DashboardLayout({ children }) {
         </div>
       </header>
 
-      {/* Yellow bar */}
+      {/* Yellow pilot strip */}
       <div
         style={{
           background: "#FEE000",
@@ -124,7 +123,7 @@ export default function DashboardLayout({ children }) {
         </div>
       </div>
 
-      {/* Main content */}
+      {/* Main area */}
       <main
         style={{
           maxWidth: 1120,
@@ -138,13 +137,13 @@ export default function DashboardLayout({ children }) {
   );
 }
 
-/* Nav link helper */
+/* Simple nav link */
 function NavLink({ href, children }) {
   return (
     <a
       href={href}
       style={{
-        color: "#4B5563",
+        color: "#E5E7EB",
         textDecoration: "none",
         fontWeight: 500,
         padding: "6px 10px",
