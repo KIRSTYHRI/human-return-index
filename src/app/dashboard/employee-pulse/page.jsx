@@ -74,7 +74,6 @@ export default function EmployeePulsePage() {
     setSubmitSuccess(false);
 
     try {
-      // Prepare payload: 1–5 scores per question
       const responses = questions.map((q) => ({
         question_id: q.id,
         pillar: q.pillar,
@@ -101,7 +100,6 @@ export default function EmployeePulsePage() {
       }
 
       setSubmitSuccess(true);
-      // Optional: clear answers after submit
       setAnswers({});
     } catch (err) {
       console.error("Employee pulse submit error:", err);
@@ -363,3 +361,4 @@ export default function EmployeePulsePage() {
     </div>
   );
 }
+
