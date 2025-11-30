@@ -9,16 +9,17 @@ export default function DashboardLayout({ children }) {
     <div
       style={{
         minHeight: "100vh",
-        background: "#ffffff",
-        color: "#111827",
+        background: "#020617",
+        color: "#E5E7EB",
         fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
       }}
     >
-      {/* Top bar */}
+      {/* Top bar / logo */}
       <header
         style={{
-          borderBottom: "1px solid #E5E7EB",
-          background: "#000000",
+          borderBottom: "1px solid rgba(148,163,184,0.3)",
+          background:
+            "linear-gradient(to right, #020617, #020617 40%, #111827 100%)",
         }}
       >
         <div
@@ -32,35 +33,27 @@ export default function DashboardLayout({ children }) {
             gap: 16,
           }}
         >
-          {/* LEFT SIDE — REAL HRI LOGO FROM MARKETING SITE */}
           <a
             href="/dashboard"
             style={{
               display: "flex",
               alignItems: "center",
-              gap: 12,
+              gap: 8,
               textDecoration: "none",
-              color: "#ffffff",
+              color: "inherit",
             }}
           >
             <img
               src="https://www.humanreturnindex.com/hri-logo-new.png"
               alt="Human Return Index logo"
-              style={{
-                height: 40,
-                width: "auto",
-                display: "block",
-              }}
+              style={{ height: 26 }}
             />
-
-            {/* (Optional) extra text if you want it beside the logo */}
-            {/* <div style={{ display: "flex", flexDirection: "column" }}>
+            <div style={{ display: "flex", flexDirection: "column" }}>
               <span
                 style={{
                   fontWeight: 700,
                   letterSpacing: 0.04,
                   fontSize: 14,
-                  textTransform: "uppercase",
                 }}
               >
                 Human Return Index™
@@ -68,15 +61,14 @@ export default function DashboardLayout({ children }) {
               <span
                 style={{
                   fontSize: 11,
-                  opacity: 0.8,
+                  opacity: 0.7,
                 }}
               >
                 People-first KPI for modern organisations
               </span>
-            </div> */}
+            </div>
           </a>
 
-          {/* RIGHT SIDE — NAV */}
           <nav
             style={{
               display: "flex",
@@ -86,9 +78,7 @@ export default function DashboardLayout({ children }) {
             }}
           >
             <NavLink href="/dashboard">Overview</NavLink>
-            <NavLink href="/dashboard/hri-assessment">
-              Internal assessment
-            </NavLink>
+            <NavLink href="/dashboard/hri-assessment">Assessment</NavLink>
             <NavLink href="/dashboard/employee-pulse">Employee pulse</NavLink>
             <NavLink href="/dashboard/settings">Org inputs</NavLink>
           </nav>
@@ -123,7 +113,7 @@ export default function DashboardLayout({ children }) {
         </div>
       </div>
 
-      {/* Main area */}
+      {/* Main dashboard area */}
       <main
         style={{
           maxWidth: 1120,
@@ -137,7 +127,6 @@ export default function DashboardLayout({ children }) {
   );
 }
 
-/* Simple nav link */
 function NavLink({ href, children }) {
   return (
     <a
