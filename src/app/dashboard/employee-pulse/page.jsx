@@ -14,25 +14,25 @@ export default function EmployeePulsePage() {
   const [questions, setQuestions] = useState([]);
   const [answers, setAnswers] = useState({});
   const [loading, setLoading] = useState(true);
-  const [loadingError, setLoadingError] = useState("");
+  const [loadError, setLoadError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
-  const [result, setResult] = useState(null);
+  const [submitSuccess, setSubmitSuccess] = useState(false);
 
+  // Load pulse questions from API
   useEffect(() => {
     (async () => {
       try {
         setLoading(true);
-        setLoadingError("");
+        setLoadError("");
+
         const res = await fetch("/api/pulse-questions", {
           cache: "no-store",
         });
         const json = await res.json();
 
         if (!res.ok || json.ok === false) {
-          throw new Error(
-            json.error || "Failed to load pulse questions"
-          );
+          throw new Error(json.error || "Failed to load pulse questions");
         }
 
         const items = Array.isArray(json.questions)
@@ -43,9 +43,9 @@ export default function EmployeePulsePage() {
 
         setQuestions(items);
       } catch (err) {
-        console.error("pulse questions load error", err);
-        setLoadingError(
-          err?.message || "Something went wrong loading questions."
+        console.error("Error loading pulse questions:", err);
+        setLoadError(
+          err.message || "Something went wrong loading pulse questions."
         );
       } finally {
         setLoading(false);
@@ -53,7 +53,7 @@ export default function EmployeePulsePage() {
     })();
   }, []);
 
-  function handleAnswerChange(questionId, value) {
+  function handleChange(questionId, value) {
     setAnswers((prev) => ({
       ...prev,
       [questionId]: Number(value),
@@ -71,97 +71,50 @@ export default function EmployeePulsePage() {
 
     setSubmitting(true);
     setSubmitError("");
-    setResult(null);
+    setSubmitSuccess(false);
 
     try {
-      // Build responses payload + local scoring
-      const responses = [];
-      const byPillar = new Map();
+      // Prepare payload: 1–5 scores per question
+      const responses = questions.map((q) => ({
+        question_id: q.id,
+        pillar: q.pillar,
+        score_1to5: answers[q.id],
+      }));
 
-      for (const q of questions) {
-        const score1to5 = answers[q.id];
-        if (!score1to5) continue;
+      const body = {
+        source: "employee-pulse-dashboard",
+        responses,
+      };
 
-        const score100 = Math.round((score1to5 / 5) * 100);
-        const pillarName =
-          q.pillar || q.pillar_name || "Unknown pillar";
-
-        responses.push({
-          question_id: q.id,
-          pillar: pillarName,
-          score1to5,
-          score100,
-        });
-
-        if (!byPillar.has(pillarName)) {
-          byPillar.set(pillarName, []);
-        }
-        byPillar.get(pillarName).push(score100);
-      }
-
-      // Local pillar + overall scores (in case API fails)
-      const pillarScores = [];
-      let sum = 0;
-      let count = 0;
-
-      for (const [pillarName, values] of byPillar.entries()) {
-        if (!values.length) continue;
-        const avg =
-          values.reduce((s, v) => s + v, 0) / values.length;
-        const rounded = Math.round(avg);
-        pillarScores.push({ pillar: pillarName, score: rounded });
-        sum += rounded;
-        count += 1;
-      }
-
-      const overallScore =
-        count > 0 ? Math.round(sum / count) : null;
-
-      // Call backend – best effort
-      let apiResult = null;
-      try {
-        const resp = await fetch("/api/employee-pulse", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            responses,
-            meta: {
-              source: "hri-dashboard-employee-pulse",
-              submitted_at: new Date().toISOString(),
-            },
-          }),
-        });
-
-        const json = await resp.json().catch(() => null);
-        if (resp.ok && json && json.ok) {
-          apiResult = json;
-        } else {
-          console.warn("employee-pulse API error:", json);
-        }
-      } catch (err) {
-        console.warn("employee-pulse API call failed:", err);
-      }
-
-      setResult({
-        overallScore:
-          apiResult?.overallScore ?? overallScore,
-        pillarScores:
-          apiResult?.pillarScores ?? pillarScores,
-        answeredCount,
-        totalQuestions,
+      const res = await fetch("/api/employee-pulse", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
       });
+
+      const json = await res.json().catch(() => null);
+
+      if (!res.ok || (json && json.ok === false)) {
+        throw new Error(
+          (json && json.error) || "Failed to submit pulse response"
+        );
+      }
+
+      setSubmitSuccess(true);
+      // Optional: clear answers after submit
+      setAnswers({});
     } catch (err) {
-      console.error("pulse submit error", err);
+      console.error("Employee pulse submit error:", err);
       setSubmitError(
-        err?.message ||
-          "Something went wrong submitting your pulse."
+        err.message ||
+          "Something went wrong submitting your pulse. Please try again."
       );
     } finally {
       setSubmitting(false);
     }
   }
 
-  // ---------- UI ----------
+  // ---------- UI STATES ----------
 
   if (loading) {
     return (
@@ -182,21 +135,16 @@ export default function EmployeePulsePage() {
             marginBottom: 8,
           }}
         >
-          Employee pulse
+          Employee Pulse
         </h1>
-        <p
-          style={{
-            fontSize: 14,
-            color: "#9CA3AF",
-          }}
-        >
+        <p style={{ fontSize: 14, color: "#9CA3AF" }}>
           Loading your pulse questions…
         </p>
       </div>
     );
   }
 
-  if (loadingError) {
+  if (loadError) {
     return (
       <div
         style={{
@@ -215,16 +163,9 @@ export default function EmployeePulsePage() {
             marginBottom: 8,
           }}
         >
-          Employee pulse
+          Employee Pulse
         </h1>
-        <p
-          style={{
-            fontSize: 14,
-            color: "#FCA5A5",
-          }}
-        >
-          {loadingError}
-        </p>
+        <p style={{ fontSize: 14, color: "#FCA5A5" }}>{loadError}</p>
       </div>
     );
   }
@@ -249,7 +190,7 @@ export default function EmployeePulsePage() {
             marginBottom: 6,
           }}
         >
-          Employee pulse
+          Employee Pulse
         </h1>
         <p
           style={{
@@ -259,9 +200,8 @@ export default function EmployeePulsePage() {
             marginBottom: 6,
           }}
         >
-          Quick, honest check-in on how people are really feeling across
-          the HRI pillars. This is anonymous in the real product – here
-          we’re focused on getting the scoring and experience right.
+          Quick, anonymous sentiment check across the five HRI pillars. Score
+          each statement from 1 (strongly disagree) to 5 (strongly agree).
         </p>
         <p
           style={{
@@ -289,7 +229,24 @@ export default function EmployeePulsePage() {
         </div>
       )}
 
-      {/* Questions form */}
+      {submitSuccess && (
+        <div
+          style={{
+            marginBottom: 16,
+            padding: 10,
+            borderRadius: 8,
+            border: "1px solid #22C55E",
+            background: "#052e16",
+            color: "#BBF7D0",
+            fontSize: 13,
+          }}
+        >
+          Thanks for sharing your pulse. Your responses are now feeding into
+          the live HRI view.
+        </div>
+      )}
+
+      {/* Form */}
       <form onSubmit={handleSubmit}>
         <div
           style={{
@@ -319,19 +276,19 @@ export default function EmployeePulsePage() {
                     color: "#9CA3AF",
                     marginBottom: 4,
                     textTransform: "uppercase",
-                    letterSpacing: "0.08em",
+                    letterSpacing: "0.12em",
                   }}
                 >
-                  {q.pillar || q.pillar_name || "Pillar"}
+                  {q.pillar}
                 </div>
                 <div
                   style={{
-                    fontSize: 13,
+                    fontSize: 14,
                     color: "#E5E7EB",
                     marginBottom: 8,
                   }}
                 >
-                  {q.question_text || q.text}
+                  {q.question_text}
                 </div>
 
                 <div
@@ -368,10 +325,7 @@ export default function EmployeePulsePage() {
                         value={opt.value}
                         checked={currentValue === opt.value}
                         onChange={(e) =>
-                          handleAnswerChange(
-                            q.id,
-                            Number(e.target.value)
-                          )
+                          handleChange(q.id, Number(e.target.value))
                         }
                         style={{ cursor: "pointer" }}
                       />
@@ -406,146 +360,6 @@ export default function EmployeePulsePage() {
             : "Submit pulse response"}
         </button>
       </form>
-
-      {/* Result summary */}
-      {result && (
-        <section
-          style={{
-            marginTop: 28,
-            borderRadius: 16,
-            border: "1px solid #1F2937",
-            padding: 18,
-            background:
-              "radial-gradient(circle at top left, #020617 0%, #020617 45%, #030712 100%)",
-          }}
-        >
-          <h2
-            style={{
-              fontSize: 16,
-              fontWeight: 700,
-              marginBottom: 8,
-              color: "#F9FAFB",
-            }}
-          >
-            Pulse snapshot
-          </h2>
-          <p
-            style={{
-              fontSize: 13,
-              color: "#9CA3AF",
-              marginBottom: 10,
-            }}
-          >
-            This is how this single pulse response scores across the HRI
-            pillars. On your main dashboard you’ll see this aggregated
-            across all employees.
-          </p>
-
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: 16,
-              alignItems: "flex-start",
-            }}
-          >
-            <div>
-              <div
-                style={{
-                  fontSize: 11,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.12em",
-                  color: "#9CA3AF",
-                  marginBottom: 4,
-                }}
-              >
-                Overall pulse score
-              </div>
-              <div
-                style={{
-                  fontSize: 28,
-                  fontWeight: 800,
-                  color: "#F9FAFB",
-                }}
-              >
-                {result.overallScore != null
-                  ? result.overallScore
-                  : "–"}
-                <span
-                  style={{
-                    fontSize: 16,
-                    opacity: 0.7,
-                    marginLeft: 4,
-                  }}
-                >
-                  / 100
-                </span>
-              </div>
-              <div
-                style={{
-                  fontSize: 12,
-                  color: "#9CA3AF",
-                  marginTop: 4,
-                }}
-              >
-                Based on {result.answeredCount} of{" "}
-                {result.totalQuestions} questions.
-              </div>
-            </div>
-
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns:
-                  "repeat(auto-fit, minmax(150px, 1fr))",
-                gap: 10,
-                flex: 1,
-              }}
-            >
-              {result.pillarScores.map((p) => (
-                <div
-                  key={p.pillar}
-                  style={{
-                    borderRadius: 12,
-                    border: "1px solid #111827",
-                    padding: 10,
-                    background:
-                      "radial-gradient(circle at top left, #020617 0%, #020617 45%, #030712 100%)",
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 11,
-                      color: "#9CA3AF",
-                      marginBottom: 4,
-                    }}
-                  >
-                    {p.pillar}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 20,
-                      fontWeight: 700,
-                      color: "#F9FAFB",
-                    }}
-                  >
-                    {p.score}
-                    <span
-                      style={{
-                        fontSize: 13,
-                        opacity: 0.7,
-                        marginLeft: 2,
-                      }}
-                    >
-                      / 100
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
     </div>
   );
 }
