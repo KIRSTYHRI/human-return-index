@@ -1,42 +1,36 @@
-// src/app/api/employer-questions/route.js
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const supabase = url && key ? createClient(url, key, { auth: { persistSession: false } }) : null;
+export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    if (!supabase) {
-      return NextResponse.json(
-        { ok: false, error: "Missing Supabase env vars" },
-        { status: 500 }
-      );
-    }
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_KEY
+    );
 
     const { data, error } = await supabase
       .from("employer_questions")
-      .select("id, pillar, code, question_text, position")
+      .select("*")
+      .order("pillar", { ascending: true })
       .order("position", { ascending: true });
 
     if (error) {
-      return NextResponse.json(
-        { ok: false, error: error.message },
-        { status: 500 }
-      );
+      console.error("Employer questions error:", error);
+      return NextResponse.json({ ok: false, error: error.message });
     }
 
     return NextResponse.json({
       ok: true,
-      source: "employer-questions endpoint",
+      count: data.length,
       questions: data,
     });
-
   } catch (err) {
-    return NextResponse.json(
-      { ok: false, error: "Unexpected server error" },
-      { status: 500 }
-    );
+    console.error("Fatal error:", err);
+    return NextResponse.json({
+      ok: false,
+      error: err.message || "Unexpected failure",
+    });
   }
 }
