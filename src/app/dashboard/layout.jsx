@@ -14,7 +14,7 @@ export default function DashboardLayout({ children }) {
         fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
       }}
     >
-      {/* Top bar / logo */}
+      {/* Top bar */}
       <header
         style={{
           borderBottom: "1px solid #E5E7EB",
@@ -32,7 +32,7 @@ export default function DashboardLayout({ children }) {
             gap: 16,
           }}
         >
-          {/* Logo + wordmark (inline SVG – no files, no 404s) */}
+          {/* LEFT SIDE — INLINE HRI LOGO */}
           <a
             href="/dashboard"
             style={{
@@ -43,52 +43,19 @@ export default function DashboardLayout({ children }) {
               color: "#111827",
             }}
           >
-            {/* HRI icon – yellow bars + dot */}
-            <div
-              style={{
-                height: 32,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
+            {/* INLINE SVG LOGO – sits top left */}
+            <svg
+              viewBox="0 0 100 100"
+              width="32"
+              height="32"
+              xmlns="http://www.w3.org/2000/svg"
             >
-              <svg
-                viewBox="0 0 100 100"
-                width="32"
-                height="32"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                {/* three yellow bars */}
-                <rect
-                  x="8"
-                  y="55"
-                  width="14"
-                  height="30"
-                  rx="3"
-                  fill="#FEE000"
-                />
-                <rect
-                  x="28"
-                  y="45"
-                  width="14"
-                  height="40"
-                  rx="3"
-                  fill="#FEE000"
-                />
-                <rect
-                  x="48"
-                  y="30"
-                  width="14"
-                  height="55"
-                  rx="3"
-                  fill="#FEE000"
-                />
-                {/* circle dot */}
-                <circle cx="70" cy="24" r="6" fill="#FEE000" />
-              </svg>
-            </div>
+              <rect x="8" y="55" width="14" height="30" rx="3" fill="#FEE000" />
+              <rect x="28" y="45" width="14" height="40" rx="3" fill="#FEE000" />
+              <rect x="48" y="30" width="14" height="55" rx="3" fill="#FEE000" />
+              <circle cx="70" cy="24" r="6" fill="#FEE000" />
+            </svg>
 
-            {/* Text wordmark */}
             <div style={{ display: "flex", flexDirection: "column" }}>
               <span
                 style={{
@@ -110,7 +77,7 @@ export default function DashboardLayout({ children }) {
             </div>
           </a>
 
-          {/* Nav */}
+          {/* RIGHT SIDE — NAV */}
           <nav
             style={{
               display: "flex",
@@ -123,15 +90,13 @@ export default function DashboardLayout({ children }) {
             <NavLink href="/dashboard/hri-assessment">
               Internal assessment
             </NavLink>
-            <NavLink href="/dashboard/employee-pulse">
-              Employee pulse
-            </NavLink>
+            <NavLink href="/dashboard/employee-pulse">Employee pulse</NavLink>
             <NavLink href="/dashboard/settings">Org inputs</NavLink>
           </nav>
         </div>
       </header>
 
-      {/* Little yellow pilot strip */}
+      {/* Yellow bar */}
       <div
         style={{
           background: "#FEE000",
@@ -159,7 +124,7 @@ export default function DashboardLayout({ children }) {
         </div>
       </div>
 
-      {/* Main dashboard area */}
+      {/* Main content */}
       <main
         style={{
           maxWidth: 1120,
@@ -173,7 +138,7 @@ export default function DashboardLayout({ children }) {
   );
 }
 
-/** Small helper for nav links */
+/* Nav link helper */
 function NavLink({ href, children }) {
   return (
     <a
