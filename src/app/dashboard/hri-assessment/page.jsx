@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const SCALE_OPTIONS = [
   { value: 1, label: "1 – Strongly disagree" },
@@ -10,203 +10,178 @@ const SCALE_OPTIONS = [
   { value: 5, label: "5 – Strongly agree" },
 ];
 
-// Your five HRI pillars + questions (from what you pasted)
-const PILLARS = [
-  {
-    name: "Leadership",
-    code: "leadership",
-    description:
-      "Score each statement based on how true it feels today in your organisation.",
-    questions: [
-      "Leaders in our organisation clearly communicate vision and priorities.",
-      "Leaders role model the behaviours we expect from everyone else.",
-      "Leaders are approachable and open to feedback.",
-      "I trust the decisions our leaders make.",
-      "Leaders act quickly when issues affecting people are raised.",
-    ],
-  },
-  {
-    name: "Wellbeing & Mental Health",
-    code: "wellbeing",
-    description:
-      "Score each statement based on how true it feels today in your organisation.",
-    questions: [
-      "Workload and expectations feel sustainable most of the time.",
-      "People feel safe to speak about stress or mental health challenges.",
-      "We have clear support routes (EAP, MHFA, line manager, etc.).",
-      "Breaks, rest and time off are respected in practice.",
-      "Wellbeing is treated as part of performance, not a ‘nice to have’.",
-    ],
-  },
-  {
-    name: "Inclusion & Belonging",
-    code: "inclusion",
-    description:
-      "Score each statement based on how true it feels today in your organisation.",
-    questions: [
-      "People feel they can be themselves at work without judgment.",
-      "Different views and backgrounds are genuinely welcomed.",
-      "We call out poor behaviours that undermine inclusion.",
-      "Managers understand how to support different needs (incl. neurodiversity).",
-      "Our policies and practices feel fair and consistent.",
-    ],
-  },
-  {
-    name: "Growth & Development",
-    code: "growth",
-    description:
-      "Score each statement based on how true it feels today in your organisation.",
-    questions: [
-      "People know what’s expected of them and how success is measured.",
-      "Development conversations happen regularly, not just once a year.",
-      "There are real opportunities to grow skills and progress.",
-      "People receive useful feedback that helps them improve.",
-      "Development decisions feel fair and transparent.",
-    ],
-  },
-  {
-    name: "Trust & Communication",
-    code: "trust",
-    description:
-      "Score each statement based on how true it feels today in your organisation.",
-    questions: [
-      "Information is shared openly and in good time.",
-      "People feel safe to raise concerns without fear of backlash.",
-      "Teams collaborate well across departments.",
-      "There is a strong sense of trust between managers and teams.",
-      "Internal communication is clear, consistent and two-way.",
-    ],
-  },
+// Just to keep pillars in a sensible, fixed order
+const PILLAR_ORDER = [
+  "Leadership",
+  "Wellbeing & Mental Health",
+  "Inclusion & Belonging",
+  "Growth & Development",
+  "Trust & Communication",
 ];
 
 export default function HriAssessmentPage() {
-  // answers: { [questionKey]: 1–5 }
+  const [questions, setQuestions] = useState([]);
   const [answers, setAnswers] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState("");
-  const [result, setResult] = useState(null);
+  const [submitError, setSubmitError] = useState("");
+  const [submitSuccess, setSubmitSuccess] = useState(false);
 
-  // Build simple ID per question: `${pillarCode}_${index}`
-  const allQuestionKeys = PILLARS.flatMap((pillar) =>
-    pillar.questions.map((_, idx) => `${pillar.code}_${idx}`)
-  );
+  // Load all 25 questions from /api/employer-questions
+  useEffect(() => {
+    (async () => {
+      try {
+        setLoading(true);
+        setLoadError("");
+        const res = await fetch("/api/employer-questions", {
+          cache: "no-store",
+        });
+        const json = await res.json();
 
-  const totalQuestions = allQuestionKeys.length;
+        if (!res.ok || json.ok === false) {
+          throw new Error(json.error || "Failed to load assessment questions");
+        }
+
+        const items = Array.isArray(json.questions)
+          ? json.questions
+          : Array.isArray(json)
+          ? json
+          : [];
+
+        setQuestions(items);
+      } catch (err) {
+        console.error("Error loading employer questions:", err);
+        setLoadError(err.message || "Something went wrong loading questions.");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  function handleChange(questionId, value) {
+    setAnswers((prev) => ({
+      ...prev,
+      [questionId]: Number(value),
+    }));
+  }
+
+  const totalQuestions = questions.length;
   const answeredCount = Object.keys(answers).length;
   const allAnswered =
     totalQuestions > 0 && answeredCount === totalQuestions;
-
-  function handleAnswerChange(questionKey, value) {
-    setAnswers((prev) => ({
-      ...prev,
-      [questionKey]: Number(value),
-    }));
-  }
 
   async function handleSubmit(e) {
     e.preventDefault();
     if (!allAnswered || submitting) return;
 
     setSubmitting(true);
-    setError("");
-    setResult(null);
+    setSubmitError("");
+    setSubmitSuccess(false);
 
     try {
-      // 1) Build enriched answers array for API + local scoring
-      const enrichedAnswers = [];
+      // Prepare responses payload (1–5 scale)
+      const responses = questions.map((q) => ({
+        question_id: q.id,
+        pillar: q.pillar,
+        score_1to5: answers[q.id],
+      }));
 
-      for (const pillar of PILLARS) {
-        pillar.questions.forEach((qText, idx) => {
-          const key = `${pillar.code}_${idx}`;
-          const rawScore = answers[key];
+      // Basic example payload for the backend –
+      // your API can ignore fields it doesn't need.
+      const body = {
+        title: "HRI Assessment – Internal",
+        source: "hri-dashboard-internal-assessment",
+        responses,
+      };
 
-          if (!rawScore) return;
-
-          const score1to5 = Number(rawScore);
-          const score100 = Math.round((score1to5 / 5) * 100);
-
-          enrichedAnswers.push({
-            question_id: key,
-            pillar: pillar.name,
-            score1to5,
-            score100,
-            question_text: qText,
-          });
-        });
-      }
-
-      // Local calculation in case API fails
-      const byPillar = new Map();
-      for (const a of enrichedAnswers) {
-        if (!byPillar.has(a.pillar)) byPillar.set(a.pillar, []);
-        byPillar.get(a.pillar).push(a.score100);
-      }
-
-      const localPillarScores = [];
-      let sum = 0;
-      let count = 0;
-
-      for (const [pillarName, values] of byPillar.entries()) {
-        if (!values.length) continue;
-        const avg =
-          values.reduce((s, v) => s + v, 0) / values.length;
-        const rounded = Math.round(avg);
-        localPillarScores.push({ pillar: pillarName, score: rounded });
-        sum += rounded;
-        count += 1;
-      }
-
-      const localOverall =
-        count > 0 ? Math.round(sum / count) : null;
-
-      // 2) Call API (best effort)
-      let apiResult = null;
-      try {
-        const resp = await fetch("/api/assessment-scores", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            assessment_id: "internal-demo-2025-11", // satisfies "Missing assessment_id"
-            answers: enrichedAnswers,
-            meta: {
-              source: "hri-dashboard-internal-assessment",
-              created_at: new Date().toISOString(),
-            },
-          }),
-        });
-
-        const json = await resp.json().catch(() => null);
-        if (resp.ok && json && json.ok) {
-          apiResult = json;
-        } else {
-          console.warn("assessment-scores API error:", json);
-        }
-      } catch (err) {
-        console.warn("assessment-scores API call failed:", err);
-      }
-
-      // 3) Decide what to show: API result if good, else local
-      const finalOverall =
-        apiResult?.overallScore ?? localOverall;
-      const finalPillars =
-        apiResult?.pillarScores ?? localPillarScores;
-
-      setResult({
-        overallScore: finalOverall,
-        pillarScores: finalPillars,
-        answeredCount,
-        totalQuestions,
+      const res = await fetch("/api/assessments/new", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
       });
+
+      const json = await res.json().catch(() => null);
+
+      if (!res.ok || (json && json.ok === false)) {
+        throw new Error(
+          (json && json.error) || "Failed to save assessment"
+        );
+      }
+
+      setSubmitSuccess(true);
     } catch (err) {
-      console.error("Submit error:", err);
-      setError(
-        err?.message ||
-          "Something went wrong saving your assessment."
+      console.error("Assessment submit error:", err);
+      setSubmitError(
+        err.message ||
+          "Something went wrong saving your assessment. Please try again."
       );
     } finally {
       setSubmitting(false);
     }
   }
+
+  // ---------- UI STATES ----------
+
+  if (loading) {
+    return (
+      <div
+        style={{
+          maxWidth: 1120,
+          margin: "0 auto",
+          padding: "24px 24px 40px",
+          fontFamily:
+            "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+          color: "#E5E7EB",
+        }}
+      >
+        <h1
+          style={{
+            fontSize: 24,
+            fontWeight: 800,
+            marginBottom: 8,
+          }}
+        >
+          Human Return Index™ – Internal Assessment
+        </h1>
+        <p style={{ fontSize: 14, color: "#9CA3AF" }}>
+          Loading your HRI assessment questions…
+        </p>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div
+        style={{
+          maxWidth: 1120,
+          margin: "0 auto",
+          padding: "24px 24px 40px",
+          fontFamily:
+            "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+          color: "#E5E7EB",
+        }}
+      >
+        <h1
+          style={{
+            fontSize: 24,
+            fontWeight: 800,
+            marginBottom: 8,
+          }}
+        >
+          Human Return Index™ – Internal Assessment
+        </h1>
+        <p style={{ fontSize: 14, color: "#FCA5A5" }}>{loadError}</p>
+      </div>
+    );
+  }
+
+  // Group questions by pillar in a nice stable order
+  const questionsByPillar = PILLAR_ORDER.map((pillarName) => ({
+    pillar: pillarName,
+    items: questions.filter((q) => q.pillar === pillarName),
+  })).filter((group) => group.items.length > 0);
 
   return (
     <div
@@ -219,9 +194,15 @@ export default function HriAssessmentPage() {
         color: "#E5E7EB",
       }}
     >
-      {/* Page intro */}
+      {/* Intro section */}
       <section style={{ marginBottom: 20 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 6 }}>
+        <h1
+          style={{
+            fontSize: 24,
+            fontWeight: 800,
+            marginBottom: 6,
+          }}
+        >
           Human Return Index™ – Internal Assessment
         </h1>
         <p
@@ -235,7 +216,8 @@ export default function HriAssessmentPage() {
           This is your leadership view of how things are really working
           across the five HRI pillars. Rate each statement from 1 (strongly
           disagree) to 5 (strongly agree). We’ll convert your responses into
-          0–100 scores per pillar and an overall internal HRI.
+          0–100 scores per pillar and roll them up into your main HRI
+          dashboard.
         </p>
         <p
           style={{
@@ -247,7 +229,7 @@ export default function HriAssessmentPage() {
         </p>
       </section>
 
-      {error && (
+      {submitError && (
         <div
           style={{
             marginBottom: 16,
@@ -259,11 +241,28 @@ export default function HriAssessmentPage() {
             fontSize: 13,
           }}
         >
-          {error}
+          {submitError}
         </div>
       )}
 
-      {/* Assessment form */}
+      {submitSuccess && (
+        <div
+          style={{
+            marginBottom: 16,
+            padding: 10,
+            borderRadius: 8,
+            border: "1px solid #22C55E",
+            background: "#052e16",
+            color: "#BBF7D0",
+            fontSize: 13,
+          }}
+        >
+          Assessment saved. Your dashboard and ROI view now reflect these
+          updated pillar scores.
+        </div>
+      )}
+
+      {/* Form with all 25 questions */}
       <form onSubmit={handleSubmit}>
         <div
           style={{
@@ -273,9 +272,9 @@ export default function HriAssessmentPage() {
             marginBottom: 24,
           }}
         >
-          {PILLARS.map((pillar) => (
+          {questionsByPillar.map((group) => (
             <section
-              key={pillar.code}
+              key={group.pillar}
               style={{
                 borderRadius: 16,
                 border: "1px solid #1F2937",
@@ -284,24 +283,30 @@ export default function HriAssessmentPage() {
                   "radial-gradient(circle at top left, #020617 0%, #020617 45%, #030712 100%)",
               }}
             >
-              <div style={{ marginBottom: 8 }}>
+              <div
+                style={{
+                  marginBottom: 10,
+                }}
+              >
                 <h2
                   style={{
                     fontSize: 16,
                     fontWeight: 700,
-                    marginBottom: 4,
                     color: "#F9FAFB",
+                    marginBottom: 2,
                   }}
                 >
-                  {pillar.name}
+                  {group.pillar}
                 </h2>
                 <p
                   style={{
-                    fontSize: 13,
+                    fontSize: 12,
                     color: "#9CA3AF",
+                    maxWidth: 520,
                   }}
                 >
-                  {pillar.description}
+                  Score each statement based on how true it feels today in
+                  your organisation.
                 </p>
               </div>
 
@@ -310,20 +315,18 @@ export default function HriAssessmentPage() {
                   display: "flex",
                   flexDirection: "column",
                   gap: 12,
-                  marginTop: 8,
                 }}
               >
-                {pillar.questions.map((qText, idx) => {
-                  const key = `${pillar.code}_${idx}`;
-                  const currentValue = answers[key] ?? "";
+                {group.items.map((q) => {
+                  const currentValue = answers[q.id] ?? "";
 
                   return (
                     <div
-                      key={key}
+                      key={q.id}
                       style={{
                         borderRadius: 12,
                         border: "1px solid #111827",
-                        padding: 10,
+                        padding: 12,
                         background:
                           "radial-gradient(circle at top left, #020617 0%, #020617 45%, #030712 100%)",
                       }}
@@ -335,7 +338,7 @@ export default function HriAssessmentPage() {
                           marginBottom: 8,
                         }}
                       >
-                        {qText}
+                        {q.question_text}
                       </div>
 
                       <div
@@ -368,12 +371,12 @@ export default function HriAssessmentPage() {
                           >
                             <input
                               type="radio"
-                              name={key}
+                              name={`q_${q.id}`}
                               value={opt.value}
                               checked={currentValue === opt.value}
                               onChange={(e) =>
-                                handleAnswerChange(
-                                  key,
+                                handleChange(
+                                  q.id,
                                   Number(e.target.value)
                                 )
                               }
@@ -409,149 +412,10 @@ export default function HriAssessmentPage() {
           }}
         >
           {submitting
-            ? "Calculating your internal HRI…"
+            ? "Saving your assessment…"
             : "Save assessment scores"}
         </button>
       </form>
-
-      {/* Result summary */}
-      {result && (
-        <section
-          style={{
-            marginTop: 28,
-            borderRadius: 16,
-            border: "1px solid #1F2937",
-            padding: 18,
-            background:
-              "radial-gradient(circle at top left, #020617 0%, #020617 45%, #030712 100%)",
-          }}
-        >
-          <h2
-            style={{
-              fontSize: 16,
-              fontWeight: 700,
-              marginBottom: 8,
-              color: "#F9FAFB",
-            }}
-          >
-            Internal HRI snapshot
-          </h2>
-          <p
-            style={{
-              fontSize: 13,
-              color: "#9CA3AF",
-              marginBottom: 10,
-            }}
-          >
-            This is your internal leadership view only. Later, your main
-            dashboard will compare this against live employee pulse data.
-          </p>
-
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: 16,
-              alignItems: "flex-start",
-            }}
-          >
-            <div>
-              <div
-                style={{
-                  fontSize: 11,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.12em",
-                  color: "#9CA3AF",
-                  marginBottom: 4,
-                }}
-              >
-                Overall internal score
-              </div>
-              <div
-                style={{
-                  fontSize: 28,
-                  fontWeight: 800,
-                  color: "#F9FAFB",
-                }}
-              >
-                {result.overallScore != null
-                  ? result.overallScore
-                  : "–"}
-                <span
-                  style={{
-                    fontSize: 16,
-                    opacity: 0.7,
-                    marginLeft: 4,
-                  }}
-                >
-                  / 100
-                </span>
-              </div>
-              <div
-                style={{
-                  fontSize: 12,
-                  color: "#9CA3AF",
-                  marginTop: 4,
-                }}
-              >
-                Based on {result.answeredCount} of{" "}
-                {result.totalQuestions} responses.
-              </div>
-            </div>
-
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns:
-                  "repeat(auto-fit, minmax(150px, 1fr))",
-                gap: 10,
-                flex: 1,
-              }}
-            >
-              {result.pillarScores.map((p) => (
-                <div
-                  key={p.pillar}
-                  style={{
-                    borderRadius: 12,
-                    border: "1px solid #111827",
-                    padding: 10,
-                    background:
-                      "radial-gradient(circle at top left, #020617 0%, #020617 45%, #030712 100%)",
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 11,
-                      color: "#9CA3AF",
-                      marginBottom: 4,
-                    }}
-                  >
-                    {p.pillar}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 20,
-                      fontWeight: 700,
-                      color: "#F9FAFB",
-                    }}
-                  >
-                    {p.score}
-                    <span
-                      style={{
-                        fontSize: 13,
-                        opacity: 0.7,
-                        marginLeft: 2,
-                      }}
-                    >
-                      / 100
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
     </div>
   );
 }
