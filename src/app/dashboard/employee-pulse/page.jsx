@@ -1,4 +1,4 @@
-"use client";
+""use client";
 
 import { useEffect, useState } from "react";
 
@@ -19,12 +19,13 @@ export default function EmployeePulsePage() {
   const [submitError, setSubmitError] = useState("");
   const [submitSuccess, setSubmitSuccess] = useState(false);
 
-  // Load pulse questions from API
+  // Load pulse questions
   useEffect(() => {
     (async () => {
       try {
         setLoading(true);
         setLoadError("");
+        setSubmitSuccess(false);
 
         const res = await fetch("/api/pulse-questions", {
           cache: "no-store",
@@ -163,10 +164,58 @@ export default function EmployeePulsePage() {
         >
           Employee Pulse
         </h1>
-        <p style={{ fontSize: 14, color: "#FCA5A5" }}>{loadError}</p>
+        <p
+          style={{
+            fontSize: 14,
+            color: "#FCA5A5",
+            marginBottom: 8,
+          }}
+        >
+          {loadError}
+        </p>
+        <p style={{ fontSize: 13, color: "#9CA3AF" }}>
+          If this keeps happening, check{" "}
+          <code>/api/pulse-questions</code> is returning data.
+        </p>
       </div>
     );
   }
+
+  if (!questions.length) {
+    return (
+      <div
+        style={{
+          maxWidth: 1120,
+          margin: "0 auto",
+          padding: "24px 24px 40px",
+          fontFamily:
+            "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+          color: "#E5E7EB",
+        }}
+      >
+        <h1
+          style={{
+            fontSize: 24,
+            fontWeight: 800,
+            marginBottom: 8,
+          }}
+        >
+          Employee Pulse
+        </h1>
+        <p
+          style={{
+            fontSize: 14,
+            color: "#9CA3AF",
+          }}
+        >
+          No pulse questions are configured yet. Add rows into{" "}
+          <code>hri_pulse_questions</code> and refresh this page.
+        </p>
+      </div>
+    );
+  }
+
+  // ---------- MAIN FORM UI ----------
 
   return (
     <div
@@ -198,8 +247,9 @@ export default function EmployeePulsePage() {
             marginBottom: 6,
           }}
         >
-          Quick, anonymous sentiment check across the five HRI pillars. Score
-          each statement from 1 (strongly disagree) to 5 (strongly agree).
+          Quick, anonymous sentiment check across the five HRI pillars.
+          Score each statement from 1 (strongly disagree) to 5 (strongly agree).
+          Your responses feed into the live Human Return Index™ view.
         </p>
         <p
           style={{
@@ -239,8 +289,8 @@ export default function EmployeePulsePage() {
             fontSize: 13,
           }}
         >
-          Thanks for sharing your pulse. Your responses are now feeding into
-          the live HRI view.
+          Thanks for sharing your pulse. Your responses are now feeding into the
+          live HRI people view.
         </div>
       )}
 
@@ -353,12 +403,9 @@ export default function EmployeePulsePage() {
             opacity: allAnswered && !submitting ? 1 : 0.7,
           }}
         >
-          {submitting
-            ? "Submitting your pulse…"
-            : "Submit pulse response"}
+          {submitting ? "Submitting your pulse…" : "Submit pulse response"}
         </button>
       </form>
     </div>
   );
 }
-
