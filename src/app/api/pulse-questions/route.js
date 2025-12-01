@@ -1,41 +1,61 @@
+// src/app/api/pulse-questions/route.js
+
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-export const dynamic = "force-dynamic";
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseKey =
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+function getSupabase() {
+  if (!supabaseUrl || !supabaseKey) {
+    console.error("Pulse questions – missing Supabase env vars", {
+      hasUrl: !!supabaseUrl,
+      hasKey: !!supabaseKey,
+    });
+    return null;
+  }
+
+  return createClient(supabaseUrl, supabaseKey);
+}
 
 export async function GET() {
   try {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_KEY
-    );
+    const supabase = getSupabase();
+    if (!supabase) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            "Supabase configuration missing on server. Check env vars in Vercel.",
+        },
+        { status: 500 }
+      );
+    }
 
-    // NOTE: no "position" column here – we just order by pillar + code
     const { data, error } = await supabase
       .from("hri_pulse_questions")
-      .select("*")
-      .order("pillar", { ascending: true })
-      .order("code", { ascending: true });
+      .select("id, pillar, question_text, position")
+      .order("position", { ascending: true });
 
     if (error) {
-      console.error("Pulse questions error:", error);
-      return NextResponse.json({
-        ok: false,
-        error: error.message,
-      });
+      console.error("Pulse questions DB error:", error);
+      throw error;
     }
 
     return NextResponse.json({
       ok: true,
-      source: "pulse-questions endpoint",
-      count: data?.length || 0,
       questions: data || [],
     });
   } catch (err) {
-    console.error("Fatal pulse questions error:", err);
-    return NextResponse.json({
-      ok: false,
-      error: err.message || "Unexpected failure in pulse-questions route",
-    });
+    console.error("Pulse questions route error:", err);
+    return NextResponse.json(
+      {
+        ok: false,
+        error: err?.message || "Failed to load pulse questions",
+      },
+      { status: 500 }
+    );
   }
 }
