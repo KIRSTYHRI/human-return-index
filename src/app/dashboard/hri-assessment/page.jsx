@@ -11,7 +11,7 @@ const SCALE_OPTIONS = [
   { value: 5, label: "5 – Strongly agree" },
 ];
 
-// These MUST match the pillar names in your employer_questions table
+// Must match pillar names in employer_questions
 const PILLAR_ORDER = [
   "Leadership",
   "Wellbeing & Mental Health",
@@ -19,10 +19,6 @@ const PILLAR_ORDER = [
   "Growth & Development",
   "Trust & Communication",
 ];
-
-export const metadata = {
-  title: "Human Return Index™ – Internal Assessment",
-};
 
 export default function HriAssessmentPage() {
   const [questions, setQuestions] = useState([]);
@@ -33,7 +29,7 @@ export default function HriAssessmentPage() {
   const [submitError, setSubmitError] = useState("");
   const [submitSuccess, setSubmitSuccess] = useState(false);
 
-  // Load all 25 questions from /api/employer-questions
+  // Load all 25 employer questions
   useEffect(() => {
     (async () => {
       try {
@@ -87,7 +83,6 @@ export default function HriAssessmentPage() {
     setSubmitSuccess(false);
 
     try {
-      // Prepare responses payload (1–5 scale)
       const responses = questions.map((q) => ({
         question_id: q.id,
         pillar: q.pillar,
@@ -182,7 +177,6 @@ export default function HriAssessmentPage() {
     );
   }
 
-  // Group questions by pillar using DB pillar names
   const questionsByPillar = PILLAR_ORDER.map((pillarName) => ({
     pillar: pillarName,
     items: questions.filter((q) => q.pillar === pillarName),
@@ -199,7 +193,7 @@ export default function HriAssessmentPage() {
         color: "#E5E7EB",
       }}
     >
-      {/* Intro section */}
+      {/* Intro */}
       <section style={{ marginBottom: 20 }}>
         <h1
           style={{
@@ -265,7 +259,7 @@ export default function HriAssessmentPage() {
         </div>
       )}
 
-      {/* Form with all 25 questions */}
+      {/* 25-question form */}
       <form onSubmit={handleSubmit}>
         <div
           style={{
