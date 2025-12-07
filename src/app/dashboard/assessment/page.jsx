@@ -1,9 +1,10 @@
 // src/app/dashboard/assessment/page.jsx
-"use client";
 
-import Link from "next/link";
+export const metadata = {
+  title: "Human Return Index™ – Internal Assessment",
+};
 
-export default function LegacyAssessmentLanding() {
+export default function AssessmentLandingPage() {
   return (
     <div
       style={{
@@ -15,54 +16,59 @@ export default function LegacyAssessmentLanding() {
         color: "#E5E7EB",
       }}
     >
-      <h1
-        style={{
-          fontSize: 24,
-          fontWeight: 800,
-          marginBottom: 8,
-        }}
-      >
-        Human Return Index™ – Internal Assessment
-      </h1>
-      <p
-        style={{
-          fontSize: 14,
-          color: "#9CA3AF",
-          marginBottom: 16,
-        }}
-      >
-        This page has moved. Your full 25-question HRI assessment now
-        lives in the main dashboard experience.
-      </p>
+      <section style={{ marginBottom: 20 }}>
+        <h1
+          style={{
+            fontSize: 24,
+            fontWeight: 800,
+            marginBottom: 6,
+          }}
+        >
+          Human Return Index™ – Internal Assessment
+        </h1>
+        <p
+          style={{
+            fontSize: 14,
+            maxWidth: 720,
+            color: "#9CA3AF",
+            marginBottom: 8,
+          }}
+        >
+          This is your leadership view of how things are really working
+          across the five HRI pillars. Your full 25-question assessment
+          lives on the dedicated HRI Assessment page.
+        </p>
+        <p
+          style={{
+            fontSize: 13,
+            color: "#9CA3AF",
+          }}
+        >
+          Use it to set your baseline and then compare it with live
+          employee pulse data and hard ROI metrics.
+        </p>
+      </section>
 
-      <p
-        style={{
-          fontSize: 14,
-          color: "#D1D5DB",
-          marginBottom: 12,
-        }}
-      >
-        Please use the link below to access the latest internal
-        assessment view:
-      </p>
-
-      <Link
+      <a
         href="/dashboard/hri-assessment"
         style={{
           display: "inline-flex",
           alignItems: "center",
           gap: 8,
-          padding: "10px 16px",
+          padding: "10px 18px",
           borderRadius: 999,
+          border: "1px solid #FACC15",
           background: "#FACC15",
           color: "#111827",
           fontSize: 14,
           fontWeight: 600,
           textDecoration: "none",
+          marginTop: 4,
         }}
       >
-        Go to HRI Internal Assessment
-      </Link>
+        Go to full HRI Assessment
+        <span aria-hidden="true">→</span>
+      </a>
     </div>
   );
 }
