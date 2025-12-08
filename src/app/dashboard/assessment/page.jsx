@@ -20,7 +20,7 @@ export default function AssessmentPage() {
           marginBottom: 8,
         }}
       >
-        Internal Assessment
+        Internal Assessment (placeholder)
       </h1>
       <p
         style={{
@@ -29,10 +29,10 @@ export default function AssessmentPage() {
           maxWidth: 680,
         }}
       >
-        This route is just a placeholder. Please use{" "}
-        <strong>Assessment</strong> in the main navigation, which points to{" "}
-        the full Human Return Index™ internal assessment at{" "}
-        <code>/dashboard/hri-assessment</code>.
+        This route is just a placeholder. The full 25-question Human Return
+        Index™ internal assessment now lives at{" "}
+        <code>/dashboard/hri-assessment</code> and is wired to your Supabase
+        employer questions.
       </p>
     </div>
   );
