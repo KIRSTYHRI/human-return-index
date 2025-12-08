@@ -29,7 +29,7 @@ export default function HriAssessmentPage() {
   const [submitError, setSubmitError] = useState("");
   const [submitSuccess, setSubmitSuccess] = useState(false);
 
-  // Load all 25 employer questions
+  // Load all 25 questions from /api/employer-questions
   useEffect(() => {
     (async () => {
       try {
@@ -202,7 +202,7 @@ export default function HriAssessmentPage() {
             marginBottom: 6,
           }}
         >
-          Internal Assessment
+          Internal Assessment (25-question HRI view)
         </h1>
         <p
           style={{
