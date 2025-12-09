@@ -30,7 +30,7 @@ export default function AssessmentPage() {
         }}
       >
         This route is just a placeholder. The full 25-question Human Return
-        Index™ internal assessment now lives at{" "}
+        Index™ internal assessment lives at{" "}
         <code>/dashboard/hri-assessment</code> and is wired to your Supabase
         employer questions.
       </p>
