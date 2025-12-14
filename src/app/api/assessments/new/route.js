@@ -1,19 +1,27 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-function getServiceSupabase() {
+function getServiceSupabaseSafe() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  if (!url) throw new Error("Missing env: NEXT_PUBLIC_SUPABASE_URL");
-  if (!key) throw new Error("Missing env: SUPABASE_SERVICE_ROLE_KEY");
+  // IMPORTANT: do NOT throw here (prevents build crash)
+  if (!url || !key) return null;
 
-  return createClient(url, key);
+  return createClient(url, key, { auth: { persistSession: false } });
 }
 
 export async function POST(request) {
+  const supabase = getServiceSupabaseSafe();
+
+  if (!supabase) {
+    return NextResponse.json(
+      { ok: false, error: "Missing server env vars (SUPABASE_SERVICE_ROLE_KEY or URL)" },
+      { status: 500 }
+    );
+  }
+
   try {
-    const supabase = getServiceSupabase();
     const body = await request.json();
 
     const title = body?.title || "HRI Assessment";
@@ -33,13 +41,13 @@ export async function POST(request) {
       .single();
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ assessment: data }, { status: 200 });
+    return NextResponse.json({ ok: true, assessment: data }, { status: 200 });
   } catch (err) {
     return NextResponse.json(
-      { error: err?.message || "Internal server error" },
+      { ok: false, error: err?.message || "Internal server error" },
       { status: 500 }
     );
   }
