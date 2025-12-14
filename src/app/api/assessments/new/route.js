@@ -11,19 +11,14 @@ function getServiceSupabase() {
   return createClient(url, key);
 }
 
-// POST /api/assessments/new
-// Creates a new assessment record
 export async function POST(request) {
   try {
     const supabase = getServiceSupabase();
     const body = await request.json();
 
-    // Minimal validation (keep it simple)
-    // You can expand this later
     const title = body?.title || "HRI Assessment";
     const org_id = body?.org_id || body?.organisation_id || null;
 
-    // If you don't have org_id wired yet, we still allow creation
     const insertPayload = {
       title,
       org_id,
