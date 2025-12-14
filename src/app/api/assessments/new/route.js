@@ -1,22 +1,25 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-function getServiceSupabaseSafe() {
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+function getServiceSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  // IMPORTANT: do NOT throw here (prevents build crash)
+  // IMPORTANT: never throw here (prevents build crashes)
   if (!url || !key) return null;
 
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
 export async function POST(request) {
-  const supabase = getServiceSupabaseSafe();
+  const supabase = getServiceSupabase();
 
   if (!supabase) {
     return NextResponse.json(
-      { ok: false, error: "Missing server env vars (SUPABASE_SERVICE_ROLE_KEY or URL)" },
+      { ok: false, error: "Missing server env vars" },
       { status: 500 }
     );
   }
@@ -27,16 +30,14 @@ export async function POST(request) {
     const title = body?.title || "HRI Assessment";
     const org_id = body?.org_id || body?.organisation_id || null;
 
-    const insertPayload = {
-      title,
-      org_id,
-      pillar_scores: body?.pillar_scores || {},
-      overall_score: body?.overall_score ?? null,
-    };
-
     const { data, error } = await supabase
       .from("hri_assessments")
-      .insert(insertPayload)
+      .insert({
+        title,
+        org_id,
+        pillar_scores: body?.pillar_scores || {},
+        overall_score: body?.overall_score ?? null,
+      })
       .select()
       .single();
 
