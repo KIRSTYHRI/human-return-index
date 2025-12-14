@@ -4,21 +4,19 @@ import { createClient } from "@supabase/supabase-js";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+// IMPORTANT: do NOT create the client at top-level.
+// Only create it inside the request handler.
 function getServiceSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  // Never throw here (prevents build-time crashes)
   if (!url || !key) return null;
 
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
-// GET /api/assessments
-// Returns latest assessments for an org (optional org_id query param)
 export async function GET(request) {
   const supabase = getServiceSupabase();
-
   if (!supabase) {
     return NextResponse.json(
       { ok: false, error: "Missing server env vars" },
@@ -30,15 +28,15 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const org_id = searchParams.get("org_id");
 
-    let query = supabase
+    let q = supabase
       .from("hri_assessments")
       .select("*")
       .order("created_at", { ascending: false })
       .limit(50);
 
-    if (org_id) query = query.eq("org_id", org_id);
+    if (org_id) q = q.eq("org_id", org_id);
 
-    const { data, error } = await query;
+    const { data, error } = await q;
 
     if (error) {
       return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
@@ -53,11 +51,8 @@ export async function GET(request) {
   }
 }
 
-// POST /api/assessments
-// Creates an assessment (basic support)
 export async function POST(request) {
   const supabase = getServiceSupabase();
-
   if (!supabase) {
     return NextResponse.json(
       { ok: false, error: "Missing server env vars" },
