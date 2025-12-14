@@ -1,9 +1,5 @@
 // src/app/dashboard/layout.jsx
 
-export const metadata = {
-  title: "Human Return Index™ Dashboard",
-};
-
 export default function DashboardLayout({ children }) {
   return (
     <div
@@ -58,31 +54,25 @@ export default function DashboardLayout({ children }) {
               >
                 Human Return Index™
               </span>
-              <span
-                style={{
-                  fontSize: 11,
-                  opacity: 0.7,
-                }}
-              >
+              <span style={{ fontSize: 11, opacity: 0.7 }}>
                 People-first KPI for modern organisations
               </span>
             </div>
           </a>
 
-        <nav
-  style={{
-    display: "flex",
-    alignItems: "center",
-    gap: 12,
-    fontSize: 12,
-  }}
->
-  <NavLink href="/dashboard">Overview</NavLink>
-  <NavLink href="/dashboard/hri-assessment">Assessment</NavLink>
-  <NavLink href="/dashboard/employee-pulse">Employee pulse</NavLink>
-  <NavLink href="/dashboard/settings">Org inputs</NavLink>
-</nav>
-
+          <nav
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              fontSize: 12,
+            }}
+          >
+            <NavLink href="/dashboard">Overview</NavLink>
+            <NavLink href="/dashboard/hri-assessment">Assessment</NavLink>
+            <NavLink href="/dashboard/employee-pulse">Employee pulse</NavLink>
+            <NavLink href="/dashboard/settings">Org inputs</NavLink>
+          </nav>
         </div>
       </header>
 
@@ -108,9 +98,7 @@ export default function DashboardLayout({ children }) {
           }}
         >
           <span>Live pilot environment · Internal use only</span>
-          <span style={{ opacity: 0.8 }}>
-            HRI – the new KPI for human return
-          </span>
+          <span style={{ opacity: 0.8 }}>HRI – the new KPI for human return</span>
         </div>
       </div>
 
