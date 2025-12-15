@@ -1,168 +1,99 @@
-"use client";
+import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 
-import { useEffect, useState } from "react";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
-export default function SettingsPage() {
-  const [orgMetrics, setOrgMetrics] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+function getServiceSupabase() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  useEffect(() => {
-    (async () => {
-      try {
-        setLoading(true);
-        setError("");
-        const res = await fetch("/api/org-metrics", { cache: "no-store" });
-        const json = await res.json();
+  // Do NOT throw here — avoid build-time crashes
+  if (!url || !key) return null;
 
-        if (!res.ok || json.ok === false) {
-          throw new Error(json.error || "Failed to load org metrics");
-        }
-
-        setOrgMetrics(json.org_metrics || json.data || json || null);
-      } catch (err) {
-        console.error("Settings load error:", err);
-        setError(err?.message || "Unexpected error");
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
-
-  return (
-    <div
-      style={{
-        maxWidth: 1120,
-        margin: "0 auto",
-        padding: "24px 24px 40px",
-        fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
-        color: "#E5E7EB",
-      }}
-    >
-      <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 8 }}>
-        Org Inputs
-      </h1>
-      <p style={{ fontSize: 14, color: "#9CA3AF", marginBottom: 16 }}>
-        These inputs feed your ROI estimates and dashboard benchmarking.
-      </p>
-
-      {loading && (
-        <p style={{ fontSize: 14, color: "#9CA3AF" }}>Loading…</p>
-      )}
-
-      {error && (
-        <div
-          style={{
-            padding: 12,
-            borderRadius: 10,
-            border: "1px solid #F97316",
-            background: "#451a03",
-            color: "#FED7AA",
-            fontSize: 13,
-            marginBottom: 16,
-            whiteSpace: "pre-wrap",
-          }}
-        >
-          {error}
-        </div>
-      )}
-
-      {!loading && !error && (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-            gap: 10,
-          }}
-        >
-          <MetricCard
-            label="Organisation"
-            value={
-              orgMetrics?.name ||
-              orgMetrics?.organisation_name ||
-              "Your organisation"
-            }
-          />
-          <MetricCard
-            label="Employees"
-            value={
-              orgMetrics?.employee_count != null
-                ? Number(orgMetrics.employee_count).toLocaleString("en-GB")
-                : "–"
-            }
-          />
-          <MetricCard
-            label="Average salary"
-            value={
-              orgMetrics?.avg_salary != null
-                ? `£${Number(orgMetrics.avg_salary).toLocaleString("en-GB")}`
-                : "–"
-            }
-          />
-          <MetricCard
-            label="Turnover rate"
-            value={
-              orgMetrics?.turnover_rate != null
-                ? `${Number(orgMetrics.turnover_rate)}%`
-                : "–"
-            }
-          />
-          <MetricCard
-            label="Absence days per employee"
-            value={
-              orgMetrics?.absent_days_per_employee != null
-                ? Number(orgMetrics.absent_days_per_employee)
-                : "–"
-            }
-          />
-          <MetricCard
-            label="Annual wellbeing spend"
-            value={
-              orgMetrics?.annual_wellbeing_spend != null
-                ? `£${Number(orgMetrics.annual_wellbeing_spend).toLocaleString(
-                    "en-GB"
-                  )}`
-                : "–"
-            }
-          />
-          <MetricCard
-            label="Engagement score"
-            value={
-              orgMetrics?.engagement_score != null
-                ? `${Number(orgMetrics.engagement_score)}/100`
-                : "–"
-            }
-          />
-        </div>
-      )}
-    </div>
-  );
+  return createClient(url, key, { auth: { persistSession: false } });
 }
 
-function MetricCard({ label, value }) {
-  return (
-    <div
-      style={{
-        borderRadius: 12,
-        border: "1px solid #111827",
-        padding: 10,
-        background:
-          "radial-gradient(circle at top left, #020617 0%, #020617 45%, #030712 100%)",
-      }}
-    >
-      <div style={{ fontSize: 11, color: "#9CA3AF", marginBottom: 2 }}>
-        {label}
-      </div>
-      <div
-        style={{
-          fontSize: 14,
-          fontWeight: 600,
-          color: "#F9FAFB",
-          wordBreak: "break-word",
-        }}
-      >
-        {value}
-      </div>
-    </div>
-  );
+// GET /api/hri-assessments
+// Returns assessments (optionally filter by org_id)
+export async function GET(request) {
+  const supabase = getServiceSupabase();
+
+  if (!supabase) {
+    return NextResponse.json(
+      { ok: false, error: "Missing server env vars" },
+      { status: 500 }
+    );
+  }
+
+  try {
+    const { searchParams } = new URL(request.url);
+    const org_id = searchParams.get("org_id");
+
+    let q = supabase
+      .from("hri_assessments")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(100);
+
+    if (org_id) q = q.eq("org_id", org_id);
+
+    const { data, error } = await q;
+
+    if (error) {
+      return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ ok: true, data: data || [] }, { status: 200 });
+  } catch (err) {
+    return NextResponse.json(
+      { ok: false, error: err?.message || "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+
+// POST /api/hri-assessments
+// Creates a new assessment row
+export async function POST(request) {
+  const supabase = getServiceSupabase();
+
+  if (!supabase) {
+    return NextResponse.json(
+      { ok: false, error: "Missing server env vars" },
+      { status: 500 }
+    );
+  }
+
+  try {
+    const body = await request.json();
+
+    const title = body?.title || "HRI Assessment";
+    const org_id = body?.org_id || body?.organisation_id || null;
+
+    const payload = {
+      title,
+      org_id,
+      pillar_scores: body?.pillar_scores || {},
+      overall_score: body?.overall_score ?? null,
+      created_by: body?.created_by || null,
+    };
+
+    const { data, error } = await supabase
+      .from("hri_assessments")
+      .insert(payload)
+      .select()
+      .single();
+
+    if (error) {
+      return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ ok: true, data }, { status: 200 });
+  } catch (err) {
+    return NextResponse.json(
+      { ok: false, error: err?.message || "Internal server error" },
+      { status: 500 }
+    );
+  }
 }
