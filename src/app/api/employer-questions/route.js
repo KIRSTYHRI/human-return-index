@@ -1,51 +1,12 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 
-export const runtime = "nodejs"; // ✅ important: avoids Edge env weirdness
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export async function GET() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-
-  // ✅ accept both names, just in case older code used SUPABASE_SERVICE_KEY
-  const key =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.SUPABASE_SERVICE_KEY;
-
-  // ✅ do NOT call createClient unless key exists
-  if (!url || !key) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error: "Missing server env vars",
-        debug: {
-          hasUrl: !!url,
-          hasRoleKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
-          hasServiceKey: !!process.env.SUPABASE_SERVICE_KEY,
-        },
-      },
-      { status: 500, headers: { "Cache-Control": "no-store" } }
-    );
-  }
-
-  const supabase = createClient(url, key, { auth: { persistSession: false } });
-
-  const { data, error } = await supabase
-    .from("employer_questions")
-    .select("id, pillar, code, question_text, position")
-    .order("pillar", { ascending: true })
-    .order("position", { ascending: true });
-
-  if (error) {
-    return NextResponse.json(
-      { ok: false, error: error.message },
-      { status: 500, headers: { "Cache-Control": "no-store" } }
-    );
-  }
-
   return NextResponse.json(
-    { ok: true, questions: data || [] },
+    { marker: "EMPLOYER_QUESTIONS_SRC_ROUTE_LIVE_V1" },
     { status: 200, headers: { "Cache-Control": "no-store" } }
   );
 }
