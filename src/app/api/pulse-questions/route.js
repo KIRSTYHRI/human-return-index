@@ -1,61 +1,38 @@
-// src/app/api/pulse-questions/route.js
-
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey =
-  process.env.SUPABASE_SERVICE_ROLE_KEY ||
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 function getSupabase() {
-  if (!supabaseUrl || !supabaseKey) {
-    console.error("Pulse questions – missing Supabase env vars", {
-      hasUrl: !!supabaseUrl,
-      hasKey: !!supabaseKey,
-    });
-    return null;
-  }
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  return createClient(supabaseUrl, supabaseKey);
+  if (!url) throw new Error("Missing env: NEXT_PUBLIC_SUPABASE_URL");
+  if (!key) throw new Error("Missing env: SUPABASE_SERVICE_ROLE_KEY");
+
+  return createClient(url, key, { auth: { persistSession: false } });
 }
 
 export async function GET() {
   try {
     const supabase = getSupabase();
-    if (!supabase) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error:
-            "Supabase configuration missing on server. Check env vars in Vercel.",
-        },
-        { status: 500 }
-      );
-    }
 
+    // If your pulse table is named differently, change it here:
+    const table = "hri_pulse_questions"; // OR "employee_questions" depending on your schema
     const { data, error } = await supabase
-      .from("hri_pulse_questions")
-      .select("id, pillar, question_text, position")
+      .from(table)
+      .select("id, pillar, code, question_text, position")
+      .order("pillar", { ascending: true })
       .order("position", { ascending: true });
 
     if (error) {
-      console.error("Pulse questions DB error:", error);
-      throw error;
+      return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({
-      ok: true,
-      questions: data || [],
-    });
-  } catch (err) {
-    console.error("Pulse questions route error:", err);
-    return NextResponse.json(
-      {
-        ok: false,
-        error: err?.message || "Failed to load pulse questions",
-      },
-      { status: 500 }
-    );
+    return NextResponse.json({ ok: true, questions: data || [] }, { status: 200 });
+  } catch (e) {
+    return NextResponse.json({ ok: false, error: e.message }, { status: 500 });
   }
 }
