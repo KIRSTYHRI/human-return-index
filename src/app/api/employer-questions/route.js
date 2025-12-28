@@ -5,36 +5,24 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export async function GET() {
-  // THIS IS THE PROOF MARKER
-  const marker = "EMPLOYER_QUESTIONS_SRC_ROUTE_V2";
-
+function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.SUPABASE_SERVICE_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  // If env missing, return debug (don’t crash)
-  if (!url || !key) {
+  if (!url || !key) return null;
+
+  return createClient(url, key, { auth: { persistSession: false } });
+}
+
+export async function GET() {
+  const supabase = getSupabase();
+
+  if (!supabase) {
     return NextResponse.json(
-      {
-        ok: false,
-        marker,
-        error: "Missing env vars inside employer-questions route",
-        debug: {
-          hasUrl: !!url,
-          hasServiceRoleKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
-          hasServiceKey: !!process.env.SUPABASE_SERVICE_KEY,
-          hasAnonKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-        },
-      },
-      { status: 500, headers: { "Cache-Control": "no-store" } }
+      { ok: false, error: "supabaseKey is required." },
+      { status: 500 }
     );
   }
-
-  // Create client ONLY after env checks
-  const supabase = createClient(url, key, { auth: { persistSession: false } });
 
   const { data, error } = await supabase
     .from("employer_questions")
@@ -43,14 +31,8 @@ export async function GET() {
     .order("position", { ascending: true });
 
   if (error) {
-    return NextResponse.json(
-      { ok: false, marker, error: error.message },
-      { status: 500, headers: { "Cache-Control": "no-store" } }
-    );
+    return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json(
-    { ok: true, marker, count: data?.length || 0, questions: data || [] },
-    { status: 200, headers: { "Cache-Control": "no-store" } }
-  );
+  return NextResponse.json({ ok: true, questions: data || [] }, { status: 200 });
 }
