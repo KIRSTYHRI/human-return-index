@@ -9,21 +9,18 @@ function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  if (!url || !key) return null;
+  if (!url) throw new Error("Missing env: NEXT_PUBLIC_SUPABASE_URL");
+  if (!key) throw new Error("Missing env: SUPABASE_SERVICE_ROLE_KEY");
 
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
 export async function GET() {
-  const supabase = getSupabase();
-
-  if (!supabase) {
-    return NextResponse.json(
-      { ok: false, error: "Missing Supabase env vars on server" },
-      { status: 500 }
-    );
+  try {
+    // Keep this route alive first. We can add the real score calc back once stable.
+    getSupabase();
+    return NextResponse.json({ ok: true, message: "hri-scores route alive" }, { status: 200 });
+  } catch (e) {
+    return NextResponse.json({ ok: false, error: e.message }, { status: 500 });
   }
-
-  // TEMP safe response – prevents build crashing.
-  return NextResponse.json({ ok: true, message: "hri-scores route alive" }, { status: 200 });
 }
