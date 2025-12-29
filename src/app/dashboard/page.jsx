@@ -1,5 +1,3 @@
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
 "use client";
 
 import { useEffect, useState } from "react";
@@ -9,7 +7,6 @@ export default function AssessmentPage() {
   const [questions, setQuestions] = useState([]);
   const [error, setError] = useState("");
 
-  // Example: load questions from your API (adjust the URL if needed)
   useEffect(() => {
     (async () => {
       try {
@@ -20,15 +17,13 @@ export default function AssessmentPage() {
           cache: "no-store",
         });
 
-        if (!res.ok) {
-          throw new Error("Failed to load assessment questions");
-        }
+        if (!res.ok) throw new Error("Failed to load assessment questions");
 
         const json = await res.json();
         setQuestions(Array.isArray(json.questions) ? json.questions : []);
       } catch (err) {
         console.error("Assessment load error:", err);
-        setError(err.message || "Unexpected error");
+        setError(err?.message || "Unexpected error");
       } finally {
         setLoading(false);
       }
@@ -41,8 +36,7 @@ export default function AssessmentPage() {
         maxWidth: 1120,
         margin: "0 auto",
         padding: "24px 24px 40px",
-        fontFamily:
-          "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+        fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
         color: "#E5E7EB",
       }}
     >
@@ -50,13 +44,7 @@ export default function AssessmentPage() {
         <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 6 }}>
           Internal Assessment
         </h1>
-        <p
-          style={{
-            fontSize: 14,
-            maxWidth: 720,
-            color: "#9CA3AF",
-          }}
-        >
+        <p style={{ fontSize: 14, maxWidth: 720, color: "#9CA3AF" }}>
           Capture how your organisation is really doing across the five HRI
           pillars. This is your internal view – the baseline you’ll compare
           against live employee data.
@@ -70,9 +58,7 @@ export default function AssessmentPage() {
       )}
 
       {error && !loading && (
-        <p style={{ fontSize: 14, color: "#F97316" }}>
-          {error} – you can still wire this up later, the page itself is ready.
-        </p>
+        <p style={{ fontSize: 14, color: "#F97316" }}>{error}</p>
       )}
 
       {!loading && !error && questions.length === 0 && (
@@ -113,12 +99,8 @@ export default function AssessmentPage() {
               >
                 {q.pillar || "HRI Pillar"}
               </div>
-              <div
-                style={{
-                  fontSize: 14,
-                  color: "#F9FAFB",
-                }}
-              >
+
+              <div style={{ fontSize: 14, color: "#F9FAFB" }}>
                 {q.question_text || q.text}
               </div>
             </div>
