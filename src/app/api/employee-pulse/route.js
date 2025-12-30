@@ -1,101 +1,69 @@
-// src/app/api/employee-pulse/route.js
-
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-// Use SERVICE_ROLE on server only (safe in API route)
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
-function getSupabase() {
-  if (!supabaseUrl || !supabaseKey) {
-    console.error("Employee pulse – missing Supabase env vars", {
-      hasUrl: !!supabaseUrl,
-      hasKey: !!supabaseKey,
-    });
-    return null;
-  }
-
-  return createClient(supabaseUrl, supabaseKey);
+function getServiceSupabase() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url) throw new Error("Missing env: NEXT_PUBLIC_SUPABASE_URL");
+  if (!key) throw new Error("Missing env: SUPABASE_SERVICE_ROLE_KEY");
+  return createClient(url, key, { auth: { persistSession: false } });
 }
 
-export async function POST(request) {
+export async function POST(req) {
   try {
-    const body = await request.json().catch(() => ({}));
-    const { responses = [], meta = {} } = body || {};
+    const supabase = getServiceSupabase();
+    const body = await req.json();
 
-    if (!Array.isArray(responses) || responses.length === 0) {
-      return NextResponse.json(
-        { ok: false, error: "No responses submitted" },
-        { status: 400 }
-      );
+    // Expect: { responses: [{ question_id, response_value }] , organisation_id? }
+    const responses = Array.isArray(body.responses) ? body.responses : null;
+    const organisation_id = body.organisation_id || null;
+
+    if (!responses || responses.length === 0) {
+      return NextResponse.json({ ok: false, error: "Missing responses" }, { status: 400 });
     }
 
-    const supabase = getSupabase();
-    if (!supabase) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error:
-            "Supabase configuration missing on server. Check env vars in Vercel.",
-        },
-        { status: 500 }
-      );
+    // 1) Create a submission row
+    const { data: submission, error: subErr } = await supabase
+      .from("pulse_check_submissions")
+      .insert([{ organisation_id }])
+      .select("id")
+      .single();
+
+    if (subErr) {
+      return NextResponse.json({ ok: false, error: subErr.message }, { status: 500 });
     }
 
-    const rows = responses.map((r) => ({
+    const pulse_id = submission.id;
+
+    // 2) Insert responses into hri_pulse_responses
+    // We'll try with organisation_id first, then fallback if your table doesn't have that column.
+    const rowsWithOrg = responses.map((r) => ({
+      pulse_id,
+      organisation_id,
       question_id: r.question_id,
-      pillar: r.pillar,
-      score_1_to_5: r.score1to5,
-      score_0_to_100: r.score100,
-      submitted_at: new Date().toISOString(),
-      source: meta.source || "hri-dashboard-employee-pulse",
+      response_value: Number(r.response_value),
     }));
 
-    const { error } = await supabase
-      .from("hri_pulse_responses")
-      .insert(rows);
+    let ins = await supabase.from("hri_pulse_responses").insert(rowsWithOrg);
 
-    if (error) {
-      console.error("Employee pulse insert error:", error);
-      throw error;
+    if (ins.error && String(ins.error.message || "").includes("organisation_id")) {
+      const rows = responses.map((r) => ({
+        pulse_id,
+        question_id: r.question_id,
+        response_value: Number(r.response_value),
+      }));
+      ins = await supabase.from("hri_pulse_responses").insert(rows);
     }
 
-    const byPillar = new Map();
-    for (const r of responses) {
-      if (!r.pillar || typeof r.score100 !== "number") continue;
-      if (!byPillar.has(r.pillar)) byPillar.set(r.pillar, []);
-      byPillar.get(r.pillar).push(r.score100);
+    if (ins.error) {
+      return NextResponse.json({ ok: false, error: ins.error.message }, { status: 500 });
     }
 
-    const pillarScores = [];
-    let total = 0;
-    let count = 0;
-
-    for (const [pillar, values] of byPillar.entries()) {
-      if (!values.length) continue;
-      const avg = values.reduce((s, v) => s + v, 0) / values.length;
-      const rounded = Math.round(avg);
-      pillarScores.push({ pillar, score: rounded });
-      total += rounded;
-      count += 1;
-    }
-
-    const overallScore = count > 0 ? Math.round(total / count) : null;
-
-    return NextResponse.json({
-      ok: true,
-      overallScore,
-      pillarScores,
-    });
-  } catch (err) {
-    console.error("Employee pulse route error:", err);
-    return NextResponse.json(
-      {
-        ok: false,
-        error: err?.message || "Failed to submit employee pulse",
-      },
-      { status: 500 }
-    );
+    return NextResponse.json({ ok: true, pulse_id }, { status: 200 });
+  } catch (e) {
+    return NextResponse.json({ ok: false, error: e.message }, { status: 500 });
   }
 }
