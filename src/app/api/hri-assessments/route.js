@@ -4,68 +4,63 @@ import { createClient } from "@supabase/supabase-js";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-// 👇 TEMP FIX: hard fallback org id (replace with yours)
-const FALLBACK_ORG_ID = "PASTE_YOUR_ORG_ID_HERE";
+// ✅ Your org id (fallback so nothing breaks)
+const FALLBACK_ORG_ID = "9499b1b9-7fce-43a1-9590-d533f00dc71d";
 
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  if (!url || !key) {
-    throw new Error("Missing Supabase env vars");
-  }
+  if (!url) throw new Error("Missing env: NEXT_PUBLIC_SUPABASE_URL");
+  if (!key) throw new Error("Missing env: SUPABASE_SERVICE_ROLE_KEY");
 
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
-/* ============================
-   GET – list assessments
-============================ */
+// GET /api/hri-assessments?org_id=...
 export async function GET(req) {
   try {
     const supabase = getSupabase();
     const { searchParams } = new URL(req.url);
 
-    const org_id =
-      searchParams.get("org_id") ||
-      FALLBACK_ORG_ID;
+    const org_id = searchParams.get("org_id") || FALLBACK_ORG_ID;
 
     const { data, error } = await supabase
       .from("hri_assessments")
       .select("*")
       .eq("org_id", org_id)
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .limit(100);
 
     if (error) throw error;
 
-    return NextResponse.json({ ok: true, data });
+    return NextResponse.json({ ok: true, data: data || [] }, { status: 200 });
   } catch (err) {
     return NextResponse.json(
-      { ok: false, error: err.message },
+      { ok: false, error: err?.message || "Internal server error" },
       { status: 500 }
     );
   }
 }
 
-/* ============================
-   POST – create assessment
-============================ */
+// POST /api/hri-assessments
 export async function POST(req) {
   try {
     const supabase = getSupabase();
     const body = await req.json();
 
     const org_id =
-      body.org_id ||
-      body.organization_id ||
+      body?.org_id ||
+      body?.organisation_id ||
+      body?.organization_id ||
       FALLBACK_ORG_ID;
 
     const payload = {
-      title: body.title || "HRI Assessment",
+      title: body?.title || "HRI Assessment",
       org_id,
-      pillar_scores: body.pillar_scores || {},
-      overall_score: body.overall_score ?? null,
-      created_by: body.created_by ?? null,
+      pillar_scores: body?.pillar_scores || {},
+      overall_score: body?.overall_score ?? null,
+      created_by: body?.created_by || null,
     };
 
     const { data, error } = await supabase
@@ -76,10 +71,10 @@ export async function POST(req) {
 
     if (error) throw error;
 
-    return NextResponse.json({ ok: true, data });
+    return NextResponse.json({ ok: true, data }, { status: 200 });
   } catch (err) {
     return NextResponse.json(
-      { ok: false, error: err.message },
+      { ok: false, error: err?.message || "Internal server error" },
       { status: 500 }
     );
   }
