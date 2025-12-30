@@ -50,12 +50,12 @@ export default function EmployeePulsePage() {
       if (!allAnswered) throw new Error(`Please answer all questions (${answeredCount}/${total}).`);
 
       const payload = {
-        organisation_id: null, // you can wire this later
-        responses: questions.map((q) => ({
-          question_id: q.id,
-          response_value: Number(answers[q.id]),
-        })),
-      };
+  organisation_id: "9499b1b9-7fce-43a1-9590-d533f00dc71d", // your org id
+  responses: questions.map((q) => ({
+    question_id: q.id,
+    response_value: Number(answers[q.id]),
+  })),
+};
 
       const res = await fetch("/api/employee-pulse", {
         method: "POST",
