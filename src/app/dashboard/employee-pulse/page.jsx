@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+const ORG_ID = "9499b1b9-7fce-43a1-9590-d533f00dc71d"; // ✅ your org id
+
 export default function EmployeePulsePage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -26,7 +28,7 @@ export default function EmployeePulsePage() {
 
         setQuestions(Array.isArray(json.questions) ? json.questions : []);
       } catch (e) {
-        setError(e.message || "Unexpected error");
+        setError(e?.message || "Unexpected error");
       } finally {
         setLoading(false);
       }
@@ -35,7 +37,10 @@ export default function EmployeePulsePage() {
 
   const total = questions.length;
   const answeredCount = useMemo(
-    () => Object.values(answers).filter((v) => Number(v) >= 1 && Number(v) <= 5).length,
+    () =>
+      Object.values(answers).filter(
+        (v) => Number(v) >= 1 && Number(v) <= 5
+      ).length,
     [answers]
   );
   const allAnswered = total > 0 && answeredCount === total;
@@ -47,15 +52,16 @@ export default function EmployeePulsePage() {
       setSuccess("");
 
       if (!total) throw new Error("No questions loaded.");
-      if (!allAnswered) throw new Error(`Please answer all questions (${answeredCount}/${total}).`);
+      if (!allAnswered)
+        throw new Error(`Please answer all questions (${answeredCount}/${total}).`);
 
-   const payload = {
-  organisation_id: "9499b1b9-7fce-43a1-9590-d533f00dc71d",
-  responses: questions.map((q) => ({
-    question_id: q.id,
-    response_value: Number(answers[q.id]),
-  })),
-};
+      const payload = {
+        organisation_id: ORG_ID, // ✅ THIS is the fix
+        responses: questions.map((q) => ({
+          question_id: q.id,
+          response_value: Number(answers[q.id]),
+        })),
+      };
 
       const res = await fetch("/api/employee-pulse", {
         method: "POST",
@@ -71,7 +77,7 @@ export default function EmployeePulsePage() {
 
       setSuccess(`Saved ✅ Pulse ID: ${json.pulse_id}`);
     } catch (e) {
-      setError(e.message || "Unexpected error");
+      setError(e?.message || "Unexpected error");
     } finally {
       setSubmitting(false);
     }
@@ -86,17 +92,8 @@ export default function EmployeePulsePage() {
 
       {loading && <p style={{ color: "#9CA3AF" }}>Loading pulse questions…</p>}
 
-      {!loading && error && (
-        <p style={{ color: "#F97316", marginBottom: 12 }}>
-          {error}
-        </p>
-      )}
-
-      {!loading && success && (
-        <p style={{ color: "#34D399", marginBottom: 12 }}>
-          {success}
-        </p>
-      )}
+      {!loading && error && <p style={{ color: "#F97316", marginBottom: 12 }}>{error}</p>}
+      {!loading && success && <p style={{ color: "#34D399", marginBottom: 12 }}>{success}</p>}
 
       {!loading && !error && questions.length === 0 && (
         <p style={{ color: "#9CA3AF" }}>No pulse questions found.</p>
