@@ -11,21 +11,7 @@ function getServiceSupabase() {
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
-// Map question "position" (1–10) -> DB column in employee_pulse_responses
-const POS_TO_COL = {
-  1: "q1_leadership_vision",
-  2: "q2_leadership_cares",
-  3: "q3_work_life_balance",
-  4: "q4_wellbeing_support",
-  5: "q5_valued_included",
-  6: "q6_treated_fairly",
-  7: "q7_growth_opportunities",
-  8: "q8_feedback_helps",
-  9: "q9_trust_colleagues",
-  10: "q10_clear_communication",
-};
-
-// Pillar groupings by position (matches your current 10 questions)
+// Map question position -> pillar buckets
 function calcPillars(valuesByPos) {
   const v = (p) => Number(valuesByPos[p] ?? 0);
 
@@ -35,7 +21,7 @@ function calcPillars(valuesByPos) {
   const pillar_4 = (v(7) + v(8)) / 2;   // Growth
   const pillar_5 = (v(9) + v(10)) / 2;  // Trust & Comms
 
-  const total = Object.keys(POS_TO_COL).reduce((sum, p) => sum + v(Number(p)), 0);
+  const total = [1,2,3,4,5,6,7,8,9,10].reduce((sum, p) => sum + v(p), 0);
   const avg = total / 10;
 
   return {
@@ -61,18 +47,17 @@ export async function POST(req) {
   try {
     const body = await req.json();
 
-    // Accept either spelling, but store into DB as "organization_id"
-    const organisation_id =
-      body?.organisation_id ||
+    // IMPORTANT: your DB expects organization_id (American spelling) as text
+    const organization_id =
       body?.organization_id ||
+      body?.organisation_id ||
       body?.org_id ||
       null;
 
     const employee_email = body?.employee_email || null;
     const responses = Array.isArray(body?.responses) ? body.responses : [];
 
-    // Hard stop if org id is missing (your DB requires it)
-    if (!organisation_id) {
+    if (!organization_id) {
       return NextResponse.json(
         { ok: false, error: "Missing organisation_id" },
         { status: 400 }
@@ -86,7 +71,42 @@ export async function POST(req) {
       );
     }
 
-    // Pull positions for these questions so we can map them correctly
+    // 1) Create a pulse_check_submissions row (this gives us pulse_id)
+    // Your earlier errors showed the column is organization_id (NOT organisation_id)
+    const { data: pulseRow, error: pulseErr } = await supabase
+      .from("pulse_check_submissions")
+      .insert({
+        organization_id: String(organization_id),
+        employee_email,
+      })
+      .select("id")
+      .single();
+
+    if (pulseErr || !pulseRow?.id) {
+      return NextResponse.json(
+        { ok: false, error: pulseErr?.message || "Failed to create pulse submission" },
+        { status: 500 }
+      );
+    }
+
+    const pulse_id = pulseRow.id;
+
+    // 2) Insert raw answers into employee_pulse_responses (one row per answer)
+    const rawRows = responses.map((r) => ({
+      pulse_id,
+      question_id: r.question_id,
+      response_value: Number(r.response_value),
+    }));
+
+    const { error: rawErr } = await supabase
+      .from("employee_pulse_responses")
+      .insert(rawRows);
+
+    if (rawErr) {
+      return NextResponse.json({ ok: false, error: rawErr.message }, { status: 500 });
+    }
+
+    // 3) Fetch question positions so we can calculate pillars properly
     const ids = responses.map((r) => r.question_id).filter(Boolean);
 
     const { data: qRows, error: qErr } = await supabase
@@ -100,73 +120,37 @@ export async function POST(req) {
 
     const posById = Object.fromEntries((qRows || []).map((q) => [q.id, q.position]));
 
-    // Build valuesByPos {1:5, 2:3, ...}
     const valuesByPos = {};
     for (const r of responses) {
       const pos = posById[r.question_id];
-      if (!pos) continue;
-      valuesByPos[pos] = Number(r.response_value);
+      if (pos) valuesByPos[pos] = Number(r.response_value);
     }
 
-    // Build insert payload for employee_pulse_responses
-    const payload = {
-      organization_id: String(organisation_id),
-      employee_email,
-    };
+    const summary = calcPillars(valuesByPos);
 
-    for (const [posStr, col] of Object.entries(POS_TO_COL)) {
-      const pos = Number(posStr);
-      payload[col] = Number(valuesByPos[pos] ?? null);
-    }
-
-    Object.assign(payload, calcPillars(valuesByPos));
-
-    const { data, error } = await supabase
-      .from("employee_pulse_responses")
-      .insert(payload)
+    // 4) Insert a single summary row (THIS is what your dashboard needs)
+    const { data: summaryRow, error: sumErr } = await supabase
+      .from("employee_pulse_summary")
+      .insert({
+        organization_id: String(organization_id),
+        pulse_id,
+        ...summary,
+      })
       .select("*")
       .single();
 
-    if (error) {
-      return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    if (sumErr) {
+      return NextResponse.json({ ok: false, error: sumErr.message }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true, data }, { status: 200 });
+    return NextResponse.json(
+      { ok: true, pulse_id, summary: summaryRow },
+      { status: 200 }
+    );
   } catch (e) {
     return NextResponse.json(
       { ok: false, error: e?.message || "Server error" },
       { status: 500 }
     );
   }
-}
-
-// Optional: fetch latest submissions for an org
-export async function GET(req) {
-  const supabase = getServiceSupabase();
-  if (!supabase) {
-    return NextResponse.json({ ok: false, error: "Missing env vars" }, { status: 500 });
-  }
-
-  const { searchParams } = new URL(req.url);
-  const organisation_id =
-    searchParams.get("organisation_id") ||
-    searchParams.get("organization_id") ||
-    null;
-
-  if (!organisation_id) {
-    return NextResponse.json({ ok: false, error: "Missing organisation_id" }, { status: 400 });
-  }
-
-  const { data, error } = await supabase
-    .from("employee_pulse_responses")
-    .select("*")
-    .eq("organization_id", String(organisation_id))
-    .order("submitted_at", { ascending: false })
-    .limit(10);
-
-  if (error) {
-    return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json({ ok: true, data: data || [] }, { status: 200 });
 }
