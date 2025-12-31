@@ -11,8 +11,8 @@ function getServiceSupabase() {
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
-// Map question position -> pillar buckets
-function calcPillars(valuesByPos) {
+// Pillar calc based on 10 questions = 5 pillars (2 Qs each)
+function calcSummary(valuesByPos) {
   const v = (p) => Number(valuesByPos[p] ?? 0);
 
   const pillar_1 = (v(1) + v(2)) / 2;   // Leadership
@@ -22,11 +22,11 @@ function calcPillars(valuesByPos) {
   const pillar_5 = (v(9) + v(10)) / 2;  // Trust & Comms
 
   const total = [1,2,3,4,5,6,7,8,9,10].reduce((sum, p) => sum + v(p), 0);
-  const avg = total / 10;
+  const average = total / 10;
 
   return {
     total_score: total,
-    average_score: avg,
+    average_score: average,
     pillar_1_score: pillar_1,
     pillar_2_score: pillar_2,
     pillar_3_score: pillar_3,
@@ -47,7 +47,6 @@ export async function POST(req) {
   try {
     const body = await req.json();
 
-    // IMPORTANT: your DB expects organization_id (American spelling) as text
     const organization_id =
       body?.organization_id ||
       body?.organisation_id ||
@@ -71,8 +70,7 @@ export async function POST(req) {
       );
     }
 
-    // 1) Create a pulse_check_submissions row (this gives us pulse_id)
-    // Your earlier errors showed the column is organization_id (NOT organisation_id)
+    // 1) Create submission row FIRST (gives pulse_id)
     const { data: pulseRow, error: pulseErr } = await supabase
       .from("pulse_check_submissions")
       .insert({
@@ -91,7 +89,7 @@ export async function POST(req) {
 
     const pulse_id = pulseRow.id;
 
-    // 2) Insert raw answers into employee_pulse_responses (one row per answer)
+    // 2) Insert raw answers (this table is: pulse_id, question_id, response_value)
     const rawRows = responses.map((r) => ({
       pulse_id,
       question_id: r.question_id,
@@ -106,7 +104,7 @@ export async function POST(req) {
       return NextResponse.json({ ok: false, error: rawErr.message }, { status: 500 });
     }
 
-    // 3) Fetch question positions so we can calculate pillars properly
+    // 3) Pull positions to calculate summary properly
     const ids = responses.map((r) => r.question_id).filter(Boolean);
 
     const { data: qRows, error: qErr } = await supabase
@@ -119,32 +117,34 @@ export async function POST(req) {
     }
 
     const posById = Object.fromEntries((qRows || []).map((q) => [q.id, q.position]));
-
     const valuesByPos = {};
+
     for (const r of responses) {
       const pos = posById[r.question_id];
       if (pos) valuesByPos[pos] = Number(r.response_value);
     }
 
-    const summary = calcPillars(valuesByPos);
+    const summary = calcSummary(valuesByPos);
 
-    // 4) Insert a single summary row (THIS is what your dashboard needs)
-    const { data: summaryRow, error: sumErr } = await supabase
-      .from("employee_pulse_summary")
-      .insert({
-        organization_id: String(organization_id),
-        pulse_id,
-        ...summary,
+    // 4) Try to store summary ON the submission row (if columns exist)
+    // If columns don't exist, we ignore update failure and still return summary.
+    const { error: updErr } = await supabase
+      .from("pulse_check_submissions")
+      .update({
+        total_score: summary.total_score,
+        average_score: summary.average_score,
+        pillar_1_score: summary.pillar_1_score,
+        pillar_2_score: summary.pillar_2_score,
+        pillar_3_score: summary.pillar_3_score,
+        pillar_4_score: summary.pillar_4_score,
+        pillar_5_score: summary.pillar_5_score,
       })
-      .select("*")
-      .single();
+      .eq("id", pulse_id);
 
-    if (sumErr) {
-      return NextResponse.json({ ok: false, error: sumErr.message }, { status: 500 });
-    }
-
+    // Don’t fail the submission if summary columns aren’t there
+    // (We still return computed summary)
     return NextResponse.json(
-      { ok: true, pulse_id, summary: summaryRow },
+      { ok: true, pulse_id, summary, stored_summary: !updErr },
       { status: 200 }
     );
   } catch (e) {
