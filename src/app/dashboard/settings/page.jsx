@@ -1,118 +1,51 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 export default function SettingsPage() {
+  const [env, setEnv] = useState(null);
+  const [error, setError] = useState("");
+
   useEffect(() => {
-    // TODO: replace with the org UUID you got from Supabase SQL
-    const ORG_ID = "PASTE_YOUR_ORG_UUID_HERE";
-    localStorage.setItem("hri_org_id", ORG_ID);
+    (async () => {
+      try {
+        setError("");
+        const res = await fetch("/api/debug-env", { cache: "no-store" });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json?.error || "Failed to load env");
+        setEnv(json);
+      } catch (e) {
+        setError(e?.message || "Unexpected error");
+      }
+    })();
   }, []);
 
   return (
-    <div style={{ padding: 24 }}>
-      <h1>Org inputs</h1>
-      <p>Saved org id to browser storage.</p>
-    </div>
+    <main style={{ maxWidth: 1120, margin: "0 auto", padding: "24px 16px 40px", color: "#E5E7EB" }}>
+      <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 6 }}>Settings</h1>
+      <p style={{ fontSize: 14, color: "#9CA3AF", marginBottom: 18 }}>
+        Internal debug view. (We’ll make this pretty later.)
+      </p>
+
+      {error && <p style={{ color: "#F97316" }}>{error}</p>}
+
+      {!error && !env && <p style={{ color: "#9CA3AF" }}>Loading…</p>}
+
+      {!error && env && (
+        <pre
+          style={{
+            whiteSpace: "pre-wrap",
+            background: "#0B1220",
+            border: "1px solid #1F2937",
+            borderRadius: 12,
+            padding: 16,
+            fontSize: 12,
+            color: "#E5E7EB",
+          }}
+        >
+          {JSON.stringify(env, null, 2)}
+        </pre>
+      )}
+    </main>
   );
-}
-
-import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
-
-function getServiceSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  // Do NOT throw here — avoid build-time crashes
-  if (!url || !key) return null;
-
-  return createClient(url, key, { auth: { persistSession: false } });
-}
-
-// GET /api/hri-assessments
-// Returns assessments (optionally filter by org_id)
-export async function GET(request) {
-  const supabase = getServiceSupabase();
-
-  if (!supabase) {
-    return NextResponse.json(
-      { ok: false, error: "Missing server env vars" },
-      { status: 500 }
-    );
-  }
-
-  try {
-    const { searchParams } = new URL(request.url);
-    const org_id = searchParams.get("org_id");
-
-    let q = supabase
-      .from("hri_assessments")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(100);
-
-    if (org_id) q = q.eq("org_id", org_id);
-
-    const { data, error } = await q;
-
-    if (error) {
-      return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ ok: true, data: data || [] }, { status: 200 });
-  } catch (err) {
-    return NextResponse.json(
-      { ok: false, error: err?.message || "Internal server error" },
-      { status: 500 }
-    );
-  }
-}
-
-// POST /api/hri-assessments
-// Creates a new assessment row
-export async function POST(request) {
-  const supabase = getServiceSupabase();
-
-  if (!supabase) {
-    return NextResponse.json(
-      { ok: false, error: "Missing server env vars" },
-      { status: 500 }
-    );
-  }
-
-  try {
-    const body = await request.json();
-
-    const title = body?.title || "HRI Assessment";
-    const org_id = body?.org_id || body?.organisation_id || null;
-
-    const payload = {
-      title,
-      org_id,
-      pillar_scores: body?.pillar_scores || {},
-      overall_score: body?.overall_score ?? null,
-      created_by: body?.created_by || null,
-    };
-
-    const { data, error } = await supabase
-      .from("hri_assessments")
-      .insert(payload)
-      .select()
-      .single();
-
-    if (error) {
-      return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ ok: true, data }, { status: 200 });
-  } catch (err) {
-    return NextResponse.json(
-      { ok: false, error: err?.message || "Internal server error" },
-      { status: 500 }
-    );
-  }
 }
