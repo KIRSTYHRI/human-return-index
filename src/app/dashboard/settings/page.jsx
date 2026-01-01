@@ -1,3 +1,22 @@
+"use client";
+
+import { useEffect } from "react";
+
+export default function SettingsPage() {
+  useEffect(() => {
+    // TODO: replace with the org UUID you got from Supabase SQL
+    const ORG_ID = "PASTE_YOUR_ORG_UUID_HERE";
+    localStorage.setItem("hri_org_id", ORG_ID);
+  }, []);
+
+  return (
+    <div style={{ padding: 24 }}>
+      <h1>Org inputs</h1>
+      <p>Saved org id to browser storage.</p>
+    </div>
+  );
+}
+
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
