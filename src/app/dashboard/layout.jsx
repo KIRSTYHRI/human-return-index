@@ -10,7 +10,7 @@ export default function DashboardLayout({ children }) {
         fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
       }}
     >
-      {/* Top bar / logo */}
+      {/* Top bar */}
       <header
         style={{
           borderBottom: "1px solid rgba(148,163,184,0.3)",
@@ -76,7 +76,7 @@ export default function DashboardLayout({ children }) {
         </div>
       </header>
 
-      {/* Yellow pilot strip */}
+      {/* Pilot banner */}
       <div
         style={{
           background: "#FEE000",
@@ -102,7 +102,7 @@ export default function DashboardLayout({ children }) {
         </div>
       </div>
 
-      {/* Main dashboard area */}
+      {/* Main content */}
       <main
         style={{
           maxWidth: 1120,
@@ -133,3 +133,4 @@ function NavLink({ href, children }) {
     </a>
   );
 }
+
