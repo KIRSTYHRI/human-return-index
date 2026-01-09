@@ -70,7 +70,7 @@ export async function POST(req) {
       );
     }
 
-    // Get positions for each question id
+    // Get question positions
     const ids = responses.map((r) => r.question_id).filter(Boolean);
 
     const { data: qRows, error: qErr } = await supabase
@@ -78,21 +78,21 @@ export async function POST(req) {
       .select("id, position")
       .in("id", ids);
 
-    if (qErr) return NextResponse.json({ ok: false, error: qErr.message }, { status: 500 });
+    if (qErr) {
+      return NextResponse.json({ ok: false, error: qErr.message }, { status: 500 });
+    }
 
     const posById = Object.fromEntries((qRows || []).map((q) => [q.id, q.position]));
 
-    // valuesByPos = {1:5, 2:3...}
     const valuesByPos = {};
     for (const r of responses) {
       const pos = posById[r.question_id];
-      if (!pos) continue;
-      valuesByPos[pos] = Number(r.response_value);
+      if (pos) valuesByPos[pos] = Number(r.response_value);
     }
 
     const summary = calcSummary(valuesByPos);
 
-    // 1) Create ONE submission row in pulse_check_submissions (this is your dashboard source)
+    // 1️⃣ Save dashboard-friendly submission
     const submissionPayload = {
       organization_id: String(organization_id),
       employee_email,
@@ -100,10 +100,8 @@ export async function POST(req) {
       ...summary,
     };
 
-    // Add q1..q10 into the submission row
     for (const [posStr, col] of Object.entries(POS_TO_COL)) {
-      const pos = Number(posStr);
-      submissionPayload[col] = Number(valuesByPos[pos] ?? null);
+      submissionPayload[col] = Number(valuesByPos[Number(posStr)] ?? null);
     }
 
     const { data: submission, error: subErr } = await supabase
@@ -112,27 +110,43 @@ export async function POST(req) {
       .select("*")
       .single();
 
-    if (subErr) return NextResponse.json({ ok: false, error: subErr.message }, { status: 500 });
+    if (subErr) {
+      return NextResponse.json({ ok: false, error: subErr.message }, { status: 500 });
+    }
 
-    // 2) Also write raw answers into employee_pulse_responses (optional but useful)
-    const pulse_id = submission.id;
-
+    // 2️⃣ Save raw responses
     const rawRows = responses.map((r) => ({
-      pulse_id,
+      pulse_id: submission.id,
       question_id: r.question_id,
       response_value: Number(r.response_value),
       created_at: new Date().toISOString(),
     }));
 
-    const { error: rawErr } = await supabase.from("employee_pulse_responses").insert(rawRows);
-    if (rawErr) {
-      // don’t fail the whole thing if raw insert fails
-      return NextResponse.json({ ok: true, submission, warning: rawErr.message }, { status: 200 });
-    }
+    await supabase.from("employee_pulse_responses").insert(rawRows);
+
+    // 3️⃣ ✅ THIS IS THE MISSING BIT — UPDATE MASTER HRI TABLE
+    await supabase
+      .from("hri_scores")
+      .upsert(
+        {
+          organisation_id: organization_id,
+          employee_score: summary.average_score * 20, // → /100
+          employee_pillar_1: summary.pillar_1_score * 20,
+          employee_pillar_2: summary.pillar_2_score * 20,
+          employee_pillar_3: summary.pillar_3_score * 20,
+          employee_pillar_4: summary.pillar_4_score * 20,
+          employee_pillar_5: summary.pillar_5_score * 20,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "organisation_id" }
+      );
 
     return NextResponse.json({ ok: true, submission }, { status: 200 });
   } catch (e) {
-    return NextResponse.json({ ok: false, error: e?.message || "Server error" }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, error: e?.message || "Server error" },
+      { status: 500 }
+    );
   }
 }
 
@@ -159,7 +173,9 @@ export async function GET(req) {
     .order("submitted_at", { ascending: false })
     .limit(20);
 
-  if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  if (error) {
+    return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  }
 
   return NextResponse.json({ ok: true, data: data || [] }, { status: 200 });
 }
