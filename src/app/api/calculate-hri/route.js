@@ -75,15 +75,14 @@ export async function GET(req) {
     // 1) EMPLOYEE (Pulse) – latest row from employee_pulse_responses
     // -------------------------
     const { data: latestPulse, error: pulseErr } = await supabase
-  .from("employee_pulse_responses")
-  .select(
-    "id, organisation_id, average_score, pillar_1_score, pillar_2_score, pillar_3_score, pillar_4_score, pillar_5_score, submitted_at"
-  )
-  .eq("organisation_id", String(organisation_id))
-  .order("submitted_at", { ascending: false })
-  .limit(1)
-  .maybeSingle();
-
+      .from("employee_pulse_responses")
+      .select(
+        "id, organization_id, average_score, pillar_1_score, pillar_2_score, pillar_3_score, pillar_4_score, pillar_5_score, submitted_at"
+      )
+      .eq("organization_id", String(organisation_id))
+      .order("submitted_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
     if (pulseErr) {
       return NextResponse.json({ ok: false, error: pulseErr.message }, { status: 500 });
