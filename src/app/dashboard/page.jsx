@@ -6,7 +6,8 @@ const ORG_ID = "9499b1b9-7fce-43a1-9590-d533f00dc71d";
 
 export default function DashboardOverview() {
   const [loading, setLoading] = useState(true);
-  const [row, setRow] = useState(null);
+  const [row, setRow] = useState(null); // latest pulse row
+  const [hri, setHri] = useState(null); // latest hri_scores row
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -15,14 +16,24 @@ export default function DashboardOverview() {
         setLoading(true);
         setError("");
 
+        // 1) Load latest pulse (existing)
         const res = await fetch(`/api/pulse-latest?organisation_id=${ORG_ID}`, {
           cache: "no-store",
         });
         const json = await res.json();
-
-        if (!res.ok || json.ok === false) throw new Error(json?.error || "Failed to load latest pulse score");
-
+        if (!res.ok || json.ok === false) {
+          throw new Error(json?.error || "Failed to load latest pulse score");
+        }
         setRow(json.data);
+
+        // 2) Load latest HRI score (new)
+        const hriRes = await fetch(`/api/hri-score?organisation_id=${ORG_ID}`, {
+          cache: "no-store",
+        });
+        const hriJson = await hriRes.json();
+        if (hriRes.ok && hriJson.ok !== false) {
+          setHri(hriJson.data);
+        }
       } catch (e) {
         setError(e?.message || "Unexpected error");
       } finally {
@@ -31,13 +42,17 @@ export default function DashboardOverview() {
     })();
   }, []);
 
-  const scorePct = row?.average_score ? Math.round((Number(row.average_score) / 5) * 100) : null;
+  const scorePct = row?.average_score
+    ? Math.round((Number(row.average_score) / 5) * 100)
+    : null;
+
+  const hriPct = hri?.hri_score != null ? Math.round(Number(hri.hri_score)) : null;
 
   return (
     <main style={{ color: "#E5E7EB" }}>
       <h1 style={{ fontSize: 24, fontWeight: 900, marginBottom: 6 }}>Overview</h1>
       <p style={{ fontSize: 14, color: "#9CA3AF", marginBottom: 18 }}>
-        Your latest Employee Pulse results (live test data).
+        Your latest Employee Pulse results + your overall HRI score (live test data).
       </p>
 
       {loading && <p style={{ color: "#9CA3AF" }}>Loading dashboard…</p>}
@@ -51,7 +66,34 @@ export default function DashboardOverview() {
       )}
 
       {!loading && !error && row && (
-        <div style={{ display: "grid", gap: 14, gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))" }}>
+        <div
+          style={{
+            display: "grid",
+            gap: 14,
+            gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+          }}
+        >
+          {/* NEW: Overall HRI card */}
+          <Card title="Human Return Index™" big>
+            <div style={{ fontSize: 44, fontWeight: 900, lineHeight: 1 }}>
+              {hriPct == null ? "—" : `${hriPct}%`}
+            </div>
+
+            <div style={{ color: "#9CA3AF", fontSize: 13, marginTop: 6 }}>
+              Employer {hri?.employer_score != null ? Number(hri.employer_score).toFixed(1) : "—"}% · Employee{" "}
+              {hri?.employee_score != null ? Number(hri.employee_score).toFixed(1) : "—"}%
+            </div>
+
+            <div style={{ marginTop: 10, fontSize: 12, color: "#9CA3AF" }}>
+              Badge: <b style={{ color: "#FEE000" }}>{hri?.badge || "—"}</b>
+            </div>
+
+            <div style={{ marginTop: 6, fontSize: 11, color: "#6B7280" }}>
+              Updated: {hri?.updated_at ? new Date(hri.updated_at).toLocaleString() : "—"}
+            </div>
+          </Card>
+
+          {/* Existing: Pulse score */}
           <Card title="HRI Pulse Score" big>
             <div style={{ fontSize: 44, fontWeight: 900, lineHeight: 1 }}>
               {scorePct}%
@@ -64,6 +106,7 @@ export default function DashboardOverview() {
             </div>
           </Card>
 
+          {/* Existing: Pillars */}
           <Card title="Pillars (out of 5)">
             <Pillar label="Leadership & Culture" value={row.pillar_1_score} />
             <Pillar label="Workload & Burnout Risk" value={row.pillar_2_score} />
@@ -72,6 +115,7 @@ export default function DashboardOverview() {
             <Pillar label="Support & Connection" value={row.pillar_5_score} />
           </Card>
 
+          {/* Updated quick read */}
           <Card title="Quick read">
             <ul style={{ margin: 0, paddingLeft: 18, color: "#E5E7EB", fontSize: 13, lineHeight: 1.6 }}>
               <li>
@@ -81,7 +125,7 @@ export default function DashboardOverview() {
                 Watch-outs: anything <b>3.0</b> or below (that’s where the leaks start)
               </li>
               <li>
-                Next: we’ll wire employer assessment + combine into an overall HRI score.
+                Next: add a one-click <b>Recalculate HRI</b> button so the overall score always stays current.
               </li>
             </ul>
           </Card>
