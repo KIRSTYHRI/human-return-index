@@ -104,4 +104,104 @@ export default function DashboardOverview() {
             </div>
 
             <div style={{ marginTop: 10, fontSize: 12, color: "#9CA3AF" }}>
-              Badge: <b style={{ color: "#FEE000" }}>{hri?.bad
+              Badge: <b style={{ color: "#FEE000" }}>{hri?.badge || "—"}</b>
+            </div>
+
+            <div style={{ marginTop: 6, fontSize: 11, color: "#6B7280" }}>
+              Updated: {hri?.updated_at ? new Date(hri.updated_at).toLocaleString() : "—"}
+            </div>
+          </Card>
+
+          <Card title="HRI Pulse Score" big>
+            <div style={{ fontSize: 44, fontWeight: 900, lineHeight: 1 }}>
+              {pulsePct}%
+            </div>
+            <div style={{ color: "#9CA3AF", fontSize: 13, marginTop: 6 }}>
+              Avg {Number(row.average_score).toFixed(1)} / 5 · Total {row.total_score} / 50
+            </div>
+            <div style={{ marginTop: 10, fontSize: 12, color: "#9CA3AF" }}>
+              Latest: {new Date(row.submitted_at).toLocaleString()}
+            </div>
+          </Card>
+
+          <Card title="Pillars (out of 5)">
+            <Pillar label="Leadership & Culture" value={row.pillar_1_score} />
+            <Pillar label="Workload & Burnout Risk" value={row.pillar_2_score} />
+            <Pillar label="Psychological Safety" value={row.pillar_3_score} />
+            <Pillar label="Growth & Development" value={row.pillar_4_score} />
+            <Pillar label="Support & Connection" value={row.pillar_5_score} />
+          </Card>
+
+          {/* Guaranteed-visible Recalculate button (no header layout issues) */}
+          <Card title="Actions">
+            <button
+              onClick={handleRecalculate}
+              disabled={recalcLoading || loading}
+              style={{
+                width: "100%",
+                background: "#FEE000",
+                color: "#111827",
+                border: "1px solid #EAB308",
+                borderRadius: 12,
+                padding: "12px 14px",
+                fontWeight: 900,
+                cursor: recalcLoading || loading ? "not-allowed" : "pointer",
+                opacity: recalcLoading || loading ? 0.7 : 1,
+              }}
+            >
+              {recalcLoading ? "Recalculating…" : "Recalculate HRI"}
+            </button>
+
+            <p style={{ marginTop: 10, fontSize: 12, color: "#9CA3AF", lineHeight: 1.5 }}>
+              Click this after new Employer Assessment or Employee Pulse submissions to refresh your overall HRI score +
+              badge.
+            </p>
+          </Card>
+        </div>
+      )}
+    </main>
+  );
+}
+
+function Card({ title, children, big }) {
+  return (
+    <section
+      style={{
+        border: "1px solid #1F2937",
+        borderRadius: 14,
+        padding: big ? 18 : 16,
+        background: "radial-gradient(circle at top left, #020617 0%, #020617 45%, #030712 100%)",
+      }}
+    >
+      <div style={{ fontSize: 12, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+        {title}
+      </div>
+      <div style={{ marginTop: 10 }}>{children}</div>
+    </section>
+  );
+}
+
+function Pillar({ label, value }) {
+  const v = value == null ? null : Number(value);
+  const pct = v == null ? 0 : Math.round((v / 5) * 100);
+
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 6 }}>
+        <span style={{ color: "#E5E7EB" }}>{label}</span>
+        <span style={{ color: "#9CA3AF" }}>{v == null ? "—" : v.toFixed(1)}</span>
+      </div>
+      <div style={{ height: 10, borderRadius: 999, background: "#111827", border: "1px solid #1F2937" }}>
+        <div
+          style={{
+            height: "100%",
+            width: `${pct}%`,
+            borderRadius: 999,
+            background: "#FEE000",
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
