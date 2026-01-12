@@ -24,7 +24,9 @@ export async function GET(req) {
     }
 
     const { searchParams } = new URL(req.url);
-    const organisation_id = searchParams.get("org") || ORG_ID_FALLBACK;
+  const organisation_id =
+  searchParams.get("organisation_id") || ORG_ID_FALLBACK;
+
 
     const { data, error } = await supabase
       .from("hri_scores")
