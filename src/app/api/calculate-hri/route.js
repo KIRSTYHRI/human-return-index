@@ -23,16 +23,13 @@ const EMPLOYER_TEXT_TO_NUM = {
 };
 
 function toEmployerNumber(row) {
-  // Prefer numeric if you already store it
   if (row?.response_value != null) return Number(row.response_value);
 
   const t = String(row?.response_text || "").trim().toLowerCase();
   if (!t) return null;
 
-  // allow a few variants
   if (EMPLOYER_TEXT_TO_NUM[t] != null) return EMPLOYER_TEXT_TO_NUM[t];
 
-  // if you stored "1".."5" as text
   const asNum = Number(t);
   if (asNum >= 1 && asNum <= 5) return asNum;
 
@@ -45,9 +42,10 @@ function avg(nums) {
   return clean.reduce((a, b) => a + b, 0) / clean.length;
 }
 
+// Convert 1–5 to 0–100
 function toPctFrom1to5(score1to5) {
   if (score1to5 == null) return null;
-  return (Number(score1to5) / 5) * 100;
+  return Number(score1to5) * 20;
 }
 
 function badgeFromHri(hri) {
@@ -72,10 +70,10 @@ export async function GET(req) {
     const organisation_id = searchParams.get("organisation_id") || ORG_ID_FALLBACK;
 
     // -------------------------
-    // 1) EMPLOYEE (Pulse) – latest row from employee_pulse_responses
+    // 1) EMPLOYEE (Pulse) – latest row from pulse_check_submissions ✅
     // -------------------------
     const { data: latestPulse, error: pulseErr } = await supabase
-      .from("employee_pulse_responses")
+      .from("pulse_check_submissions")
       .select(
         "id, organization_id, average_score, pillar_1_score, pillar_2_score, pillar_3_score, pillar_4_score, pillar_5_score, submitted_at"
       )
@@ -88,26 +86,27 @@ export async function GET(req) {
       return NextResponse.json({ ok: false, error: pulseErr.message }, { status: 500 });
     }
 
-    // Convert employee pillar scores to 0-100
+    // Employee scores (0–100)
     const employee_pillar_1 = toPctFrom1to5(latestPulse?.pillar_1_score);
     const employee_pillar_2 = toPctFrom1to5(latestPulse?.pillar_2_score);
     const employee_pillar_3 = toPctFrom1to5(latestPulse?.pillar_3_score);
     const employee_pillar_4 = toPctFrom1to5(latestPulse?.pillar_4_score);
     const employee_pillar_5 = toPctFrom1to5(latestPulse?.pillar_5_score);
 
-    const employee_score = avg([
-      employee_pillar_1,
-      employee_pillar_2,
-      employee_pillar_3,
-      employee_pillar_4,
-      employee_pillar_5,
-    ]);
+    // Use average_score (1–5) → score out of 100
+    const employee_score = latestPulse?.average_score != null
+      ? toPctFrom1to5(latestPulse.average_score)
+      : avg([
+          employee_pillar_1,
+          employee_pillar_2,
+          employee_pillar_3,
+          employee_pillar_4,
+          employee_pillar_5,
+        ]);
 
     // -------------------------
-    // 2) EMPLOYER – latest assessment’s responses -> pillar scores
-    // We calculate using employer_assessment_responses joined to employer_questions
+    // 2) EMPLOYER – latest assessment responses -> pillar scores (0–100)
     // -------------------------
-    // Find latest assessment id for org (if your assessments table uses organisation_id)
     const { data: latestAssessment, error: aErr } = await supabase
       .from("assessments")
       .select("id, organisation_id, created_at")
@@ -143,7 +142,7 @@ export async function GET(req) {
 
       const { data: qRows, error: qErr } = await supabase
         .from("employer_questions")
-        .select("id, pillar, sort_order, position, code")
+        .select("id, pillar")
         .in("id", qIds);
 
       if (qErr) {
@@ -152,21 +151,13 @@ export async function GET(req) {
 
       const pillarByQid = Object.fromEntries((qRows || []).map((q) => [q.id, q.pillar]));
 
-      // Group by pillar text
-      const buckets = {
-        p1: [],
-        p2: [],
-        p3: [],
-        p4: [],
-        p5: [],
-      };
+      const buckets = { p1: [], p2: [], p3: [], p4: [], p5: [] };
 
       for (const r of respRows || []) {
         const pillar = String(pillarByQid[r.question_id] || "").toLowerCase();
         const n = toEmployerNumber(r);
         if (n == null) continue;
 
-        // Map pillar names to p1..p5 (match your question bank wording)
         if (pillar.includes("leadership")) buckets.p1.push(n);
         else if (pillar.includes("wellbeing")) buckets.p2.push(n);
         else if (pillar.includes("inclusion") || pillar.includes("belonging") || pillar.includes("safety"))
@@ -193,23 +184,24 @@ export async function GET(req) {
     }
 
     // -------------------------
-    // 3) FINAL 50/50 HRI SCORE
-    // If one side is missing, we still store what we have (MVP-friendly)
+    // 3) FINAL 50/50 HRI SCORE ✅
     // -------------------------
-    let hri_score = null;
+    const WEIGHT_EMPLOYER = 0.5;
+    const WEIGHT_EMPLOYEE = 0.5;
 
+    let hri_score = null;
     if (employer_score != null && employee_score != null) {
-      hri_score = employer_score * 0.5 + employee_score * 0.5;
+      hri_score = employer_score * WEIGHT_EMPLOYER + employee_score * WEIGHT_EMPLOYEE;
     } else if (employer_score != null) {
-      hri_score = employer_score; // until pulse exists
+      hri_score = employer_score;
     } else if (employee_score != null) {
-      hri_score = employee_score; // until employer exists
+      hri_score = employee_score;
     }
 
     const badge = badgeFromHri(hri_score);
 
     // -------------------------
-    // 4) UPSERT into hri_scores
+    // 4) UPSERT into hri_scores (your table uses organisation_id + updated_at)
     // -------------------------
     const payload = {
       organisation_id,
@@ -230,7 +222,6 @@ export async function GET(req) {
       updated_at: new Date().toISOString(),
     };
 
-    // Try update first (if row exists), else insert
     const { data: existing, error: exErr } = await supabase
       .from("hri_scores")
       .select("id")
