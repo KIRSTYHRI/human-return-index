@@ -1,136 +1,144 @@
 "use client";
 
 import { useState } from "react";
-import { supabaseBrowser } from "../../lib/supabaseBrowser";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 
 export default function LoginPage() {
+  const supabase = createClientComponentClient();
+
   const [email, setEmail] = useState("");
-  const [sending, setSending] = useState(false);
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
+  const [password, setPassword] = useState("");
+  const [mode, setMode] = useState("password"); // "password" | "magic"
+  const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState("");
 
   async function handleSubmit(e) {
     e.preventDefault();
-    setError("");
-    setMessage("");
-
-    if (!supabaseBrowser) {
-      setError("Supabase client not initialised. Check your env vars in Vercel.");
-      return;
-    }
+    setMsg("");
+    setLoading(true);
 
     try {
-      setSending(true);
+      if (!email) throw new Error("Enter your email");
 
-      const { error: signInError } = await supabaseBrowser.auth.signInWithOtp({
-        email,
-        options: {
-          emailRedirectTo:
-            typeof window !== "undefined"
-              ? `${window.location.origin}/dashboard`
-              : undefined,
-        },
-      });
+      if (mode === "password") {
+        if (!password) throw new Error("Enter your password");
 
-      if (signInError) {
-        throw signInError;
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+        if (error) throw error;
+
+        window.location.href = "/dashboard";
+        return;
       }
 
-      setMessage(
-        "Magic link sent. Check your email and click the link to access your HRI dashboard."
-      );
+      // Magic link mode
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+      if (error) throw error;
+
+      setMsg("Magic link sent. Check your inbox (and spam).");
     } catch (err) {
-      console.error("Login error:", err);
-      setError(err.message || "Something went wrong sending the magic link.");
+      setMsg(err?.message || "Login failed");
     } finally {
-      setSending(false);
+      setLoading(false);
     }
   }
 
   return (
-    <main
-      style={{
-        padding: 24,
-        fontFamily: "system-ui",
-        maxWidth: 480,
-        margin: "0 auto",
-      }}
-    >
-      <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 8 }}>
-        Log in to Human Return Index™
-      </h1>
-      <p style={{ marginBottom: 16, opacity: 0.8 }}>
-        Enter your work email to receive a one-time magic link to your HRI
-        dashboard.
-      </p>
+    <main style={{ minHeight: "100vh", background: "#020617", color: "#E5E7EB", display: "grid", placeItems: "center", padding: 24 }}>
+      <section style={{ width: "100%", maxWidth: 420, border: "1px solid #1F2937", borderRadius: 14, padding: 18, background: "#030712" }}>
+        <h1 style={{ fontSize: 22, fontWeight: 900, marginBottom: 6 }}>Log in</h1>
+        <p style={{ fontSize: 13, color: "#9CA3AF", marginBottom: 14 }}>
+          Pilot access only.
+        </p>
 
-      {error && (
-        <div
-          style={{
-            marginBottom: 12,
-            padding: 10,
-            borderRadius: 8,
-            background: "#ffe6e6",
-            color: "#7a0000",
-            fontSize: 13,
-          }}
-        >
-          {error}
+        <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+          <button
+            type="button"
+            onClick={() => setMode("password")}
+            style={{
+              flex: 1,
+              padding: "10px 12px",
+              borderRadius: 10,
+              border: "1px solid #1F2937",
+              background: mode === "password" ? "#FEE000" : "#0B1220",
+              color: mode === "password" ? "#111827" : "#E5E7EB",
+              fontWeight: 800,
+              cursor: "pointer",
+            }}
+          >
+            Password
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("magic")}
+            style={{
+              flex: 1,
+              padding: "10px 12px",
+              borderRadius: 10,
+              border: "1px solid #1F2937",
+              background: mode === "magic" ? "#FEE000" : "#0B1220",
+              color: mode === "magic" ? "#111827" : "#E5E7EB",
+              fontWeight: 800,
+              cursor: "pointer",
+            }}
+          >
+            Magic link
+          </button>
         </div>
-      )}
 
-      {message && (
-        <div
-          style={{
-            marginBottom: 12,
-            padding: 10,
-            borderRadius: 8,
-            background: "#e6ffef",
-            color: "#005c2e",
-            fontSize: 13,
-          }}
-        >
-          {message}
-        </div>
-      )}
+        <form onSubmit={handleSubmit} style={{ display: "grid", gap: 10 }}>
+          <label style={{ fontSize: 12, color: "#9CA3AF" }}>
+            Email
+            <input
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              type="email"
+              placeholder="you@company.com"
+              style={{ width: "100%", marginTop: 6, padding: "10px 12px", borderRadius: 10, border: "1px solid #1F2937", background: "#0B1220", color: "#E5E7EB" }}
+            />
+          </label>
 
-      <form onSubmit={handleSubmit} style={{ display: "flex", gap: 8 }}>
-        <input
-          type="email"
-          required
-          placeholder="you@company.com"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          style={{
-            flex: 1,
-            padding: "8px 10px",
-            borderRadius: 8,
-            border: "1px solid #d0d0d0",
-            fontSize: 14,
-          }}
-        />
-        <button
-          type="submit"
-          disabled={sending}
-          style={{
-            padding: "8px 14px",
-            borderRadius: 999,
-            border: "none",
-            background: "#000",
-            color: "#fff",
-            fontWeight: 600,
-            cursor: "pointer",
-            opacity: sending ? 0.7 : 1,
-          }}
-        >
-          {sending ? "Sending…" : "Send link"}
-        </button>
-      </form>
+          {mode === "password" && (
+            <label style={{ fontSize: 12, color: "#9CA3AF" }}>
+              Password
+              <input
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                type="password"
+                placeholder="••••••••"
+                style={{ width: "100%", marginTop: 6, padding: "10px 12px", borderRadius: 10, border: "1px solid #1F2937", background: "#0B1220", color: "#E5E7EB" }}
+              />
+            </label>
+          )}
 
-      <p style={{ marginTop: 12, fontSize: 12, opacity: 0.7 }}>
-        During pilot, you can still access your dashboard directly at{" "}
-        <code>/dashboard</code> while we finish the full login experience.
-      </p>
+          <button
+            disabled={loading}
+            style={{
+              marginTop: 6,
+              width: "100%",
+              background: "#FEE000",
+              color: "#111827",
+              border: "1px solid #EAB308",
+              borderRadius: 12,
+              padding: "12px 14px",
+              fontWeight: 900,
+              cursor: loading ? "not-allowed" : "pointer",
+              opacity: loading ? 0.7 : 1,
+            }}
+          >
+            {loading ? "Working…" : mode === "password" ? "Log in" : "Send magic link"}
+          </button>
+
+          {msg && <p style={{ marginTop: 8, fontSize: 13, color: msg.includes("sent") ? "#A7F3D0" : "#FCA5A5" }}>{msg}</p>}
+        </form>
+      </section>
     </main>
   );
 }
