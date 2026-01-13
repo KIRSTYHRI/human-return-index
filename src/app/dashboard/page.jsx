@@ -2,8 +2,6 @@
 
 import { useEffect, useState } from "react";
 
-const ORG_ID = "9499b1b9-7fce-43a1-9590-d533f00dc71d";
-
 export default function DashboardOverview() {
   const [loading, setLoading] = useState(true);
   const [row, setRow] = useState(null); // latest pulse row
@@ -12,24 +10,21 @@ export default function DashboardOverview() {
   const [recalcLoading, setRecalcLoading] = useState(false);
 
   async function loadDashboardData() {
-    // 1) Latest pulse
-    const res = await fetch(`/api/pulse-latest?organisation_id=${ORG_ID}`, {
-      cache: "no-store",
-    });
+    // 1) Latest pulse (NO org id in browser)
+    const res = await fetch(`/api/pulse-latest`, { cache: "no-store" });
     const json = await res.json();
     if (!res.ok || json.ok === false) {
       throw new Error(json?.error || "Failed to load latest pulse score");
     }
     setRow(json.data);
 
-    // 2) Latest HRI score
-    const hriRes = await fetch(`/api/hri-score?organisation_id=${ORG_ID}`, {
-      cache: "no-store",
-    });
+    // 2) Latest HRI score (NO org id in browser)
+    const hriRes = await fetch(`/api/hri-score`, { cache: "no-store" });
     const hriJson = await hriRes.json();
-    if (hriRes.ok && hriJson.ok !== false) {
-      setHri(hriJson.data);
+    if (!hriRes.ok || hriJson.ok === false) {
+      throw new Error(hriJson?.error || "Failed to load HRI score");
     }
+    setHri(hriJson.data);
   }
 
   useEffect(() => {
@@ -52,7 +47,7 @@ export default function DashboardOverview() {
       setRecalcLoading(true);
       setError("");
 
-      // Trigger calculation (writes to hri_scores)
+      // Trigger calculation (NO org id in browser)
       const res = await fetch(`/api/calculate-hri`, { cache: "no-store" });
       const json = await res.json();
       if (!res.ok || json.ok === false) {
@@ -68,21 +63,17 @@ export default function DashboardOverview() {
     }
   }
 
-  const pulsePct = row?.average_score
-    ? Math.round((Number(row.average_score) / 5) * 100)
-    : null;
-
+  const pulsePct = row?.average_score ? Math.round((Number(row.average_score) / 5) * 100) : null;
   const hriPct = hri?.hri_score != null ? Math.round(Number(hri.hri_score)) : null;
 
   return (
     <main style={{ color: "#E5E7EB" }}>
       <h1 style={{ fontSize: 24, fontWeight: 900, marginBottom: 6 }}>Overview</h1>
       <p style={{ fontSize: 14, color: "#9CA3AF", marginBottom: 18 }}>
-        Your latest Employee Pulse results + your overall HRI score (live test data).
+        Your latest Employee Pulse results + your overall HRI score (pilot environment).
       </p>
 
       {loading && <p style={{ color: "#9CA3AF" }}>Loading dashboard…</p>}
-
       {!loading && error && <p style={{ color: "#F97316" }}>{error}</p>}
 
       {!loading && !error && !row && (
@@ -132,7 +123,6 @@ export default function DashboardOverview() {
             <Pillar label="Support & Connection" value={row.pillar_5_score} />
           </Card>
 
-          {/* Guaranteed-visible Recalculate button (no header layout issues) */}
           <Card title="Actions">
             <button
               onClick={handleRecalculate}
@@ -153,7 +143,7 @@ export default function DashboardOverview() {
             </button>
 
             <p style={{ marginTop: 10, fontSize: 12, color: "#9CA3AF", lineHeight: 1.5 }}>
-              Click this after new Employer Assessment or Employee Pulse submissions to refresh your overall HRI score +
+              Use this after new Employer Assessment or Employee Pulse submissions to refresh your overall HRI score +
               badge.
             </p>
           </Card>
@@ -204,4 +194,3 @@ function Pillar({ label, value }) {
     </div>
   );
 }
-
