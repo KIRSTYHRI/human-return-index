@@ -1,13 +1,28 @@
-// src/app/dashboard/layout.jsx
+import { redirect } from "next/navigation";
+import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
+import { cookies } from "next/headers";
 
-export default function DashboardLayout({ children }) {
+export const dynamic = "force-dynamic";
+
+export default async function DashboardLayout({ children }) {
+  // 🔐 Require logged-in user
+  const supabase = createServerComponentClient({ cookies });
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
   return (
     <div
       style={{
         minHeight: "100vh",
         background: "#020617",
         color: "#E5E7EB",
-        fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+        fontFamily:
+          "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
       }}
     >
       {/* Top bar */}
@@ -70,7 +85,9 @@ export default function DashboardLayout({ children }) {
           >
             <NavLink href="/dashboard">Overview</NavLink>
             <NavLink href="/dashboard/hri-assessment">Assessment</NavLink>
-            <NavLink href="/dashboard/employee-pulse">Employee pulse</NavLink>
+            <NavLink href="/dashboard/employee-pulse">
+              Employee pulse
+            </NavLink>
             <NavLink href="/dashboard/settings">Org inputs</NavLink>
           </nav>
         </div>
@@ -98,7 +115,9 @@ export default function DashboardLayout({ children }) {
           }}
         >
           <span>Live pilot environment · Internal use only</span>
-          <span style={{ opacity: 0.8 }}>HRI – the new KPI for human return</span>
+          <span style={{ opacity: 0.8 }}>
+            HRI – the new KPI for human return
+          </span>
         </div>
       </div>
 
