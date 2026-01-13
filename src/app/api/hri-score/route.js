@@ -15,9 +15,7 @@ function getServiceSupabase() {
 
 export async function GET(req) {
   const supabase = getServiceSupabase();
-  if (!supabase) {
-    return NextResponse.json({ ok: false, error: "Missing env vars" }, { status: 500 });
-  }
+  if (!supabase) return NextResponse.json({ ok: false, error: "Missing env vars" }, { status: 500 });
 
   try {
     const { searchParams } = new URL(req.url);
@@ -35,7 +33,6 @@ export async function GET(req) {
 
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
 
-    // Notice: we do NOT return organisation_id now
     return NextResponse.json({ ok: true, data: data || null }, { status: 200 });
   } catch (e) {
     return NextResponse.json({ ok: false, error: e?.message || "Server error" }, { status: 500 });
