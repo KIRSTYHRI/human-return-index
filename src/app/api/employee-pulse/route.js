@@ -34,12 +34,18 @@ function calcSummary(valuesByPos) {
   return {
     total_score: total,
     average_score: avg,
-    pillar_1_score: (v(1) + v(2)) / 2,     // Leadership
-    pillar_2_score: (v(3) + v(4)) / 2,     // Wellbeing & MH
-    pillar_3_score: (v(5) + v(6)) / 2,     // Inclusion
-    pillar_4_score: (v(7) + v(8)) / 2,     // Growth
-    pillar_5_score: (v(9) + v(10)) / 2,    // Trust & Comms
+    pillar_1_score: (v(1) + v(2)) / 2, // Leadership
+    pillar_2_score: (v(3) + v(4)) / 2, // Wellbeing & MH
+    pillar_3_score: (v(5) + v(6)) / 2, // Inclusion
+    pillar_4_score: (v(7) + v(8)) / 2, // Growth
+    pillar_5_score: (v(9) + v(10)) / 2, // Trust & Comms
   };
+}
+
+// Basic UUID check (prevents junk IDs being stored)
+function looksLikeUuid(s) {
+  return typeof s === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
 }
 
 export async function POST(req) {
@@ -51,17 +57,20 @@ export async function POST(req) {
   try {
     const body = await req.json();
 
-    const organization_id =
-      body?.organization_id ||
+    const organisation_id =
       body?.organisation_id ||
+      body?.organization_id ||
       body?.org_id ||
       null;
 
     const employee_email = body?.employee_email || null;
     const responses = Array.isArray(body?.responses) ? body.responses : [];
 
-    if (!organization_id) {
+    if (!organisation_id) {
       return NextResponse.json({ ok: false, error: "Missing organisation_id" }, { status: 400 });
+    }
+    if (!looksLikeUuid(String(organisation_id))) {
+      return NextResponse.json({ ok: false, error: "organisation_id must be a valid UUID" }, { status: 400 });
     }
     if (responses.length !== 10) {
       return NextResponse.json(
@@ -92,9 +101,13 @@ export async function POST(req) {
 
     const summary = calcSummary(valuesByPos);
 
-    // 1️⃣ Save dashboard-friendly submission
+    // 1) Save dashboard-friendly submission
+    // ✅ Write BOTH:
+    // - organization_id (text) for backwards compatibility
+    // - organisation_id (uuid) for RLS + multi-company protection
     const submissionPayload = {
-      organization_id: String(organization_id),
+      organization_id: String(organisation_id),
+      organisation_id: String(organisation_id), // uuid column (added in Step 6A)
       employee_email,
       submitted_at: new Date().toISOString(),
       ...summary,
@@ -114,7 +127,7 @@ export async function POST(req) {
       return NextResponse.json({ ok: false, error: subErr.message }, { status: 500 });
     }
 
-    // 2️⃣ Save raw responses
+    // 2) Save raw responses (optional but fine to keep)
     const rawRows = responses.map((r) => ({
       pulse_id: submission.id,
       question_id: r.question_id,
@@ -124,22 +137,8 @@ export async function POST(req) {
 
     await supabase.from("employee_pulse_responses").insert(rawRows);
 
-    // 3️⃣ ✅ THIS IS THE MISSING BIT — UPDATE MASTER HRI TABLE
-    await supabase
-      .from("hri_scores")
-      .upsert(
-        {
-          organisation_id: organization_id,
-          employee_score: summary.average_score * 20, // → /100
-          employee_pillar_1: summary.pillar_1_score * 20,
-          employee_pillar_2: summary.pillar_2_score * 20,
-          employee_pillar_3: summary.pillar_3_score * 20,
-          employee_pillar_4: summary.pillar_4_score * 20,
-          employee_pillar_5: summary.pillar_5_score * 20,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "organisation_id" }
-      );
+    // 3) DO NOT write to hri_scores here.
+    // We keep the logic clean: /api/calculate-hri is the single source of truth.
 
     return NextResponse.json({ ok: true, submission }, { status: 200 });
   } catch (e) {
@@ -166,10 +165,11 @@ export async function GET(req) {
     return NextResponse.json({ ok: false, error: "Missing organisation_id" }, { status: 400 });
   }
 
+  // Prefer the new uuid column if present (RLS-friendly)
   const { data, error } = await supabase
     .from("pulse_check_submissions")
     .select("*")
-    .eq("organization_id", String(organisation_id))
+    .eq("organisation_id", String(organisation_id))
     .order("submitted_at", { ascending: false })
     .limit(20);
 
