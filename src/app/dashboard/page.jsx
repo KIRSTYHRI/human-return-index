@@ -4,21 +4,41 @@ import { useEffect, useState } from "react";
 
 export default function DashboardOverview() {
   const [loading, setLoading] = useState(true);
-  const [row, setRow] = useState(null);
-  const [hri, setHri] = useState(null);
+  const [row, setRow] = useState(null); // latest pulse row
+  const [hri, setHri] = useState(null); // latest hri_scores row
   const [error, setError] = useState("");
   const [recalcLoading, setRecalcLoading] = useState(false);
 
-  async function loadDashboardData() {
-    const res = await fetch(`/api/pulse-latest`, { cache: "no-store" });
+  async function getMyOrg() {
+    const res = await fetch("/api/me/org", { cache: "no-store" });
     const json = await res.json();
-    if (!res.ok || json.ok === false) throw new Error(json?.error || "Failed to load latest pulse score");
+    if (!res.ok || json.ok === false) {
+      throw new Error(json?.error || "Failed to load organisation");
+    }
+    return json.organisation_id;
+  }
+
+  async function loadDashboardData() {
+    const orgId = await getMyOrg();
+
+    // 1) Latest pulse
+    const res = await fetch(`/api/pulse-latest?organisation_id=${orgId}`, {
+      cache: "no-store",
+    });
+    const json = await res.json();
+    if (!res.ok || json.ok === false) {
+      throw new Error(json?.error || "Failed to load latest pulse score");
+    }
     setRow(json.data);
 
-    const hriRes = await fetch(`/api/hri-score`, { cache: "no-store" });
+    // 2) Latest HRI score
+    const hriRes = await fetch(`/api/hri-score?organisation_id=${orgId}`, {
+      cache: "no-store",
+    });
     const hriJson = await hriRes.json();
-    if (!hriRes.ok || hriJson.ok === false) throw new Error(hriJson?.error || "Failed to load HRI score");
-    setHri(hriJson.data);
+    if (hriRes.ok && hriJson.ok !== false) {
+      setHri(hriJson.data);
+    }
   }
 
   useEffect(() => {
@@ -33,7 +53,6 @@ export default function DashboardOverview() {
         setLoading(false);
       }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function handleRecalculate() {
@@ -41,10 +60,18 @@ export default function DashboardOverview() {
       setRecalcLoading(true);
       setError("");
 
-      const res = await fetch(`/api/calculate-hri`, { cache: "no-store" });
-      const json = await res.json();
-      if (!res.ok || json.ok === false) throw new Error(json?.error || "Failed to recalculate HRI");
+      const orgId = await getMyOrg();
 
+      // Trigger calculation (writes to hri_scores)
+      const res = await fetch(`/api/calculate-hri?organisation_id=${orgId}`, {
+        cache: "no-store",
+      });
+      const json = await res.json();
+      if (!res.ok || json.ok === false) {
+        throw new Error(json?.error || "Failed to recalculate HRI");
+      }
+
+      // Refresh displayed data
       await loadDashboardData();
     } catch (e) {
       setError(e?.message || "Unexpected error");
@@ -67,17 +94,13 @@ export default function DashboardOverview() {
       {!loading && error && <p style={{ color: "#F97316" }}>{error}</p>}
 
       {!loading && !error && !row && (
-        <p style={{ color: "#9CA3AF" }}>
-          No scored submissions yet. Submit the Employee Pulse once and your score will show here.
-        </p>
+        <p style={{ color: "#9CA3AF" }}>No scored submissions yet. Submit the Employee Pulse once and your score will show here.</p>
       )}
 
       {!loading && !error && row && (
         <div style={{ display: "grid", gap: 14, gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))" }}>
           <Card title="Human Return Index™" big>
-            <div style={{ fontSize: 44, fontWeight: 900, lineHeight: 1 }}>
-              {hriPct == null ? "—" : `${hriPct}%`}
-            </div>
+            <div style={{ fontSize: 44, fontWeight: 900, lineHeight: 1 }}>{hriPct == null ? "—" : `${hriPct}%`}</div>
 
             <div style={{ color: "#9CA3AF", fontSize: 13, marginTop: 6 }}>
               Employer {hri?.employer_score != null ? Number(hri.employer_score).toFixed(1) : "—"}% · Employee{" "}
@@ -94,9 +117,7 @@ export default function DashboardOverview() {
           </Card>
 
           <Card title="HRI Pulse Score" big>
-            <div style={{ fontSize: 44, fontWeight: 900, lineHeight: 1 }}>
-              {pulsePct}%
-            </div>
+            <div style={{ fontSize: 44, fontWeight: 900, lineHeight: 1 }}>{pulsePct}%</div>
             <div style={{ color: "#9CA3AF", fontSize: 13, marginTop: 6 }}>
               Avg {Number(row.average_score).toFixed(1)} / 5 · Total {row.total_score} / 50
             </div>
@@ -133,8 +154,7 @@ export default function DashboardOverview() {
             </button>
 
             <p style={{ marginTop: 10, fontSize: 12, color: "#9CA3AF", lineHeight: 1.5 }}>
-              Use this after new Employer Assessment or Employee Pulse submissions to refresh your overall HRI score +
-              badge.
+              Use this after new Employer Assessment or Employee Pulse submissions to refresh your overall HRI score + badge.
             </p>
           </Card>
         </div>
@@ -153,9 +173,7 @@ function Card({ title, children, big }) {
         background: "radial-gradient(circle at top left, #020617 0%, #020617 45%, #030712 100%)",
       }}
     >
-      <div style={{ fontSize: 12, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-        {title}
-      </div>
+      <div style={{ fontSize: 12, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.08em" }}>{title}</div>
       <div style={{ marginTop: 10 }}>{children}</div>
     </section>
   );
@@ -172,17 +190,8 @@ function Pillar({ label, value }) {
         <span style={{ color: "#9CA3AF" }}>{v == null ? "—" : v.toFixed(1)}</span>
       </div>
       <div style={{ height: 10, borderRadius: 999, background: "#111827", border: "1px solid #1F2937" }}>
-        <div
-          style={{
-            height: "100%",
-            width: `${pct}%`,
-            borderRadius: 999,
-            background: "#FEE000",
-          }}
-        />
+        <div style={{ height: "100%", width: `${pct}%`, borderRadius: 999, background: "#FEE000" }} />
       </div>
     </div>
   );
 }
-
-// END OF FILE
