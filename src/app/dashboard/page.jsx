@@ -4,26 +4,20 @@ import { useEffect, useState } from "react";
 
 export default function DashboardOverview() {
   const [loading, setLoading] = useState(true);
-  const [row, setRow] = useState(null); // latest pulse row
-  const [hri, setHri] = useState(null); // latest hri_scores row
+  const [row, setRow] = useState(null);
+  const [hri, setHri] = useState(null);
   const [error, setError] = useState("");
   const [recalcLoading, setRecalcLoading] = useState(false);
 
   async function loadDashboardData() {
-    // 1) Latest pulse (NO org id in browser)
     const res = await fetch(`/api/pulse-latest`, { cache: "no-store" });
     const json = await res.json();
-    if (!res.ok || json.ok === false) {
-      throw new Error(json?.error || "Failed to load latest pulse score");
-    }
+    if (!res.ok || json.ok === false) throw new Error(json?.error || "Failed to load latest pulse score");
     setRow(json.data);
 
-    // 2) Latest HRI score (NO org id in browser)
     const hriRes = await fetch(`/api/hri-score`, { cache: "no-store" });
     const hriJson = await hriRes.json();
-    if (!hriRes.ok || hriJson.ok === false) {
-      throw new Error(hriJson?.error || "Failed to load HRI score");
-    }
+    if (!hriRes.ok || hriJson.ok === false) throw new Error(hriJson?.error || "Failed to load HRI score");
     setHri(hriJson.data);
   }
 
@@ -47,14 +41,10 @@ export default function DashboardOverview() {
       setRecalcLoading(true);
       setError("");
 
-      // Trigger calculation (NO org id in browser)
       const res = await fetch(`/api/calculate-hri`, { cache: "no-store" });
       const json = await res.json();
-      if (!res.ok || json.ok === false) {
-        throw new Error(json?.error || "Failed to recalculate HRI");
-      }
+      if (!res.ok || json.ok === false) throw new Error(json?.error || "Failed to recalculate HRI");
 
-      // Refresh displayed data
       await loadDashboardData();
     } catch (e) {
       setError(e?.message || "Unexpected error");
@@ -194,3 +184,5 @@ function Pillar({ label, value }) {
     </div>
   );
 }
+
+// END OF FILE
