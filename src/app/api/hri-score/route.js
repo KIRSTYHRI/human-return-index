@@ -26,23 +26,18 @@ export async function GET(req) {
     const { data, error } = await supabase
       .from("hri_scores")
       .select(
-        "id, organisation_id, employer_score, employee_score, hri_score, employer_pillar_1, employer_pillar_2, employer_pillar_3, employer_pillar_4, employer_pillar_5, employee_pillar_1, employee_pillar_2, employee_pillar_3, employee_pillar_4, employee_pillar_5, badge, updated_at"
+        "id, employer_score, employee_score, hri_score, employer_pillar_1, employer_pillar_2, employer_pillar_3, employer_pillar_4, employer_pillar_5, employee_pillar_1, employee_pillar_2, employee_pillar_3, employee_pillar_4, employee_pillar_5, badge, updated_at"
       )
       .eq("organisation_id", organisation_id)
       .order("updated_at", { ascending: false })
       .limit(1)
       .maybeSingle();
 
-    if (error) {
-      return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
-    }
+    if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
 
-    return NextResponse.json(
-      { ok: true, organisation_id, data: data || null },
-      { status: 200 }
-    );
+    // Notice: we do NOT return organisation_id now
+    return NextResponse.json({ ok: true, data: data || null }, { status: 200 });
   } catch (e) {
     return NextResponse.json({ ok: false, error: e?.message || "Server error" }, { status: 500 });
   }
 }
-
