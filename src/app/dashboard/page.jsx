@@ -9,36 +9,18 @@ export default function DashboardOverview() {
   const [error, setError] = useState("");
   const [recalcLoading, setRecalcLoading] = useState(false);
 
-  async function getMyOrg() {
-    const res = await fetch("/api/me/org", { cache: "no-store" });
-    const json = await res.json();
-    if (!res.ok || json.ok === false) {
-      throw new Error(json?.error || "Failed to load organisation");
-    }
-    return json.organisation_id;
-  }
-
   async function loadDashboardData() {
-    const orgId = await getMyOrg();
-
-    // 1) Latest pulse
-    const res = await fetch(`/api/pulse-latest?organisation_id=${orgId}`, {
-      cache: "no-store",
-    });
+    // 1) Latest pulse (now pilot-safe version will not need org_id later)
+    const res = await fetch(`/api/pulse-latest`, { cache: "no-store" });
     const json = await res.json();
-    if (!res.ok || json.ok === false) {
-      throw new Error(json?.error || "Failed to load latest pulse score");
-    }
+    if (!res.ok || json.ok === false) throw new Error(json?.error || "Failed to load latest pulse");
     setRow(json.data);
 
     // 2) Latest HRI score
-    const hriRes = await fetch(`/api/hri-score?organisation_id=${orgId}`, {
-      cache: "no-store",
-    });
+    const hriRes = await fetch(`/api/hri-score`, { cache: "no-store" });
     const hriJson = await hriRes.json();
-    if (hriRes.ok && hriJson.ok !== false) {
-      setHri(hriJson.data);
-    }
+    if (!hriRes.ok || hriJson.ok === false) throw new Error(hriJson?.error || "Failed to load HRI score");
+    setHri(hriJson.data);
   }
 
   useEffect(() => {
@@ -60,18 +42,11 @@ export default function DashboardOverview() {
       setRecalcLoading(true);
       setError("");
 
-      const orgId = await getMyOrg();
-
-      // Trigger calculation (writes to hri_scores)
-      const res = await fetch(`/api/calculate-hri?organisation_id=${orgId}`, {
-        cache: "no-store",
-      });
+      // Trigger calculation (we'll make this pilot-safe next)
+      const res = await fetch(`/api/calculate-hri`, { cache: "no-store" });
       const json = await res.json();
-      if (!res.ok || json.ok === false) {
-        throw new Error(json?.error || "Failed to recalculate HRI");
-      }
+      if (!res.ok || json.ok === false) throw new Error(json?.error || "Failed to recalculate HRI");
 
-      // Refresh displayed data
       await loadDashboardData();
     } catch (e) {
       setError(e?.message || "Unexpected error");
