@@ -1,33 +1,42 @@
 import { NextResponse } from "next/server";
-import { supabaseServer } from "../../../../lib/supabase/server";
+import { supabaseServer } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const supabase = supabaseServer();
+  try {
+    const supabase = supabaseServer();
 
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
+    const { data: userData, error: userErr } = await supabase.auth.getUser();
+    if (userErr) throw userErr;
 
-  if (userError || !user) {
-    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+    const user = userData?.user;
+    if (!user) {
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+    }
+
+    const { data: orgUser, error: orgErr } = await supabase
+      .from("organisation_users")
+      .select("organisation_id, role, user_id")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (orgErr) throw orgErr;
+
+    if (!orgUser?.organisation_id) {
+      return NextResponse.json(
+        { error: "Missing organisation_id", user_id: user.id },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json(orgUser);
+  } catch (e) {
+    return NextResponse.json(
+      { error: "me/org failed", detail: e?.message || String(e) },
+      { status: 500 }
+    );
   }
-
-  const { data: membership, error: membershipError } = await supabase
-    .from("organisation_users")
-    .select("organisation_id, role")
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  if (membershipError) {
-    return NextResponse.json({ error: membershipError.message }, { status: 500 });
-  }
-
-  return NextResponse.json({
-    user_id: user.id,
-    organisation_id: membership?.organisation_id ?? null,
-    role: membership?.role ?? null,
-  });
 }
