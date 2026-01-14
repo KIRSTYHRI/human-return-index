@@ -1,49 +1,33 @@
 import { NextResponse } from "next/server";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { supabaseServer } from "../../../../lib/supabase/server";
 
 export const dynamic = "force-dynamic";
-export const revalidate = 0;
 
 export async function GET() {
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = supabaseServer();
 
-  // 1) Who is logged in?
   const {
     data: { user },
-    error: userErr,
+    error: userError,
   } = await supabase.auth.getUser();
 
-  if (userErr || !user) {
-    return NextResponse.json({ ok: false, error: "Not logged in" }, { status: 401 });
+  if (userError || !user) {
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
-  // 2) Which organisation is this user in?
-  const { data, error } = await supabase
-    .from("organisation_members")
+  const { data: membership, error: membershipError } = await supabase
+    .from("organisation_users")
     .select("organisation_id, role")
     .eq("user_id", user.id)
-    .limit(1)
     .maybeSingle();
 
-  if (error) {
-    return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  if (membershipError) {
+    return NextResponse.json({ error: membershipError.message }, { status: 500 });
   }
 
-  if (!data?.organisation_id) {
-    return NextResponse.json(
-      { ok: false, error: "User is not assigned to an organisation" },
-      { status: 403 }
-    );
-  }
-
-  return NextResponse.json(
-    {
-      ok: true,
-      user_id: user.id,
-      organisation_id: data.organisation_id,
-      role: data.role || "member",
-    },
-    { status: 200 }
-  );
+  return NextResponse.json({
+    user_id: user.id,
+    organisation_id: membership?.organisation_id ?? null,
+    role: membership?.role ?? null,
+  });
 }

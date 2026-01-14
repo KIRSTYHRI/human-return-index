@@ -1,60 +1,51 @@
 import { NextResponse } from "next/server";
-import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs";
+import { createServerClient } from "@supabase/ssr";
 
-function unauthorized() {
-  return new NextResponse("Authentication required", {
-    status: 401,
-    headers: { "WWW-Authenticate": 'Basic realm="HRI Pilot"' },
-  });
-}
+export async function middleware(request) {
+  const response = NextResponse.next();
 
-export async function middleware(req) {
-  // ---------- 1) OPTIONAL BASIC AUTH (extra pilot lock) ----------
-  const user = process.env.BASIC_AUTH_USER;
-  const pass = process.env.BASIC_AUTH_PASS;
-
-  // If env vars are set, enforce Basic Auth
-  if (user && pass) {
-    const auth = req.headers.get("authorization");
-    if (!auth) return unauthorized();
-
-    const [scheme, encoded] = auth.split(" ");
-    if (scheme !== "Basic" || !encoded) return unauthorized();
-
-    let decoded = "";
-    try {
-      decoded = atob(encoded);
-    } catch {
-      return unauthorized();
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            response.cookies.set(name, value, options);
+          });
+        },
+      },
     }
+  );
 
-    const idx = decoded.indexOf(":");
-    const u = idx >= 0 ? decoded.slice(0, idx) : "";
-    const p = idx >= 0 ? decoded.slice(idx + 1) : "";
-
-    if (!(u === user && p === pass)) return unauthorized();
-  }
-
-  // ---------- 2) SUPABASE LOGIN GATE FOR /dashboard ----------
-  const res = NextResponse.next();
-  const supabase = createMiddlewareClient({ req, res });
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  const pathname = req.nextUrl.pathname;
+  const pathname = request.nextUrl.pathname;
 
-  // If trying to access dashboard and not logged in -> send to /login
-  if (pathname.startsWith("/dashboard") && !session) {
-    const url = req.nextUrl.clone();
+  // Protect dashboard routes only
+  const isProtected = pathname.startsWith("/dashboard") || pathname.startsWith("/results");
+
+  // Avoid redirect loops
+  const isAuthPage =
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/signup") ||
+    pathname.startsWith("/register") ||
+    pathname.startsWith("/auth/callback");
+
+  if (isProtected && !user && !isAuthPage) {
+    const url = request.nextUrl.clone();
     url.pathname = "/login";
-    url.searchParams.set("redirect", pathname);
     return NextResponse.redirect(url);
   }
 
-  return res;
+  return response;
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/dashboard/:path*", "/results/:path*"],
 };
