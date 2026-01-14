@@ -1,42 +1,68 @@
 import { NextResponse } from "next/server";
-import { supabaseServer } from "@/lib/supabase/server";
+import { cookies } from "next/headers";
+import { createServerClient } from "@supabase/ssr";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const supabase = supabaseServer();
+    const cookieStore = cookies();
 
-    const { data: userData, error: userErr } = await supabase.auth.getUser();
-    if (userErr) throw userErr;
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-    const user = userData?.user;
-    if (!user) {
-      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+    if (!url || !anon) {
+      return NextResponse.json(
+        { error: "Missing env vars", need: ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_ANON_KEY"] },
+        { status: 500 }
+      );
     }
 
-    const { data: orgUser, error: orgErr } = await supabase
+    const supabase = createServerClient(url, anon, {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            cookieStore.set(name, value, options);
+          });
+        },
+      },
+    });
+
+    const {
+      data: { user },
+      error: userErr,
+    } = await supabase.auth.getUser();
+
+    if (userErr) return NextResponse.json({ error: userErr.message }, { status: 401 });
+    if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+
+    const { data: orgUserRow, error: orgUserErr } = await supabase
       .from("organisation_users")
-      .select("organisation_id, role, user_id")
+      .select("organisation_id, role")
       .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
+      .order("created_at", { ascending: true })
       .limit(1)
       .maybeSingle();
 
-    if (orgErr) throw orgErr;
+    if (orgUserErr) return NextResponse.json({ error: orgUserErr.message }, { status: 500 });
 
-    if (!orgUser?.organisation_id) {
+    if (!orgUserRow?.organisation_id) {
       return NextResponse.json(
         { error: "Missing organisation_id", user_id: user.id },
         { status: 404 }
       );
     }
 
-    return NextResponse.json(orgUser);
+    return NextResponse.json({
+      organisation_id: orgUserRow.organisation_id,
+      role: orgUserRow.role || "member",
+      user_id: user.id,
+    });
   } catch (e) {
-    return NextResponse.json(
-      { error: "me/org failed", detail: e?.message || String(e) },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: e?.message || "Unexpected error" }, { status: 500 });
   }
 }
+
