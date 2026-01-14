@@ -1,10 +1,12 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+
 import { useState } from "react";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { supabaseBrowser } from "@/lib/supabase/client";
 
 export default function LoginPage() {
-  const supabase = createClientComponentClient();
+  const supabase = supabaseBrowser();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -29,6 +31,7 @@ export default function LoginPage() {
         });
         if (error) throw error;
 
+        // Hard redirect helps break auth loops in some setups
         window.location.href = "/dashboard";
         return;
       }
@@ -37,6 +40,7 @@ export default function LoginPage() {
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
+          // Keep this, but make sure this URL is allowed in Supabase Auth Redirect URLs
           emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
       });
@@ -51,9 +55,29 @@ export default function LoginPage() {
   }
 
   return (
-    <main style={{ minHeight: "100vh", background: "#020617", color: "#E5E7EB", display: "grid", placeItems: "center", padding: 24 }}>
-      <section style={{ width: "100%", maxWidth: 420, border: "1px solid #1F2937", borderRadius: 14, padding: 18, background: "#030712" }}>
-        <h1 style={{ fontSize: 22, fontWeight: 900, marginBottom: 6 }}>Log in</h1>
+    <main
+      style={{
+        minHeight: "100vh",
+        background: "#020617",
+        color: "#E5E7EB",
+        display: "grid",
+        placeItems: "center",
+        padding: 24,
+      }}
+    >
+      <section
+        style={{
+          width: "100%",
+          maxWidth: 420,
+          border: "1px solid #1F2937",
+          borderRadius: 14,
+          padding: 18,
+          background: "#030712",
+        }}
+      >
+        <h1 style={{ fontSize: 22, fontWeight: 900, marginBottom: 6 }}>
+          Log in
+        </h1>
         <p style={{ fontSize: 13, color: "#9CA3AF", marginBottom: 14 }}>
           Pilot access only.
         </p>
@@ -101,7 +125,15 @@ export default function LoginPage() {
               onChange={(e) => setEmail(e.target.value)}
               type="email"
               placeholder="you@company.com"
-              style={{ width: "100%", marginTop: 6, padding: "10px 12px", borderRadius: 10, border: "1px solid #1F2937", background: "#0B1220", color: "#E5E7EB" }}
+              style={{
+                width: "100%",
+                marginTop: 6,
+                padding: "10px 12px",
+                borderRadius: 10,
+                border: "1px solid #1F2937",
+                background: "#0B1220",
+                color: "#E5E7EB",
+              }}
             />
           </label>
 
@@ -113,7 +145,15 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 type="password"
                 placeholder="••••••••"
-                style={{ width: "100%", marginTop: 6, padding: "10px 12px", borderRadius: 10, border: "1px solid #1F2937", background: "#0B1220", color: "#E5E7EB" }}
+                style={{
+                  width: "100%",
+                  marginTop: 6,
+                  padding: "10px 12px",
+                  borderRadius: 10,
+                  border: "1px solid #1F2937",
+                  background: "#0B1220",
+                  color: "#E5E7EB",
+                }}
               />
             </label>
           )}
@@ -136,7 +176,17 @@ export default function LoginPage() {
             {loading ? "Working…" : mode === "password" ? "Log in" : "Send magic link"}
           </button>
 
-          {msg && <p style={{ marginTop: 8, fontSize: 13, color: msg.includes("sent") ? "#A7F3D0" : "#FCA5A5" }}>{msg}</p>}
+          {msg && (
+            <p
+              style={{
+                marginTop: 8,
+                fontSize: 13,
+                color: msg.includes("sent") ? "#A7F3D0" : "#FCA5A5",
+              }}
+            >
+              {msg}
+            </p>
+          )}
         </form>
       </section>
     </main>
