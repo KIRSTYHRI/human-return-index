@@ -48,4 +48,41 @@ export async function middleware(request) {
 
 export const config = {
   matcher: ["/dashboard/:path*", "/results/:path*"],
+};import { NextResponse } from "next/server";
+import { supabaseServer } from "./lib/supabase/server";
+
+export async function middleware(req) {
+  const { pathname } = req.nextUrl;
+
+  // Allow public routes
+  if (
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/auth/callback") ||
+    pathname.startsWith("/api") ||
+    pathname === "/" ||
+    pathname.startsWith("/_next") ||
+    pathname.startsWith("/favicon")
+  ) {
+    return NextResponse.next();
+  }
+
+  // Protect dashboard routes
+  if (pathname.startsWith("/dashboard")) {
+    const supabase = supabaseServer();
+    const { data } = await supabase.auth.getUser();
+
+    if (!data?.user) {
+      const url = req.nextUrl.clone();
+      url.pathname = "/login";
+      return NextResponse.redirect(url);
+    }
+  }
+
+  return NextResponse.next();
+}
+
+export const config = {
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 };
+
+
