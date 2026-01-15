@@ -4,27 +4,10 @@ import { createServerClient } from "@supabase/ssr";
 export async function middleware(request) {
   const response = NextResponse.next();
 
-  const pathname = request.nextUrl.pathname;
-
-  // Only protect these routes
-  const isProtected =
-    pathname.startsWith("/dashboard") || pathname.startsWith("/results");
-
-  // Always allow these (prevents loops)
-  const isPublic =
-    pathname === "/" ||
-    pathname.startsWith("/login") ||
-    pathname.startsWith("/auth/callback") ||
-    pathname.startsWith("/api") ||
-    pathname.startsWith("/_next") ||
-    pathname.startsWith("/favicon");
-
-  if (!isProtected || isPublic) return response;
-
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  // If env missing, don’t block the whole app
+  // If env missing, don't brick the whole app
   if (!url || !anon) return response;
 
   const supabase = createServerClient(url, anon, {
@@ -44,10 +27,19 @@ export async function middleware(request) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) {
-    const loginUrl = request.nextUrl.clone();
-    loginUrl.pathname = "/login";
-    return NextResponse.redirect(loginUrl);
+  const pathname = request.nextUrl.pathname;
+
+  // only protect dashboard + results
+  const isProtected = pathname.startsWith("/dashboard") || pathname.startsWith("/results");
+
+  // allow auth-related routes (avoid loops)
+  const isAuthRoute =
+    pathname.startsWith("/login") || pathname.startsWith("/auth/callback");
+
+  if (isProtected && !user && !isAuthRoute) {
+    const urlObj = request.nextUrl.clone();
+    urlObj.pathname = "/login";
+    return NextResponse.redirect(urlObj);
   }
 
   return response;
