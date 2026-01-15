@@ -4,21 +4,13 @@ import { createServerClient } from "@supabase/ssr";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
-  try {
-    const cookieStore = cookies();
+function supabaseFromCookies() {
+  const cookieStore = cookies();
 
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-    if (!url || !anon) {
-      return NextResponse.json(
-        { error: "Missing env vars", need: ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_ANON_KEY"] },
-        { status: 500 }
-      );
-    }
-
-    const supabase = createServerClient(url, anon, {
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    {
       cookies: {
         getAll() {
           return cookieStore.getAll();
@@ -29,40 +21,66 @@ export async function GET() {
           });
         },
       },
-    });
+    }
+  );
+}
+
+export async function GET() {
+  try {
+    const supabase = supabaseFromCookies();
 
     const {
       data: { user },
       error: userErr,
     } = await supabase.auth.getUser();
 
-    if (userErr) return NextResponse.json({ error: userErr.message }, { status: 401 });
-    if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+    if (userErr) throw userErr;
 
-    const { data: orgUserRow, error: orgUserErr } = await supabase
+    if (!user) {
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+    }
+
+    const user_id = user.id;
+
+    // 1) Try organisation_users
+    let { data: link, error: linkErr } = await supabase
       .from("organisation_users")
-      .select("organisation_id, role")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: true })
-      .limit(1)
+      .select("organisation_id, role, user_id")
+      .eq("user_id", user_id)
       .maybeSingle();
 
-    if (orgUserErr) return NextResponse.json({ error: orgUserErr.message }, { status: 500 });
+    if (linkErr) {
+      // If table doesn't exist / RLS blocks, ignore and try the next
+      link = null;
+    }
 
-    if (!orgUserRow?.organisation_id) {
+    // 2) Fallback: organisation_members (some builds use this instead)
+    if (!link) {
+      const { data: link2, error: link2Err } = await supabase
+        .from("organisation_members")
+        .select("organisation_id, role, user_id")
+        .eq("user_id", user_id)
+        .maybeSingle();
+
+      if (!link2Err) link = link2 || null;
+    }
+
+    if (!link?.organisation_id) {
       return NextResponse.json(
-        { error: "Missing organisation_id", user_id: user.id },
+        { error: "Missing organisation_id", user_id },
         { status: 404 }
       );
     }
 
     return NextResponse.json({
-      organisation_id: orgUserRow.organisation_id,
-      role: orgUserRow.role || "member",
-      user_id: user.id,
+      organisation_id: link.organisation_id,
+      role: link.role || "member",
+      user_id,
     });
   } catch (e) {
-    return NextResponse.json({ error: e?.message || "Unexpected error" }, { status: 500 });
+    return NextResponse.json(
+      { error: e?.message || "Failed" },
+      { status: 500 }
+    );
   }
 }
-
