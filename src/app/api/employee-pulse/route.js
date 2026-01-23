@@ -27,25 +27,25 @@ const POS_TO_COL = {
 
 function calcSummary(valuesByPos) {
   const v = (p) => Number(valuesByPos[p] ?? 0);
-
   const total = Object.keys(POS_TO_COL).reduce((sum, p) => sum + v(Number(p)), 0);
   const avg = total / 10;
 
   return {
     total_score: total,
     average_score: avg,
-    pillar_1_score: (v(1) + v(2)) / 2, // Leadership
-    pillar_2_score: (v(3) + v(4)) / 2, // Wellbeing & MH
-    pillar_3_score: (v(5) + v(6)) / 2, // Inclusion
-    pillar_4_score: (v(7) + v(8)) / 2, // Growth
-    pillar_5_score: (v(9) + v(10)) / 2, // Trust & Comms
+    pillar_1_score: (v(1) + v(2)) / 2,
+    pillar_2_score: (v(3) + v(4)) / 2,
+    pillar_3_score: (v(5) + v(6)) / 2,
+    pillar_4_score: (v(7) + v(8)) / 2,
+    pillar_5_score: (v(9) + v(10)) / 2,
   };
 }
 
-// Basic UUID check (prevents junk IDs being stored)
 function looksLikeUuid(s) {
-  return typeof s === "string" &&
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
+  return (
+    typeof s === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)
+  );
 }
 
 export async function POST(req) {
@@ -58,10 +58,7 @@ export async function POST(req) {
     const body = await req.json();
 
     const organisation_id =
-      body?.organisation_id ||
-      body?.organization_id ||
-      body?.org_id ||
-      null;
+      body?.organisation_id || body?.organization_id || body?.org_id || null;
 
     const employee_email = body?.employee_email || null;
     const responses = Array.isArray(body?.responses) ? body.responses : [];
@@ -70,7 +67,10 @@ export async function POST(req) {
       return NextResponse.json({ ok: false, error: "Missing organisation_id" }, { status: 400 });
     }
     if (!looksLikeUuid(String(organisation_id))) {
-      return NextResponse.json({ ok: false, error: "organisation_id must be a valid UUID" }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: "organisation_id must be a valid UUID" },
+        { status: 400 }
+      );
     }
     if (responses.length !== 10) {
       return NextResponse.json(
@@ -101,13 +101,10 @@ export async function POST(req) {
 
     const summary = calcSummary(valuesByPos);
 
-    // 1) Save dashboard-friendly submission
-    // ✅ Write BOTH:
-    // - organization_id (text) for backwards compatibility
-    // - organisation_id (uuid) for RLS + multi-company protection
+    // Insert submission
     const submissionPayload = {
+      // Your DB summary table uses "organization_id" (US spelling) — keep consistent.
       organization_id: String(organisation_id),
-      organisation_id: String(organisation_id), // uuid column (added in Step 6A)
       employee_email,
       submitted_at: new Date().toISOString(),
       ...summary,
@@ -127,7 +124,7 @@ export async function POST(req) {
       return NextResponse.json({ ok: false, error: subErr.message }, { status: 500 });
     }
 
-    // 2) Save raw responses (optional but fine to keep)
+    // Save raw responses
     const rawRows = responses.map((r) => ({
       pulse_id: submission.id,
       question_id: r.question_id,
@@ -135,10 +132,10 @@ export async function POST(req) {
       created_at: new Date().toISOString(),
     }));
 
-    await supabase.from("employee_pulse_responses").insert(rawRows);
-
-    // 3) DO NOT write to hri_scores here.
-    // We keep the logic clean: /api/calculate-hri is the single source of truth.
+    const { error: rawErr } = await supabase.from("employee_pulse_responses").insert(rawRows);
+    if (rawErr) {
+      return NextResponse.json({ ok: false, error: rawErr.message }, { status: 500 });
+    }
 
     return NextResponse.json({ ok: true, submission }, { status: 200 });
   } catch (e) {
@@ -156,20 +153,17 @@ export async function GET(req) {
   }
 
   const { searchParams } = new URL(req.url);
-  const organisation_id =
-    searchParams.get("organisation_id") ||
-    searchParams.get("organization_id") ||
-    null;
+  const organisation_id = searchParams.get("organisation_id") || searchParams.get("organization_id");
 
   if (!organisation_id) {
     return NextResponse.json({ ok: false, error: "Missing organisation_id" }, { status: 400 });
   }
 
-  // Prefer the new uuid column if present (RLS-friendly)
+  // Match your DB column: organization_id
   const { data, error } = await supabase
     .from("pulse_check_submissions")
     .select("*")
-    .eq("organisation_id", String(organisation_id))
+    .eq("organization_id", String(organisation_id))
     .order("submitted_at", { ascending: false })
     .limit(20);
 
