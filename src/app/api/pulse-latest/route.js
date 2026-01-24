@@ -57,7 +57,7 @@ export async function GET() {
     const { data, error } = await admin
       .from("employee_pulse_summary")
       .select("*")
-      .eq("organisation_id", organisationId)
+      .eq(".eq("organization_id", organisationId)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
