@@ -1,14 +1,28 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
-const ORG_ID = "9499b1b9-7fce-43a1-9590-d533f00dc71d"; // ✅ your org id
+const DEFAULT_ORG_ID = "9499b1b9-7fce-43a1-9590-d533f00dc71d"; // fallback only
 
 export default function EmployeePulsePage() {
+  const searchParams = useSearchParams();
+
+  // Optional: allow passing org via URL: /pulse?organisation_id=xxxx
+  const ORG_ID =
+    searchParams.get("organisation_id") ||
+    searchParams.get("organization_id") ||
+    DEFAULT_ORG_ID;
+
+  // Toggle this:
+  // false = require every question answered (current behaviour)
+  // true  = allow skipping (null) answers
+  const ALLOW_SKIPS = false;
+
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [questions, setQuestions] = useState([]);
-  const [answers, setAnswers] = useState({}); // { [question_id]: 1..5 }
+  const [answers, setAnswers] = useState({}); // { [question_id]: 1..5 | null }
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
@@ -36,13 +50,12 @@ export default function EmployeePulsePage() {
   }, []);
 
   const total = questions.length;
-  const answeredCount = useMemo(
-    () =>
-      Object.values(answers).filter(
-        (v) => Number(v) >= 1 && Number(v) <= 5
-      ).length,
-    [answers]
-  );
+
+  const answeredCount = useMemo(() => {
+    return Object.values(answers).filter((v) => Number(v) >= 1 && Number(v) <= 5)
+      .length;
+  }, [answers]);
+
   const allAnswered = total > 0 && answeredCount === total;
 
   async function submitPulse() {
@@ -52,15 +65,29 @@ export default function EmployeePulsePage() {
       setSuccess("");
 
       if (!total) throw new Error("No questions loaded.");
-      if (!allAnswered)
+
+      if (!ALLOW_SKIPS && !allAnswered) {
         throw new Error(`Please answer all questions (${answeredCount}/${total}).`);
+      }
+
+      // Build responses array using question IDs (matches your API + DB structure)
+      const responses = questions.map((q) => {
+        const raw = answers[q.id];
+
+        // if skips allowed and unanswered => null
+        if (ALLOW_SKIPS && (raw === undefined || raw === null || raw === "")) {
+          return { question_id: q.id, response_value: null };
+        }
+
+        const num = Number(raw);
+        return { question_id: q.id, response_value: Number.isFinite(num) ? num : null };
+      });
 
       const payload = {
-        organisation_id: ORG_ID, // ✅ THIS is the fix
-        responses: questions.map((q) => ({
-          question_id: q.id,
-          response_value: Number(answers[q.id]),
-        })),
+        organisation_id: ORG_ID,
+        // Optional email field if your API accepts it (yours does)
+        // employee_email: "test@hri.com",
+        responses,
       };
 
       const res = await fetch("/api/employee-pulse", {
@@ -75,7 +102,12 @@ export default function EmployeePulsePage() {
         throw new Error(json?.error || "Failed to submit pulse.");
       }
 
-      setSuccess(`Saved ✅ Pulse ID: ${json.pulse_id}`);
+      // Your API success response is: { ok:true, submission:{ id:... } }
+      const newId = json?.submission?.id || json?.pulse_id || "unknown";
+      setSuccess(`Saved ✅ Pulse ID: ${newId}`);
+
+      // Optional: reset answers after submit
+      setAnswers({});
     } catch (e) {
       setError(e?.message || "Unexpected error");
     } finally {
@@ -86,6 +118,11 @@ export default function EmployeePulsePage() {
   return (
     <main style={{ maxWidth: 1120, margin: "0 auto", padding: "24px 16px 40px", color: "#E5E7EB" }}>
       <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 6 }}>Employee Pulse</h1>
+
+      <p style={{ fontSize: 13, color: "#9CA3AF", marginBottom: 18 }}>
+        Org: <span style={{ color: "#E5E7EB", fontWeight: 700 }}>{ORG_ID}</span>
+      </p>
+
       <p style={{ fontSize: 14, color: "#9CA3AF", marginBottom: 18 }}>
         Quick, anonymous pulse check across the five HRI pillars. Please answer each question from 1–5.
       </p>
@@ -101,9 +138,11 @@ export default function EmployeePulsePage() {
 
       {!loading && questions.length > 0 && (
         <>
-          <div style={{ marginBottom: 14, fontSize: 12, color: "#9CA3AF" }}>
-            Answered: <strong style={{ color: "#E5E7EB" }}>{answeredCount}/{total}</strong>
-          </div>
+          {!ALLOW_SKIPS && (
+            <div style={{ marginBottom: 14, fontSize: 12, color: "#9CA3AF" }}>
+              Answered: <strong style={{ color: "#E5E7EB" }}>{answeredCount}/{total}</strong>
+            </div>
+          )}
 
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {questions.map((q) => (
@@ -120,11 +159,12 @@ export default function EmployeePulsePage() {
                 <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", color: "#9CA3AF" }}>
                   {q.pillar}
                 </div>
+
                 <div style={{ fontSize: 14, color: "#F9FAFB", marginTop: 6, marginBottom: 10 }}>
                   {q.question_text}
                 </div>
 
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                   {[1, 2, 3, 4, 5].map((n) => {
                     const active = Number(answers[q.id]) === n;
                     return (
@@ -147,6 +187,24 @@ export default function EmployeePulsePage() {
                       </button>
                     );
                   })}
+
+                  {ALLOW_SKIPS && (
+                    <button
+                      type="button"
+                      onClick={() => setAnswers((prev) => ({ ...prev, [q.id]: null }))}
+                      style={{
+                        cursor: "pointer",
+                        padding: "8px 10px",
+                        borderRadius: 10,
+                        border: "1px dashed #374151",
+                        background: answers[q.id] == null ? "#111827" : "transparent",
+                        color: "#9CA3AF",
+                        fontWeight: 700,
+                      }}
+                    >
+                      Skip
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
@@ -170,7 +228,7 @@ export default function EmployeePulsePage() {
               {submitting ? "Submitting…" : "Submit pulse response"}
             </button>
 
-            {!allAnswered && (
+            {!ALLOW_SKIPS && !allAnswered && (
               <div style={{ marginTop: 10, fontSize: 12, color: "#9CA3AF" }}>
                 Tip: you need to answer all questions before submitting.
               </div>
@@ -181,3 +239,4 @@ export default function EmployeePulsePage() {
     </main>
   );
 }
+
