@@ -32,19 +32,16 @@ function looksLikeUuid(s) {
   );
 }
 
-// ✅ Force any input into an integer 1..5 or null
-function clamp15(x) {
-  const n = Number(x);
-  if (!Number.isFinite(n)) return null;
-  const rounded = Math.round(n);
-  if (rounded < 1) return 1;
-  if (rounded > 5) return 5;
-  return rounded;
+function clamp15(n) {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return null;
+  if (x < 1) return 1;
+  if (x > 5) return 5;
+  return Math.round(x);
 }
 
 function calcSummary(valuesByPos) {
   const v = (p) => Number(valuesByPos[p] ?? 0);
-
   const total = Object.keys(POS_TO_COL).reduce((sum, p) => sum + v(Number(p)), 0);
   const avg = total / 10;
 
@@ -59,29 +56,31 @@ function calcSummary(valuesByPos) {
   };
 }
 
-export async function GET(req) {
-  const supabase = getServiceSupabase();
-  if (!supabase) return NextResponse.json({ ok: false, error: "Missing env vars" }, { status: 500 });
+// Supports BOTH input shapes:
+// A) responses: [ {question_id, response_value}, ... ]
+// B) responses: { q1: 5, q2: 4, ... q10: 5 }
+function normalizeIncomingResponses(body) {
+  const responses = body?.responses;
 
-  const { searchParams } = new URL(req.url);
-  const organisation_id = searchParams.get("organisation_id") || searchParams.get("organization_id");
-
-  if (!organisation_id) {
-    return NextResponse.json({ ok: false, error: "Missing organisation_id" }, { status: 400 });
+  // Shape B: object q1..q10
+  if (responses && !Array.isArray(responses) && typeof responses === "object") {
+    const valuesByPos = {};
+    for (let p = 1; p <= 10; p++) {
+      const key = `q${p}`;
+      const raw = responses[key];
+      const val = clamp15(raw);
+      if (val === null) return { error: `Invalid response for ${key}` };
+      valuesByPos[p] = val;
+    }
+    return { valuesByPos };
   }
-  if (!looksLikeUuid(String(organisation_id))) {
-    return NextResponse.json({ ok: false, error: "organisation_id must be a valid UUID" }, { status: 400 });
+
+  // Shape A: array of {question_id, response_value}
+  if (Array.isArray(responses)) {
+    return { responsesArray: responses };
   }
 
-  const { data, error } = await supabase
-    .from("pulse_check_submissions")
-    .select("*")
-    .eq("organisation_id", String(organisation_id))
-    .order("submitted_at", { ascending: false })
-    .limit(20);
-
-  if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
-  return NextResponse.json({ ok: true, data: data || [] }, { status: 200 });
+  return { error: "responses must be an array or an object {q1..q10}" };
 }
 
 export async function POST(req) {
@@ -94,74 +93,96 @@ export async function POST(req) {
     const body = await req.json();
 
     const organisation_id =
-      body?.organisation_id ||
-      body?.organization_id ||
-      body?.org_id ||
-      null;
+      body?.organisation_id || body?.organization_id || body?.org_id || null;
 
     const employee_email = body?.employee_email || null;
-
-    const responses = Array.isArray(body?.responses) ? body.responses : [];
 
     if (!organisation_id) {
       return NextResponse.json({ ok: false, error: "Missing organisation_id" }, { status: 400 });
     }
     if (!looksLikeUuid(String(organisation_id))) {
-      return NextResponse.json({ ok: false, error: "organisation_id must be a valid UUID" }, { status: 400 });
-    }
-    if (responses.length !== 10) {
       return NextResponse.json(
-        { ok: false, error: `Expected 10 responses, got ${responses.length}` },
+        { ok: false, error: "organisation_id must be a valid UUID" },
         { status: 400 }
       );
     }
 
-    // Fetch question positions from DB
-    const ids = responses.map((r) => r.question_id).filter(Boolean);
-
-    const { data: qRows, error: qErr } = await supabase
-      .from("hri_pulse_questions")
-      .select("id, position")
-      .in("id", ids);
-
-    if (qErr) {
-      return NextResponse.json({ ok: false, error: qErr.message }, { status: 500 });
+    const norm = normalizeIncomingResponses(body);
+    if (norm.error) {
+      return NextResponse.json({ ok: false, error: norm.error }, { status: 400 });
     }
 
-    const posById = Object.fromEntries((qRows || []).map((q) => [q.id, q.position]));
+    let valuesByPos = norm.valuesByPos || null;
 
-    const valuesByPos = {};
-    for (const r of responses) {
-      const pos = posById[r.question_id];
-      if (!pos) continue;
-      valuesByPos[pos] = clamp15(r.response_value); // ✅ force 1..5
-    }
-
-    // ✅ Ensure we have all 10 positions
-    for (let p = 1; p <= 10; p++) {
-      if (valuesByPos[p] == null) {
+    // If we got array format, map question_id -> position
+    if (!valuesByPos) {
+      const responses = norm.responsesArray || [];
+      if (responses.length !== 10) {
         return NextResponse.json(
-          { ok: false, error: `Missing/invalid response for position ${p}` },
+          { ok: false, error: `Expected 10 responses, got ${responses.length}` },
           { status: 400 }
         );
       }
+
+      const ids = responses.map((r) => r?.question_id).filter(Boolean);
+
+      const { data: qRows, error: qErr } = await supabase
+        .from("hri_pulse_questions")
+        .select("id, position")
+        .in("id", ids);
+
+      if (qErr) {
+        return NextResponse.json({ ok: false, error: qErr.message }, { status: 500 });
+      }
+
+      const posById = Object.fromEntries((qRows || []).map((q) => [q.id, q.position]));
+
+      valuesByPos = {};
+      for (const r of responses) {
+        const pos = posById[r.question_id];
+        const val = clamp15(r.response_value);
+        if (!pos) continue;
+        if (val === null) {
+          return NextResponse.json(
+            { ok: false, error: `Invalid response_value for position ${pos}` },
+            { status: 400 }
+          );
+        }
+        valuesByPos[pos] = val;
+      }
+    }
+
+    // HARD STOP if any position missing (prevents null->0 nonsense)
+    const missing = [];
+    for (let p = 1; p <= 10; p++) {
+      if (valuesByPos[p] == null) missing.push(p);
+    }
+    if (missing.length) {
+      return NextResponse.json(
+        { ok: false, error: `Missing positions: ${missing.join(", ")}`, valuesByPos },
+        { status: 400 }
+      );
     }
 
     const summary = calcSummary(valuesByPos);
 
     const submissionPayload = {
-      organization_id: String(organisation_id),     // backwards
-      organisation_id: String(organisation_id),     // uuid
+      organization_id: String(organisation_id), // legacy
+      organisation_id: String(organisation_id), // uuid
       employee_email,
       submitted_at: new Date().toISOString(),
       ...summary,
     };
 
-    // ✅ set q1..q10 safely
+    // IMPORTANT: do NOT Number(null) -> 0. Keep it null (but we already enforced none missing)
     for (const [posStr, col] of Object.entries(POS_TO_COL)) {
-      const pos = Number(posStr);
-      submissionPayload[col] = valuesByPos[pos]; // guaranteed 1..5
+      const p = Number(posStr);
+      const val = clamp15(valuesByPos[p]);
+      submissionPayload[col] = val; // 1..5
     }
+
+    // Debug (optional): uncomment for one run if needed
+    // console.log("PULSE INSERT PAYLOAD:", submissionPayload);
 
     const { data: submission, error: subErr } = await supabase
       .from("pulse_check_submissions")
@@ -173,11 +194,41 @@ export async function POST(req) {
       return NextResponse.json({ ok: false, error: subErr.message }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true, submission }, { status: 200 });
+    return NextResponse.json({ ok: true, data: submission }, { status: 200 });
   } catch (e) {
     return NextResponse.json(
       { ok: false, error: e?.message || "Unknown error" },
       { status: 500 }
     );
   }
+}
+
+export async function GET(req) {
+  const supabase = getServiceSupabase();
+  if (!supabase) {
+    return NextResponse.json({ ok: false, error: "Missing env vars" }, { status: 500 });
+  }
+
+  const { searchParams } = new URL(req.url);
+  const organisation_id =
+    searchParams.get("organisation_id") ||
+    searchParams.get("organization_id") ||
+    searchParams.get("org_id");
+
+  if (!organisation_id) {
+    return NextResponse.json({ ok: false, error: "Missing organisation_id" }, { status: 400 });
+  }
+
+  const { data, error } = await supabase
+    .from("pulse_check_submissions")
+    .select("*")
+    .eq("organisation_id", String(organisation_id))
+    .order("submitted_at", { ascending: false })
+    .limit(20);
+
+  if (error) {
+    return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ ok: true, data: data || [] }, { status: 200 });
 }
