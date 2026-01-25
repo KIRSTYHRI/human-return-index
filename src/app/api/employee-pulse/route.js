@@ -25,8 +25,20 @@ const POS_TO_COL = {
   10: "q10_clear_communication",
 };
 
-function calcSummary(valuesByPos) {
-  const v = (p) => Number(valuesByPos[p] ?? 0);
+function looksLikeUuid(s) {
+  return (
+    typeof s === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)
+  );
+}
+
+// UI safety
+const clamp15 = (n) => Math.max(1, Math.min(5, Number(n)));
+const scaleTo100 = (n15) => clamp15(n15) * 20; // 1..5 -> 20..100
+
+// Summary must be based on SCALED 20..100 values so avg/pillars make sense
+function calcSummary(valuesByPosScaled) {
+  const v = (p) => Number(valuesByPosScaled[p] ?? 0);
   const total = Object.keys(POS_TO_COL).reduce((sum, p) => sum + v(Number(p)), 0);
   const avg = total / 10;
 
@@ -41,13 +53,6 @@ function calcSummary(valuesByPos) {
   };
 }
 
-function looksLikeUuid(s) {
-  return (
-    typeof s === "string" &&
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)
-  );
-}
-
 export async function POST(req) {
   const supabase = getServiceSupabase();
   if (!supabase) {
@@ -55,13 +60,12 @@ export async function POST(req) {
   }
 
   try {
-    const body = await req.json();
+    const body = await req.json().catch(() => ({}));
 
     const organisation_id =
       body?.organisation_id || body?.organization_id || body?.org_id || null;
 
     const employee_email = body?.employee_email || null;
-    const responses = Array.isArray(body?.responses) ? body.responses : [];
 
     if (!organisation_id) {
       return NextResponse.json({ ok: false, error: "Missing organisation_id" }, { status: 400 });
@@ -72,104 +76,18 @@ export async function POST(req) {
         { status: 400 }
       );
     }
-    if (responses.length !== 10) {
-      return NextResponse.json(
-        { ok: false, error: `Expected 10 responses, got ${responses.length}` },
-        { status: 400 }
-      );
-    }
 
-    // Get question positions
-    const ids = responses.map((r) => r.question_id).filter(Boolean);
+    // We support BOTH formats:
+    // A) responses: { q1: 5, q2: 4, ... q10: 5 }
+    // B) responses: [ { question_id, response_value }, ... ]  (10 items)
 
-    const { data: qRows, error: qErr } = await supabase
-      .from("hri_pulse_questions")
-      .select("id, position")
-      .in("id", ids);
+    let valuesByPosRaw15 = {};   // 1..5
+    let valuesByPosScaled = {};  // 20..100
+    let rawRows = [];            // for employee_pulse_responses (only when we have question_id)
 
-    if (qErr) {
-      return NextResponse.json({ ok: false, error: qErr.message }, { status: 500 });
-    }
+    // ---------- FORMAT A: object ----------
+    if (body?.responses && typeof body.responses === "object" && !Array.isArray(body.responses)) {
+      const r = body.responses;
 
-    const posById = Object.fromEntries((qRows || []).map((q) => [q.id, q.position]));
-
-    const valuesByPos = {};
-    for (const r of responses) {
-      const pos = posById[r.question_id];
-      if (pos) valuesByPos[pos] = Number(r.response_value);
-    }
-
-    const summary = calcSummary(valuesByPos);
-
-    // Insert submission
-    const submissionPayload = {
-      // Your DB summary table uses "organization_id" (US spelling) — keep consistent.
-      organization_id: String(organisation_id),
-      employee_email,
-      submitted_at: new Date().toISOString(),
-      ...summary,
-    };
-
-    for (const [posStr, col] of Object.entries(POS_TO_COL)) {
-      submissionPayload[col] = Number(valuesByPos[Number(posStr)] ?? null);
-    }
-
-    const { data: submission, error: subErr } = await supabase
-      .from("pulse_check_submissions")
-      .insert(submissionPayload)
-      .select("*")
-      .single();
-
-    if (subErr) {
-      return NextResponse.json({ ok: false, error: subErr.message }, { status: 500 });
-    }
-
-    // Save raw responses
-    const rawRows = responses.map((r) => ({
-      pulse_id: submission.id,
-      question_id: r.question_id,
-      response_value: Number(r.response_value),
-      created_at: new Date().toISOString(),
-    }));
-
-    const { error: rawErr } = await supabase.from("employee_pulse_responses").insert(rawRows);
-    if (rawErr) {
-      return NextResponse.json({ ok: false, error: rawErr.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ ok: true, submission }, { status: 200 });
-  } catch (e) {
-    return NextResponse.json(
-      { ok: false, error: e?.message || "Server error" },
-      { status: 500 }
-    );
-  }
-}
-
-export async function GET(req) {
-  const supabase = getServiceSupabase();
-  if (!supabase) {
-    return NextResponse.json({ ok: false, error: "Missing env vars" }, { status: 500 });
-  }
-
-  const { searchParams } = new URL(req.url);
-  const organisation_id = searchParams.get("organisation_id") || searchParams.get("organization_id");
-
-  if (!organisation_id) {
-    return NextResponse.json({ ok: false, error: "Missing organisation_id" }, { status: 400 });
-  }
-
-  // Match your DB column: organization_id
-  const { data, error } = await supabase
-    .from("pulse_check_submissions")
-    .select("*")
-    .eq("organization_id", String(organisation_id))
-    .order("submitted_at", { ascending: false })
-    .limit(20);
-
-  if (error) {
-    return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json({ ok: true, data: data || [] }, { status: 200 });
-}
+      const expectedKeys = Array.from({ length: 10 }, (_, i) => `q${i + 1}`);
+      const presentCount = expectedKeys.filter((k) => r[k] !== undefined && r
