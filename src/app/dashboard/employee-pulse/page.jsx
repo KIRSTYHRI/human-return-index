@@ -8,14 +8,13 @@ const DEFAULT_ORG_ID = "9499b1b9-7fce-43a1-9590-d533f00dc71d"; // fallback only
 export default function EmployeePulsePage() {
   const searchParams = useSearchParams();
 
-  // Optional: allow passing org via URL: /pulse?organisation_id=xxxx
+  // Optional: allow passing org via URL: /dashboard/employee-pulse?organisation_id=xxxx
   const ORG_ID =
     searchParams.get("organisation_id") ||
     searchParams.get("organization_id") ||
     DEFAULT_ORG_ID;
 
-  // Toggle this:
-  // false = require every question answered (current behaviour)
+  // false = require every question answered
   // true  = allow skipping (null) answers
   const ALLOW_SKIPS = false;
 
@@ -36,7 +35,7 @@ export default function EmployeePulsePage() {
         const res = await fetch("/api/pulse-questions", { cache: "no-store" });
         const json = await res.json();
 
-        if (!res.ok || json.ok === false) {
+        if (!res.ok || json?.ok === false) {
           throw new Error(json?.error || "Failed to load pulse questions");
         }
 
@@ -74,18 +73,21 @@ export default function EmployeePulsePage() {
       const responses = questions.map((q) => {
         const raw = answers[q.id];
 
-        // if skips allowed and unanswered => null
+        // If skips allowed and unanswered => null
         if (ALLOW_SKIPS && (raw === undefined || raw === null || raw === "")) {
           return { question_id: q.id, response_value: null };
         }
 
         const num = Number(raw);
-        return { question_id: q.id, response_value: Number.isFinite(num) ? num : null };
+        return {
+          question_id: q.id,
+          response_value: Number.isFinite(num) ? num : null,
+        };
       });
 
       const payload = {
         organisation_id: ORG_ID,
-        // Optional email field if your API accepts it (yours does)
+        // Optional: if you want to capture it from UI later, wire an input.
         // employee_email: "test@hri.com",
         responses,
       };
@@ -98,11 +100,11 @@ export default function EmployeePulsePage() {
 
       const json = await res.json();
 
-      if (!res.ok || json.ok === false) {
+      if (!res.ok || json?.ok === false) {
         throw new Error(json?.error || "Failed to submit pulse.");
       }
 
-      // Your API success response is: { ok:true, submission:{ id:... } }
+      // ✅ FIX: your API returns { ok:true, submission:{ id:... } }
       const newId = json?.submission?.id || json?.pulse_id || "unknown";
       setSuccess(`Saved ✅ Pulse ID: ${newId}`);
 
@@ -116,21 +118,36 @@ export default function EmployeePulsePage() {
   }
 
   return (
-    <main style={{ maxWidth: 1120, margin: "0 auto", padding: "24px 16px 40px", color: "#E5E7EB" }}>
-      <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 6 }}>Employee Pulse</h1>
+    <main
+      style={{
+        maxWidth: 1120,
+        margin: "0 auto",
+        padding: "24px 16px 40px",
+        color: "#E5E7EB",
+      }}
+    >
+      <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 6 }}>
+        Employee Pulse
+      </h1>
 
-      <p style={{ fontSize: 13, color: "#9CA3AF", marginBottom: 18 }}>
-        Org: <span style={{ color: "#E5E7EB", fontWeight: 700 }}>{ORG_ID}</span>
+      <p style={{ fontSize: 13, color: "#9CA3AF", marginBottom: 10 }}>
+        Org:{" "}
+        <span style={{ color: "#E5E7EB", fontWeight: 700 }}>{ORG_ID}</span>
       </p>
 
       <p style={{ fontSize: 14, color: "#9CA3AF", marginBottom: 18 }}>
-        Quick, anonymous pulse check across the five HRI pillars. Please answer each question from 1–5.
+        Quick, anonymous pulse check across the five HRI pillars. Please answer
+        each question from 1–5.
       </p>
 
       {loading && <p style={{ color: "#9CA3AF" }}>Loading pulse questions…</p>}
 
-      {!loading && error && <p style={{ color: "#F97316", marginBottom: 12 }}>{error}</p>}
-      {!loading && success && <p style={{ color: "#34D399", marginBottom: 12 }}>{success}</p>}
+      {!loading && error && (
+        <p style={{ color: "#F97316", marginBottom: 12 }}>{error}</p>
+      )}
+      {!loading && success && (
+        <p style={{ color: "#34D399", marginBottom: 12 }}>{success}</p>
+      )}
 
       {!loading && !error && questions.length === 0 && (
         <p style={{ color: "#9CA3AF" }}>No pulse questions found.</p>
@@ -140,7 +157,10 @@ export default function EmployeePulsePage() {
         <>
           {!ALLOW_SKIPS && (
             <div style={{ marginBottom: 14, fontSize: 12, color: "#9CA3AF" }}>
-              Answered: <strong style={{ color: "#E5E7EB" }}>{answeredCount}/{total}</strong>
+              Answered:{" "}
+              <strong style={{ color: "#E5E7EB" }}>
+                {answeredCount}/{total}
+              </strong>
             </div>
           )}
 
@@ -156,22 +176,45 @@ export default function EmployeePulsePage() {
                     "radial-gradient(circle at top left, #020617 0%, #020617 45%, #030712 100%)",
                 }}
               >
-                <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", color: "#9CA3AF" }}>
+                <div
+                  style={{
+                    fontSize: 11,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.08em",
+                    color: "#9CA3AF",
+                  }}
+                >
                   {q.pillar}
                 </div>
 
-                <div style={{ fontSize: 14, color: "#F9FAFB", marginTop: 6, marginBottom: 10 }}>
+                <div
+                  style={{
+                    fontSize: 14,
+                    color: "#F9FAFB",
+                    marginTop: 6,
+                    marginBottom: 10,
+                  }}
+                >
                   {q.question_text}
                 </div>
 
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 8,
+                    flexWrap: "wrap",
+                    alignItems: "center",
+                  }}
+                >
                   {[1, 2, 3, 4, 5].map((n) => {
                     const active = Number(answers[q.id]) === n;
                     return (
                       <button
                         key={n}
                         type="button"
-                        onClick={() => setAnswers((prev) => ({ ...prev, [q.id]: n }))}
+                        onClick={() =>
+                          setAnswers((prev) => ({ ...prev, [q.id]: n }))
+                        }
                         style={{
                           cursor: "pointer",
                           padding: "8px 10px",
@@ -191,7 +234,9 @@ export default function EmployeePulsePage() {
                   {ALLOW_SKIPS && (
                     <button
                       type="button"
-                      onClick={() => setAnswers((prev) => ({ ...prev, [q.id]: null }))}
+                      onClick={() =>
+                        setAnswers((prev) => ({ ...prev, [q.id]: null }))
+                      }
                       style={{
                         cursor: "pointer",
                         padding: "8px 10px",
@@ -239,4 +284,3 @@ export default function EmployeePulsePage() {
     </main>
   );
 }
-
