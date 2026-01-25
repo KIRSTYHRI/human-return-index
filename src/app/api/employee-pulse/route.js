@@ -25,62 +25,38 @@ const POS_TO_COL = {
   10: "q10_clear_communication",
 };
 
-function looksLikeUuid(s) {
-  return (
-    typeof s === "string" &&
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)
-  );
-}
-
-function clamp15(n) {
-  const x = Number(n);
-  if (!Number.isFinite(x)) return null;
-  if (x < 1) return 1;
-  if (x > 5) return 5;
-  return Math.round(x);
+function clamp1to5(x) {
+  const n = Number(x);
+  if (!Number.isFinite(n)) return null;
+  const r = Math.round(n);
+  if (r < 1) return 1;
+  if (r > 5) return 5;
+  return r;
 }
 
 function calcSummary(valuesByPos) {
   const v = (p) => Number(valuesByPos[p] ?? 0);
+
   const total = Object.keys(POS_TO_COL).reduce((sum, p) => sum + v(Number(p)), 0);
   const avg = total / 10;
 
   return {
     total_score: total,
     average_score: avg,
-    pillar_1_score: (v(1) + v(2)) / 2, // Leadership
-    pillar_2_score: (v(3) + v(4)) / 2, // Wellbeing & MH
-    pillar_3_score: (v(5) + v(6)) / 2, // Inclusion
-    pillar_4_score: (v(7) + v(8)) / 2, // Growth
-    pillar_5_score: (v(9) + v(10)) / 2, // Trust & Comms
+    pillar_1_score: (v(1) + v(2)) / 2,
+    pillar_2_score: (v(3) + v(4)) / 2,
+    pillar_3_score: (v(5) + v(6)) / 2,
+    pillar_4_score: (v(7) + v(8)) / 2,
+    pillar_5_score: (v(9) + v(10)) / 2,
   };
 }
 
-// Supports BOTH input shapes:
-// A) responses: [ {question_id, response_value}, ... ]
-// B) responses: { q1: 5, q2: 4, ... q10: 5 }
-function normalizeIncomingResponses(body) {
-  const responses = body?.responses;
-
-  // Shape B: object q1..q10
-  if (responses && !Array.isArray(responses) && typeof responses === "object") {
-    const valuesByPos = {};
-    for (let p = 1; p <= 10; p++) {
-      const key = `q${p}`;
-      const raw = responses[key];
-      const val = clamp15(raw);
-      if (val === null) return { error: `Invalid response for ${key}` };
-      valuesByPos[p] = val;
-    }
-    return { valuesByPos };
-  }
-
-  // Shape A: array of {question_id, response_value}
-  if (Array.isArray(responses)) {
-    return { responsesArray: responses };
-  }
-
-  return { error: "responses must be an array or an object {q1..q10}" };
+// Basic UUID check (prevents junk IDs being stored)
+function looksLikeUuid(s) {
+  return (
+    typeof s === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)
+  );
 }
 
 export async function POST(req) {
@@ -97,6 +73,20 @@ export async function POST(req) {
 
     const employee_email = body?.employee_email || null;
 
+    // Accept either:
+    // - responses: [ {question_id, response_value}, ... ]  (preferred)
+    // - responses: { q1: 5, q2: 4, ... }                  (legacy)
+    let responses = [];
+    if (Array.isArray(body?.responses)) {
+      responses = body.responses;
+    } else if (body?.responses && typeof body.responses === "object") {
+      // legacy object -> convert to array with no question_id (we’ll fail nicely)
+      responses = Object.entries(body.responses).map(([k, v]) => ({
+        question_key: k,
+        response_value: v,
+      }));
+    }
+
     if (!organisation_id) {
       return NextResponse.json({ ok: false, error: "Missing organisation_id" }, { status: 400 });
     }
@@ -106,83 +96,64 @@ export async function POST(req) {
         { status: 400 }
       );
     }
-
-    const norm = normalizeIncomingResponses(body);
-    if (norm.error) {
-      return NextResponse.json({ ok: false, error: norm.error }, { status: 400 });
+    if (responses.length !== 10) {
+      return NextResponse.json(
+        { ok: false, error: `Expected 10 responses, got ${responses.length}` },
+        { status: 400 }
+      );
     }
 
-    let valuesByPos = norm.valuesByPos || null;
+    // We REQUIRE question_id for the array version (your curl uses this)
+    const ids = responses.map((r) => r.question_id).filter(Boolean);
+    if (ids.length !== 10) {
+      return NextResponse.json(
+        { ok: false, error: "Each response must include question_id" },
+        { status: 400 }
+      );
+    }
 
-    // If we got array format, map question_id -> position
-    if (!valuesByPos) {
-      const responses = norm.responsesArray || [];
-      if (responses.length !== 10) {
+    const { data: qRows, error: qErr } = await supabase
+      .from("hri_pulse_questions")
+      .select("id, position")
+      .in("id", ids);
+
+    if (qErr) {
+      return NextResponse.json({ ok: false, error: qErr.message }, { status: 500 });
+    }
+
+    const posById = Object.fromEntries((qRows || []).map((q) => [q.id, Number(q.position)]));
+
+    const valuesByPos = {};
+    for (const r of responses) {
+      const pos = posById[r.question_id]; // now guaranteed number
+      if (pos >= 1 && pos <= 10) valuesByPos[pos] = clamp1to5(r.response_value);
+    }
+
+    // Ensure we don’t write 0s by accident if something goes missing
+    for (let p = 1; p <= 10; p++) {
+      if (valuesByPos[p] == null) {
         return NextResponse.json(
-          { ok: false, error: `Expected 10 responses, got ${responses.length}` },
+          { ok: false, error: `Missing/invalid response for position ${p}` },
           { status: 400 }
         );
       }
-
-      const ids = responses.map((r) => r?.question_id).filter(Boolean);
-
-      const { data: qRows, error: qErr } = await supabase
-        .from("hri_pulse_questions")
-        .select("id, position")
-        .in("id", ids);
-
-      if (qErr) {
-        return NextResponse.json({ ok: false, error: qErr.message }, { status: 500 });
-      }
-
-      const posById = Object.fromEntries((qRows || []).map((q) => [q.id, q.position]));
-
-      valuesByPos = {};
-      for (const r of responses) {
-        const pos = posById[r.question_id];
-        const val = clamp15(r.response_value);
-        if (!pos) continue;
-        if (val === null) {
-          return NextResponse.json(
-            { ok: false, error: `Invalid response_value for position ${pos}` },
-            { status: 400 }
-          );
-        }
-        valuesByPos[pos] = val;
-      }
-    }
-
-    // HARD STOP if any position missing (prevents null->0 nonsense)
-    const missing = [];
-    for (let p = 1; p <= 10; p++) {
-      if (valuesByPos[p] == null) missing.push(p);
-    }
-    if (missing.length) {
-      return NextResponse.json(
-        { ok: false, error: `Missing positions: ${missing.join(", ")}`, valuesByPos },
-        { status: 400 }
-      );
     }
 
     const summary = calcSummary(valuesByPos);
 
     const submissionPayload = {
-      organization_id: String(organisation_id), // legacy
-      organisation_id: String(organisation_id), // uuid
+      organization_id: String(organisation_id),
+      organisation_id: String(organisation_id),
       employee_email,
       submitted_at: new Date().toISOString(),
       ...summary,
     };
 
-    // IMPORTANT: do NOT Number(null) -> 0. Keep it null (but we already enforced none missing)
+    // IMPORTANT: do NOT Number(null) => 0
     for (const [posStr, col] of Object.entries(POS_TO_COL)) {
-      const p = Number(posStr);
-      const val = clamp15(valuesByPos[p]);
-      submissionPayload[col] = val; // 1..5
+      const pos = Number(posStr);
+      submissionPayload[col] = valuesByPos[pos]; // already 1..5
     }
-
-    // Debug (optional): uncomment for one run if needed
-    // console.log("PULSE INSERT PAYLOAD:", submissionPayload);
 
     const { data: submission, error: subErr } = await supabase
       .from("pulse_check_submissions")
@@ -210,10 +181,7 @@ export async function GET(req) {
   }
 
   const { searchParams } = new URL(req.url);
-  const organisation_id =
-    searchParams.get("organisation_id") ||
-    searchParams.get("organization_id") ||
-    searchParams.get("org_id");
+  const organisation_id = searchParams.get("organisation_id") || searchParams.get("organization_id");
 
   if (!organisation_id) {
     return NextResponse.json({ ok: false, error: "Missing organisation_id" }, { status: 400 });
