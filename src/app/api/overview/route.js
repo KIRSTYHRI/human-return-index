@@ -1,109 +1,74 @@
 import { NextResponse } from "next/server";
-import { supabaseServer } from "../../lib/supabase/server";
+import { supabaseServer } from "../../../lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
-
-async function getUserOrg(supabase, userId) {
-  // Matches what your /api/me/org is returning
-  const { data, error } = await supabase
-    .from("organisation_users")
-    .select("organisation_id, role")
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (error) throw error;
-  return data || null;
-}
-
-async function getLatestAssessment(supabase, organisation_id) {
-  // Try hri_assessments first (common in your build)
-  const tryHri = await supabase
-    .from("hri_assessments")
-    .select("id, title, status, period_start, period_end, created_at")
-    .eq("organisation_id", organisation_id)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (!tryHri.error && tryHri.data) return { source: "hri_assessments", row: tryHri.data };
-
-  // Fallback: assessments
-  const tryAssessments = await supabase
-    .from("assessments")
-    .select("id, title, status, period_start, period_end, created_at")
-    .eq("organisation_id", organisation_id)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (tryAssessments.error) {
-    // Don’t crash the UI – return null + message
-    return { source: "none", row: null, error: tryAssessments.error.message };
-  }
-
-  return { source: "assessments", row: tryAssessments.data || null };
-}
 
 export async function GET() {
   try {
     const supabase = supabaseServer();
 
-    // 1) Auth
+    // must be logged in (works in browser; curl won't have cookies)
     const { data: userData, error: userErr } = await supabase.auth.getUser();
-    if (userErr) throw userErr;
-    const user = userData?.user;
-    if (!user) {
-      return NextResponse.json({ ok: false, error: "Not authenticated" }, { status: 401 });
+    if (userErr || !userData?.user) {
+      return NextResponse.json({ ok: false, error: "Auth session missing!" }, { status: 401 });
     }
 
-    // 2) Org
-    const orgRow = await getUserOrg(supabase, user.id);
-    const organisation_id = orgRow?.organisation_id || null;
+    // org context
+    const { data: orgRow, error: orgErr } = await supabase
+      .from("organisation_users")
+      .select("organisation_id, role")
+      .eq("user_id", userData.user.id)
+      .maybeSingle();
 
-    if (!organisation_id) {
+    if (orgErr || !orgRow?.organisation_id) {
       return NextResponse.json(
-        { ok: true, overview: null, message: "No organisation linked to this user." },
-        { status: 200 }
+        { ok: false, error: "No organisation linked to this user." },
+        { status: 400 }
       );
     }
 
-    // 3) Latest assessment
-    const latest = await getLatestAssessment(supabase, organisation_id);
+    const organisation_id = orgRow.organisation_id;
 
-    if (!latest.row) {
-      return NextResponse.json(
-        {
-          ok: true,
-          overview: null,
-          organisation_id,
-          message: latest?.error
-            ? `Could not read latest assessment: ${latest.error}`
-            : "No assessments found yet.",
-        },
-        { status: 200 }
-      );
+    // latest assessment for this org (adjust if your table name differs)
+    const { data: assessment, error: aErr } = await supabase
+      .from("assessments")
+      .select("id, title, period_start, period_end, status")
+      .eq("organisation_id", organisation_id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    // No assessment yet = not an error, just return empty overview
+    if (aErr) {
+      return NextResponse.json({ ok: false, error: aErr.message }, { status: 500 });
     }
 
-    // 4) Exact shape CurrentAssessmentCard expects
-    const a = latest.row;
-
-    return NextResponse.json(
-      {
+    if (!assessment?.id) {
+      return NextResponse.json({
         ok: true,
         overview: {
           organisation_id,
-          assessment_id: a.id,
-          title: a.title ?? "Untitled assessment",
-          status: a.status ?? "unknown",
-          period_start: a.period_start ?? null,
-          period_end: a.period_end ?? null,
-          created_at: a.created_at ?? null,
-          source: latest.source,
+          assessment_id: null,
+          title: null,
+          period_start: null,
+          period_end: null,
+          status: null,
         },
+      });
+    }
+
+    return NextResponse.json({
+      ok: true,
+      overview: {
+        organisation_id,
+        assessment_id: assessment.id,
+        title: assessment.title || "Assessment",
+        period_start: assessment.period_start || "",
+        period_end: assessment.period_end || "",
+        status: assessment.status || "draft",
       },
-      { status: 200 }
-    );
+    });
   } catch (e) {
     return NextResponse.json(
       { ok: false, error: e?.message || "Unexpected error" },
