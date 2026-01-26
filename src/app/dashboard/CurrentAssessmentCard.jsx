@@ -21,40 +21,34 @@ export default function CurrentAssessmentCard() {
         setLoading(true);
         setError("");
 
-        // 1) Overview
         const overviewRes = await fetch("/api/overview", { cache: "no-store" });
-        const overviewJson = await overviewRes.json().catch(() => ({}));
+        const overviewJson = await overviewRes.json();
 
-        if (!overviewRes.ok || overviewJson.ok === false) {
-          throw new Error(overviewJson.error || "Failed to load overview");
+        if (!overviewRes.ok || overviewJson?.ok === false) {
+          throw new Error(overviewJson?.error || "Failed to load overview");
         }
 
-        const ov = overviewJson?.overview ?? null;
+        const ov = overviewJson?.overview || null;
         setOverview(ov);
 
-        // If no current assessment yet → stop gracefully
-        if (!ov || !ov.assessment_id) {
+        // If there is no assessment yet, just show empty state (no crash)
+        if (!ov?.assessment_id) {
           setScores([]);
           return;
         }
 
-        // 2) Pillar scores
         const scoresRes = await fetch(
-          `/api/assessment-scores?assessment_id=${encodeURIComponent(
-            ov.assessment_id
-          )}`,
+          `/api/assessment-scores?assessment_id=${encodeURIComponent(ov.assessment_id)}`,
           { cache: "no-store" }
         );
+        const scoresJson = await scoresRes.json();
 
-        const scoresJson = await scoresRes.json().catch(() => ({}));
-
-        if (!scoresRes.ok || scoresJson.ok === false) {
-          throw new Error(scoresJson.error || "Failed to load scores");
+        if (!scoresRes.ok || scoresJson?.ok === false) {
+          throw new Error(scoresJson?.error || "Failed to load scores");
         }
 
-        setScores(Array.isArray(scoresJson.scores) ? scoresJson.scores : []);
+        setScores(scoresJson.scores || []);
       } catch (err) {
-        console.error("Error loading current assessment card:", err);
         setError(err?.message || "Something went wrong loading assessment");
       } finally {
         setLoading(false);
@@ -65,9 +59,8 @@ export default function CurrentAssessmentCard() {
   }, []);
 
   const hasScores = Array.isArray(scores) && scores.length > 0;
-
   const overallScore = hasScores
-    ? Math.round(scores.reduce((sum, s) => sum + (Number(s.score) || 0), 0) / scores.length)
+    ? Math.round(scores.reduce((sum, s) => sum + (s.score || 0), 0) / scores.length)
     : null;
 
   const badgeLabel = computeBadge(overallScore);
@@ -76,26 +69,19 @@ export default function CurrentAssessmentCard() {
     <section
       style={{
         borderRadius: 16,
-        border: "1px solid #1F2937",
+        border: "1px solid #eee",
         padding: 20,
         marginBottom: 24,
-        background: "#070A12",
+        background: "#fff",
+        boxShadow: "0 4px 12px rgba(0,0,0,0.04)",
       }}
     >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          gap: 16,
-          alignItems: "flex-start",
-          marginBottom: 12,
-        }}
-      >
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "flex-start" }}>
         <div>
-          <h2 style={{ fontSize: 20, fontWeight: 900, margin: 0, marginBottom: 6 }}>
+          <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0, marginBottom: 4 }}>
             Current HRI Assessment
           </h2>
-          <p style={{ margin: 0, fontSize: 13, color: "#9CA3AF" }}>
+          <p style={{ margin: 0, fontSize: 13, opacity: 0.7 }}>
             Live view of your latest internal assessment, powered by real responses and pillar scores.
           </p>
         </div>
@@ -105,82 +91,58 @@ export default function CurrentAssessmentCard() {
             padding: "6px 12px",
             borderRadius: 999,
             fontSize: 12,
-            fontWeight: 900,
+            fontWeight: 600,
             background:
               badgeLabel === "HRI Accredited Plus"
                 ? "#000"
                 : badgeLabel === "HRI Accredited"
-                ? "#FEE000"
-                : "#111827",
+                ? "#ffe169"
+                : "#f4f4f4",
             color:
               badgeLabel === "HRI Accredited Plus"
                 ? "#fff"
                 : badgeLabel === "HRI Accredited"
-                ? "#111827"
-                : "#9CA3AF",
+                ? "#000"
+                : "#444",
             whiteSpace: "nowrap",
-            border: "1px solid #1F2937",
           }}
         >
           {badgeLabel}
         </span>
       </div>
 
-      {loading && <div style={{ fontSize: 13, color: "#9CA3AF" }}>Loading current assessment…</div>}
+      {loading && <div style={{ fontSize: 13, opacity: 0.7, marginTop: 10 }}>Loading current assessment…</div>}
 
       {error && (
-        <div
-          style={{
-            marginTop: 10,
-            padding: 10,
-            borderRadius: 10,
-            background: "#2A0B0B",
-            color: "#FCA5A5",
-            border: "1px solid #7F1D1D",
-            fontSize: 13,
-            fontWeight: 700,
-          }}
-        >
+        <div style={{ marginTop: 12, padding: 10, borderRadius: 8, background: "#ffe6e6", color: "#7a0000", fontSize: 13 }}>
           {error}
         </div>
       )}
 
-      {!loading && !error && !overview && (
-        <div style={{ marginTop: 10, fontSize: 13, color: "#9CA3AF" }}>
-          No current assessment found yet. Create one to see your HRI score here.
+      {!loading && !error && !overview?.assessment_id && (
+        <div style={{ marginTop: 12, fontSize: 13, opacity: 0.8 }}>
+          No current assessment found for this organisation yet.
+          <div style={{ marginTop: 8 }}>
+            Go to <strong>Dashboard → Assessment</strong> and create one, then this card will populate.
+          </div>
         </div>
       )}
 
-      {!loading && !error && overview && (
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 16,
-            marginTop: 14,
-            alignItems: "center",
-          }}
-        >
+      {!loading && !error && overview?.assessment_id && (
+        <div style={{ marginTop: 12, display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 16 }}>
           <div>
-            <div style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 0.08, color: "#9CA3AF" }}>
-              Assessment
-            </div>
-            <div style={{ fontSize: 15, fontWeight: 900, color: "#E5E7EB" }}>
-              {overview.title || "Untitled assessment"}
-            </div>
-            <div style={{ fontSize: 12, color: "#9CA3AF", marginTop: 4 }}>
-              {overview.period_start || "—"} → {overview.period_end || "—"} • Status:{" "}
-              {overview.status || "—"}
+            <div style={{ fontSize: 12, textTransform: "uppercase", opacity: 0.6, marginBottom: 4 }}>Assessment</div>
+            <div style={{ fontSize: 14, fontWeight: 600 }}>{overview.title}</div>
+            <div style={{ fontSize: 12, opacity: 0.7 }}>
+              {overview.period_start} → {overview.period_end} • Status: {overview.status}
             </div>
           </div>
 
-          <div style={{ marginLeft: "auto", textAlign: "right" }}>
-            <div style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 0.08, color: "#9CA3AF" }}>
-              Overall HRI Score
-            </div>
-            <div style={{ fontSize: 28, fontWeight: 1000, color: "#FEE000" }}>
-              {overallScore != null ? overallScore : "–"}
-              <span style={{ fontSize: 14, color: "#9CA3AF", marginLeft: 4 }}>/100</span>
+          <div style={{ textAlign: "right" }}>
+            <div style={{ fontSize: 12, textTransform: "uppercase", opacity: 0.6 }}>Overall HRI Score</div>
+            <div style={{ fontSize: 26, fontWeight: 800 }}>
+              {overallScore != null ? `${overallScore}` : "–"}
+              {overallScore != null && <span style={{ fontSize: 14, opacity: 0.7 }}>/100</span>}
             </div>
           </div>
         </div>
