@@ -1,41 +1,17 @@
 import { NextResponse } from "next/server";
-import { supabaseServer } from "../../lib/supabase/server";
+import { supabaseServer } from "../../../lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-async function tryFetchScores(supabase, assessment_id) {
-  // Try table: scores
-  const a = await supabase
-    .from("scores")
-    .select("pillar, score")
-    .eq("assessment_id", assessment_id);
-
-  if (!a.error) return a.data || [];
-
-  // Fallback: hri_scores
-  const b = await supabase
-    .from("hri_scores")
-    .select("pillar, score")
-    .eq("assessment_id", assessment_id);
-
-  if (!b.error) return b.data || [];
-
-  // Fallback: pillar_scores (some builds store here)
-  const c = await supabase
-    .from("pillar_scores")
-    .select("pillar, score")
-    .eq("assessment_id", assessment_id);
-
-  if (!c.error) return c.data || [];
-
-  // If all fail, return empty but with last error
-  return [];
-}
-
 export async function GET(req) {
   try {
     const supabase = supabaseServer();
+
+    const { data: userData, error: userErr } = await supabase.auth.getUser();
+    if (userErr || !userData?.user) {
+      return NextResponse.json({ ok: false, error: "Auth session missing!" }, { status: 401 });
+    }
 
     const url = new URL(req.url);
     const assessment_id = url.searchParams.get("assessment_id");
@@ -43,10 +19,22 @@ export async function GET(req) {
       return NextResponse.json({ ok: false, error: "Missing assessment_id" }, { status: 400 });
     }
 
-    const scores = await tryFetchScores(supabase, assessment_id);
+    // Pull pillar scores for this assessment (adjust table name/columns if needed)
+    const { data, error } = await supabase
+      .from("scores") // << if your pillar score table is different, tell me its name
+      .select("pillar, score")
+      .eq("assessment_id", assessment_id)
+      .order("pillar", { ascending: true });
 
-    return NextResponse.json({ ok: true, scores }, { status: 200 });
+    if (error) {
+      return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ ok: true, scores: data || [] });
   } catch (e) {
-    return NextResponse.json({ ok: false, error: e?.message || "Unexpected error" }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, error: e?.message || "Unexpected error" },
+      { status: 500 }
+    );
   }
 }
