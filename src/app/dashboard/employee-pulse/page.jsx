@@ -23,14 +23,17 @@ export default function EmployeePulsePage() {
         // 1) Get org context (so we don't hardcode org IDs)
         const orgRes = await fetch("/api/me/org", { cache: "no-store" });
         const orgJson = await orgRes.json();
+
         if (!orgRes.ok || orgJson?.ok === false) {
           throw new Error(orgJson?.error || "Failed to load organisation context");
         }
+
         setOrg(orgJson);
 
         // 2) Load pulse questions
         const qRes = await fetch("/api/pulse-questions", { cache: "no-store" });
         const qJson = await qRes.json();
+
         if (!qRes.ok || qJson?.ok === false) {
           throw new Error(qJson?.error || "Failed to load pulse questions");
         }
@@ -75,9 +78,7 @@ export default function EmployeePulsePage() {
       if (!total) throw new Error("No questions loaded.");
       if (!allAnswered) throw new Error(`Please answer all questions (${answeredCount}/${total}).`);
 
-      const organisation_id =
-        org?.organisation_id || org?.organization_id || org?.org_id || null;
-
+      const organisation_id = org?.organisation_id || org?.organization_id || org?.org_id || null;
       if (!organisation_id) throw new Error("Missing organisation_id from /api/me/org");
 
       const payload = {
@@ -92,11 +93,15 @@ export default function EmployeePulsePage() {
       });
 
       const json = await res.json();
+
       if (!res.ok || json?.ok === false) {
         throw new Error(json?.error || "Failed to submit pulse.");
       }
 
+      // ✅ FIX: your API returns { ok:true, submission:{ id:... } }
+      console.log("employee-pulse response json:", json);
       const newId = json?.submission?.id ?? "unknown";
+
       setSuccess(`Saved ✅ Pulse ID: ${newId}`);
 
       // optional reset
@@ -109,7 +114,14 @@ export default function EmployeePulsePage() {
   }
 
   return (
-    <main style={{ maxWidth: 1120, margin: "0 auto", padding: "24px 16px 40px", color: "#E5E7EB" }}>
+    <main
+      style={{
+        maxWidth: 1120,
+        margin: "0 auto",
+        padding: "24px 16px 40px",
+        color: "#E5E7EB",
+      }}
+    >
       <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 6 }}>Employee Pulse</h1>
 
       <p style={{ fontSize: 14, color: "#9CA3AF", marginBottom: 18 }}>
@@ -143,7 +155,14 @@ export default function EmployeePulsePage() {
                     "radial-gradient(circle at top left, #020617 0%, #020617 45%, #030712 100%)",
                 }}
               >
-                <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", color: "#9CA3AF" }}>
+                <div
+                  style={{
+                    fontSize: 11,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.08em",
+                    color: "#9CA3AF",
+                  }}
+                >
                   {q.pillar}
                 </div>
 
@@ -208,3 +227,4 @@ export default function EmployeePulsePage() {
     </main>
   );
 }
+
