@@ -96,8 +96,9 @@ export default function EmployeePulsePage() {
         throw new Error(json?.error || "Failed to submit pulse.");
       }
 
-      const newId = json?.submission?.id || "unknown";
+      const newId = json?.submission?.id ?? "unknown";
       setSuccess(`Saved ✅ Pulse ID: ${newId}`);
+
       // optional reset
       // setAnswers({});
     } catch (e) {
