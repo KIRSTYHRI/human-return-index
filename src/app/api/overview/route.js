@@ -8,22 +8,19 @@ export async function GET(req) {
   try {
     const supabase = supabaseServer();
 
-    // Allow passing org via query for dev/curl (optional)
+    // ✅ Allow curl/testing by passing organisation_id in the URL query
     const url = new URL(req.url);
     const orgFromQuery =
       url.searchParams.get("organisation_id") ||
       url.searchParams.get("organization_id") ||
       null;
 
-    // Try auth first
-    const { data: userData, error: userErr } = await supabase.auth.getUser();
-    const authedUser = !userErr && userData?.user;
-
     let organisation_id = orgFromQuery;
 
-    // If no org passed, require auth and derive org from organisation_users
+    // ✅ If org not provided, fall back to auth session (browser)
     if (!organisation_id) {
-      if (!authedUser) {
+      const { data: userData, error: userErr } = await supabase.auth.getUser();
+      if (userErr || !userData?.user) {
         return NextResponse.json(
           { ok: false, error: "Auth session missing!" },
           { status: 401 }
@@ -46,10 +43,10 @@ export async function GET(req) {
       organisation_id = orgRow.organisation_id;
     }
 
-    // ✅ IMPORTANT: your actual table is hri_assessments and org field is org_id
+    // ✅ Your real table is hri_assessments and org column is org_id
     const { data: assessment, error: aErr } = await supabase
       .from("hri_assessments")
-      .select("id, title, created_at, overall_score")
+      .select("id, title, created_at")
       .eq("org_id", organisation_id)
       .order("created_at", { ascending: false })
       .limit(1)
@@ -59,6 +56,7 @@ export async function GET(req) {
       return NextResponse.json({ ok: false, error: aErr.message }, { status: 500 });
     }
 
+    // If no assessment yet, return empty overview
     if (!assessment?.id) {
       return NextResponse.json({
         ok: true,
