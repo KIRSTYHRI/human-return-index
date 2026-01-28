@@ -29,13 +29,12 @@ export default function CurrentAssessmentCard() {
         }
 
         const ov = overviewJson?.overview || null;
-        setOverview(ov);
+setOverview(ov);
 
-        // If there is no assessment yet, just show empty state (no crash)
-        if (!ov?.assessment_id) {
-          setScores([]);
-          return;
-        }
+if (!ov || !ov.assessment_id) {
+  setScores([]);
+  return;
+}
 
         const scoresRes = await fetch(
           `/api/assessment-scores?assessment_id=${encodeURIComponent(ov.assessment_id)}`,
