@@ -7,38 +7,58 @@ export const revalidate = 0;
 function getServiceSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  // IMPORTANT: never throw here (prevents build crashes)
   if (!url || !key) return null;
-
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
-export async function POST(request) {
-  const supabase = getServiceSupabase();
+function isUuid(v) {
+  return typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
+}
 
-  if (!supabase) {
-    return NextResponse.json(
-      { ok: false, error: "Missing server env vars" },
-      { status: 500 }
-    );
-  }
-
+export async function POST(req) {
   try {
-    const body = await request.json();
+    const supabase = getServiceSupabase();
+    if (!supabase) {
+      return NextResponse.json(
+        { ok: false, error: "Missing Supabase env (NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)" },
+        { status: 500 }
+      );
+    }
 
-    const title = body?.title || "HRI Assessment";
-    const org_id = body?.org_id || body?.organisation_id || null;
+    const body = await req.json().catch(() => ({}));
+
+    // Accept any of these names (because your project mixes naming)
+    const orgId =
+      body.org_id ||
+      body.organisation_id ||
+      body.organization_id ||
+      body.organisationId ||
+      body.organizationId;
+
+    if (!isUuid(orgId)) {
+      return NextResponse.json(
+        { ok: false, error: "Missing/invalid org id. Send org_id (uuid) or organisation_id (uuid) in body." },
+        { status: 400 }
+      );
+    }
+
+    const title = (body.title || "Pilot Baseline Assessment").toString().slice(0, 200);
+    const period_start = body.period_start || null; // "YYYY-MM-DD"
+    const period_end = body.period_end || null;     // "YYYY-MM-DD"
+    const status = body.status || "active";
 
     const { data, error } = await supabase
       .from("hri_assessments")
-      .insert({
-        title,
-        org_id,
-        pillar_scores: body?.pillar_scores || {},
-        overall_score: body?.overall_score ?? null,
-      })
-      .select()
+      .insert([
+        {
+          org_id: orgId,
+          title,
+          period_start,
+          period_end,
+          status,
+        },
+      ])
+      .select("*")
       .single();
 
     if (error) {
@@ -46,9 +66,9 @@ export async function POST(request) {
     }
 
     return NextResponse.json({ ok: true, assessment: data }, { status: 200 });
-  } catch (err) {
+  } catch (e) {
     return NextResponse.json(
-      { ok: false, error: err?.message || "Internal server error" },
+      { ok: false, error: e?.message || "Unexpected error" },
       { status: 500 }
     );
   }
