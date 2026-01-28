@@ -1,65 +1,75 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { supabaseServer } from "../../../lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-function getServiceSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) return null;
-  return createClient(url, key, { auth: { persistSession: false } });
-}
-
-function isUuid(v) {
-  return typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
-}
-
-export async function GET(req) {
+export async function GET() {
   try {
-    const supabase = getServiceSupabase();
-    if (!supabase) {
+    const supabase = supabaseServer();
+
+    // 1) Must be logged in (dashboard call)
+    const { data: userData, error: userErr } = await supabase.auth.getUser();
+    if (userErr || !userData?.user) {
       return NextResponse.json(
-        { ok: false, error: "Missing Supabase env (NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)" },
-        { status: 500 }
+        { ok: false, error: "Auth session missing!" },
+        { status: 401 }
       );
     }
 
-    const { searchParams } = new URL(req.url);
-    const orgId =
-      searchParams.get("org_id") ||
-      searchParams.get("organisation_id") ||
-      searchParams.get("organization_id");
+    // 2) Get org from organisation_users
+    const { data: orgRow, error: orgErr } = await supabase
+      .from("organisation_users")
+      .select("organisation_id, role")
+      .eq("user_id", userData.user.id)
+      .maybeSingle();
 
-    if (!isUuid(orgId)) {
+    if (orgErr || !orgRow?.organisation_id) {
       return NextResponse.json(
-        { ok: false, error: "Missing/invalid organisation_id in query string" },
+        { ok: false, error: "No organisation linked to this user." },
         { status: 400 }
       );
     }
 
-    // latest assessment for org
-    const { data: latest, error: latestErr } = await supabase
+    const organisation_id = orgRow.organisation_id;
+
+    // 3) IMPORTANT: your assessments live in hri_assessments (org_id)
+    const { data: assessment, error: aErr } = await supabase
       .from("hri_assessments")
-      .select("id, title, period_start, period_end, status, created_at")
-      .eq("org_id", orgId)
+      .select("id, title, created_at")
+      .eq("org_id", organisation_id)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
 
-    if (latestErr) {
-      return NextResponse.json({ ok: false, error: latestErr.message }, { status: 500 });
+    if (aErr) {
+      return NextResponse.json({ ok: false, error: aErr.message }, { status: 500 });
     }
 
+    if (!assessment?.id) {
+      return NextResponse.json({
+        ok: true,
+        overview: {
+          organisation_id,
+          assessment_id: null,
+          title: null,
+          period_start: null,
+          period_end: null,
+          status: null,
+        },
+      });
+    }
+
+    // 4) Return overview in the shape your CurrentAssessmentCard expects
     return NextResponse.json({
       ok: true,
       overview: {
-        organisation_id: orgId,
-        assessment_id: latest?.id || null,
-        title: latest?.title || null,
-        period_start: latest?.period_start || null,
-        period_end: latest?.period_end || null,
-        status: latest?.status || null,
+        organisation_id,
+        assessment_id: assessment.id,
+        title: assessment.title || "Assessment",
+        period_start: "",
+        period_end: "",
+        status: "draft",
       },
     });
   } catch (e) {
