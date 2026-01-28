@@ -8,19 +8,22 @@ export async function GET(req) {
   try {
     const supabase = supabaseServer();
 
-    // ✅ Allow curl/testing by passing organisation_id in the URL query
+    // Allow curl usage via query param (for testing), while still supporting logged-in dashboard usage.
     const url = new URL(req.url);
-    const orgFromQuery =
+    const qpOrg =
       url.searchParams.get("organisation_id") ||
       url.searchParams.get("organization_id") ||
       null;
 
-    let organisation_id = orgFromQuery;
+    // Try auth session first (dashboard usage)
+    const { data: userData } = await supabase.auth.getUser();
+    const user = userData?.user || null;
 
-    // ✅ If org not provided, fall back to auth session (browser)
+    let organisation_id = qpOrg;
+
+    // If no org in querystring, fall back to user->organisation_users lookup
     if (!organisation_id) {
-      const { data: userData, error: userErr } = await supabase.auth.getUser();
-      if (userErr || !userData?.user) {
+      if (!user) {
         return NextResponse.json(
           { ok: false, error: "Auth session missing!" },
           { status: 401 }
@@ -30,7 +33,7 @@ export async function GET(req) {
       const { data: orgRow, error: orgErr } = await supabase
         .from("organisation_users")
         .select("organisation_id, role")
-        .eq("user_id", userData.user.id)
+        .eq("user_id", user.id)
         .maybeSingle();
 
       if (orgErr || !orgRow?.organisation_id) {
@@ -43,7 +46,7 @@ export async function GET(req) {
       organisation_id = orgRow.organisation_id;
     }
 
-    // ✅ Your real table is hri_assessments and org column is org_id
+    // IMPORTANT: Your assessments are stored in hri_assessments (org_id), not assessments (organisation_id)
     const { data: assessment, error: aErr } = await supabase
       .from("hri_assessments")
       .select("id, title, created_at")
@@ -56,7 +59,6 @@ export async function GET(req) {
       return NextResponse.json({ ok: false, error: aErr.message }, { status: 500 });
     }
 
-    // If no assessment yet, return empty overview
     if (!assessment?.id) {
       return NextResponse.json({
         ok: true,
@@ -64,21 +66,23 @@ export async function GET(req) {
           organisation_id,
           assessment_id: null,
           title: null,
-          period_start: "",
-          period_end: "",
-          status: "draft",
+          period_start: null,
+          period_end: null,
+          status: null,
         },
       });
     }
 
+    // Your hri_assessments table (based on your curl output) doesn't have period_start/end/status,
+    // so we return what exists and set the others to null.
     return NextResponse.json({
       ok: true,
       overview: {
         organisation_id,
         assessment_id: assessment.id,
         title: assessment.title || "Assessment",
-        period_start: "",
-        period_end: "",
+        period_start: null,
+        period_end: null,
         status: "draft",
       },
     });
