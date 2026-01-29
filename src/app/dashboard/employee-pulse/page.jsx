@@ -111,6 +111,7 @@ export default function EmployeePulsePage() {
         throw new Error(json?.error || "Failed to submit pulse.");
       }
 
+<<<<<<< HEAD
       // ✅ Correct field (your API returns pulse_id)
       const newId = json?.pulse_id || json?.submission?.id || null;
 
@@ -119,6 +120,10 @@ export default function EmployeePulsePage() {
       }
 
       setSuccess(`Saved ✅ Pulse ID: ${newId}`);
+=======
+      const newId = json?.submission?.id ?? "unknown";
+      setSuccess(`Saved ✅ Pulse ID: `);
+>>>>>>> e9940c2 (Fix employee pulse success message to use submission.id)
     } catch (e) {
       setError(e?.message || "Unexpected error");
     } finally {
