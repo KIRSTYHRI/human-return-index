@@ -20,7 +20,7 @@ export default function EmployeePulsePage() {
         setError("");
         setSuccess("");
 
-        // 1) Get org context (so we don't hardcode org IDs)
+        // 1) Get org context
         const orgRes = await fetch("/api/me/org", { cache: "no-store" });
         const orgJson = await orgRes.json();
         if (!orgRes.ok || orgJson?.ok === false) {
@@ -37,7 +37,6 @@ export default function EmployeePulsePage() {
           throw new Error(qJson?.error || "Failed to load pulse questions");
         }
 
-        // Your endpoint returns { ok:true, questions:[...] }
         setQuestions(Array.isArray(qJson.questions) ? qJson.questions : []);
       } catch (e) {
         setError(e?.message || "Unexpected error");
@@ -78,7 +77,9 @@ export default function EmployeePulsePage() {
 
       if (!total) throw new Error("No questions loaded.");
       if (!allAnswered) {
-        throw new Error(`Please answer all questions (${answeredCount}/${total}).`);
+        throw new Error(
+          `Please answer all questions (${answeredCount}/${total}).`
+        );
       }
 
       const organisation_id =
@@ -105,12 +106,9 @@ export default function EmployeePulsePage() {
         throw new Error(json?.error || "Failed to submit pulse.");
       }
 
-      // ✅ FIX: your API returns { ok:true, submission:{ id:... } }
+      // ✅ Your API returns { ok:true, submission:{ id:... } }
       const newId = json?.submission?.id || "unknown";
       setSuccess(`Saved ✅ Pulse ID: ${newId}`);
-
-      // Optional reset after submit
-      // setAnswers({});
     } catch (e) {
       setError(e?.message || "Unexpected error");
     } finally {
