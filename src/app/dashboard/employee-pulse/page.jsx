@@ -103,10 +103,14 @@ export default function EmployeePulsePage() {
 
       // ✅ Try all reasonable shapes, then fail loudly if missing
       const newId =
-        json?.submission?.id ??
-        json?.pulse_id ??
-        json?.id ??
-        "";
+      json?.pulse_id ||
+      json?.submission?.id ||
+      json?.latest?.pulse_id ||
+      json?.latest?.id ||
+      "unknown";
+      
+setSuccess(`Saved ✅ Pulse ID: ${newId}`);
+
 
       if (!newId) {
         setSuccess(`Saved ✅ (but API returned no id) → ${JSON.stringify(json)}`);
