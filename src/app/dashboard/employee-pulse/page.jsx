@@ -23,24 +23,21 @@ export default function EmployeePulsePage() {
         // 1) Get org context (so we don't hardcode org IDs)
         const orgRes = await fetch("/api/me/org", { cache: "no-store" });
         const orgJson = await orgRes.json();
-
         if (!orgRes.ok || orgJson?.ok === false) {
           throw new Error(
             orgJson?.error || "Failed to load organisation context"
           );
         }
-
         setOrg(orgJson);
 
         // 2) Load pulse questions
         const qRes = await fetch("/api/pulse-questions", { cache: "no-store" });
         const qJson = await qRes.json();
-
         if (!qRes.ok || qJson?.ok === false) {
           throw new Error(qJson?.error || "Failed to load pulse questions");
         }
 
-        // endpoint returns { ok:true, questions:[...] }
+        // Your endpoint returns { ok:true, questions:[...] }
         setQuestions(Array.isArray(qJson.questions) ? qJson.questions : []);
       } catch (e) {
         setError(e?.message || "Unexpected error");
@@ -81,9 +78,7 @@ export default function EmployeePulsePage() {
 
       if (!total) throw new Error("No questions loaded.");
       if (!allAnswered) {
-        throw new Error(
-          `Please answer all questions (${answeredCount}/${total}).`
-        );
+        throw new Error(`Please answer all questions (${answeredCount}/${total}).`);
       }
 
       const organisation_id =
@@ -111,10 +106,10 @@ export default function EmployeePulsePage() {
       }
 
       // ✅ FIX: your API returns { ok:true, submission:{ id:... } }
-      const newId = json?.submission?.id ?? "unknown";
+      const newId = json?.submission?.id || "unknown";
       setSuccess(`Saved ✅ Pulse ID: ${newId}`);
 
-      // optional reset
+      // Optional reset after submit
       // setAnswers({});
     } catch (e) {
       setError(e?.message || "Unexpected error");
