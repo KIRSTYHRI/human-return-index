@@ -122,6 +122,7 @@ export default function EmployeePulsePage() {
       setSuccess(`Saved ✅ Pulse ID: ${newId}`);
 =======
       const newId = json?.submission?.id ?? "unknown";
+      const newId = json?.submission?.id || "unknown";
       setSuccess(`Saved ✅ Pulse ID: `);
 >>>>>>> e9940c2 (Fix employee pulse success message to use submission.id)
     } catch (e) {
