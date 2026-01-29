@@ -98,15 +98,16 @@ export default function EmployeePulsePage() {
         throw new Error(json?.error || "Failed to submit pulse.");
       }
 
-      // Your APIs are inconsistent: sometimes submission.id, sometimes latest.pulse_id, sometimes pulse_id
-      const newId =
-        json?.pulse_id ||
-        json?.submission?.id ||
-        json?.latest?.pulse_id ||
-        json?.latest?.id ||
-        "unknown";
+      // ✅ Grab the pulse id from whatever shape the API returns
+const newId =
+  json?.latest?.pulse_id ||
+  json?.latest?.id ||
+  json?.submission?.id ||
+  json?.pulse_id ||
+  "unknown";
 
-      setSuccess(`Saved ✅ Pulse ID: ${newId}`);
+setSuccess(`Saved ✅ Pulse ID: ${newId}`);
+
 
 
       if (!newId) {
