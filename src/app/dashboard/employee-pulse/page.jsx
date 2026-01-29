@@ -20,9 +20,10 @@ export default function EmployeePulsePage() {
         setError("");
         setSuccess("");
 
-        // 1) Get org context (dashboard user must be logged in)
+        // 1) Get org context (so we don't hardcode org IDs)
         const orgRes = await fetch("/api/me/org", { cache: "no-store" });
         const orgJson = await orgRes.json();
+
         if (!orgRes.ok || orgJson?.ok === false) {
           throw new Error(orgJson?.error || "Failed to load organisation context");
         }
@@ -31,6 +32,7 @@ export default function EmployeePulsePage() {
         // 2) Load pulse questions
         const qRes = await fetch("/api/pulse-questions", { cache: "no-store" });
         const qJson = await qRes.json();
+
         if (!qRes.ok || qJson?.ok === false) {
           throw new Error(qJson?.error || "Failed to load pulse questions");
         }
@@ -52,7 +54,7 @@ export default function EmployeePulsePage() {
 
   const allAnswered = total > 0 && answeredCount === total;
 
-  // Build { q1: 5, q2: 4, ... } based on question.position
+  // Map question_id -> q1..q10 based on question.position (1..10)
   function buildQPayload() {
     const byPosition = {};
     for (const q of questions) {
@@ -81,8 +83,6 @@ export default function EmployeePulsePage() {
 
       const payload = {
         organisation_id,
-        // optional (your API supports it)
-        // employee_email: "dashboard-test@hri.com",
         responses: buildQPayload(), // { q1:5, q2:4, ... q10:5 }
       };
 
@@ -94,16 +94,26 @@ export default function EmployeePulsePage() {
 
       const json = await res.json();
 
+      // ✅ THIS will show you exactly what the API returned (check browser console)
+      console.log("EMPLOYEE PULSE API RESPONSE:", json);
+
       if (!res.ok || json?.ok === false) {
         throw new Error(json?.error || "Failed to submit pulse.");
       }
 
-      // ✅ Your API returns: { ok:true, submission:{ id:"..." } }
-      const newId = json?.submission?.id || "unknown";
-      setSuccess(`Saved ✅ Pulse ID: ${newId}`);
+      // ✅ Try all reasonable shapes, then fail loudly if missing
+      const newId =
+        json?.submission?.id ??
+        json?.pulse_id ??
+        json?.id ??
+        "";
 
-      // optional reset
-      // setAnswers({});
+      if (!newId) {
+        setSuccess(`Saved ✅ (but API returned no id) → ${JSON.stringify(json)}`);
+        return;
+      }
+
+      setSuccess(`Saved ✅ Pulse ID: ${newId}`);
     } catch (e) {
       setError(e?.message || "Unexpected error");
     } finally {
@@ -122,7 +132,7 @@ export default function EmployeePulsePage() {
       {loading && <p style={{ color: "#9CA3AF" }}>Loading pulse questions…</p>}
 
       {!loading && error && <p style={{ color: "#F97316", marginBottom: 12 }}>{error}</p>}
-      {!loading && success && <p style={{ color: "#34D399", marginBottom: 12 }}>{success}</p>}
+      {!loading && success && <p style={{ color: "#34D399", marginBottom: 12, whiteSpace: "pre-wrap" }}>{success}</p>}
 
       {!loading && questions.length === 0 && (
         <p style={{ color: "#9CA3AF" }}>No pulse questions found.</p>
