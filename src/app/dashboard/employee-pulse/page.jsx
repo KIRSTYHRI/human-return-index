@@ -92,24 +92,21 @@ export default function EmployeePulsePage() {
         body: JSON.stringify(payload),
       });
 
-      const json = await res.json();
-
-      // ✅ THIS will show you exactly what the API returned (check browser console)
-      console.log("EMPLOYEE PULSE API RESPONSE:", json);
+            const json = await res.json();
 
       if (!res.ok || json?.ok === false) {
         throw new Error(json?.error || "Failed to submit pulse.");
       }
 
-      // ✅ Try all reasonable shapes, then fail loudly if missing
+      // Your APIs are inconsistent: sometimes submission.id, sometimes latest.pulse_id, sometimes pulse_id
       const newId =
-      json?.pulse_id ||
-      json?.submission?.id ||
-      json?.latest?.pulse_id ||
-      json?.latest?.id ||
-      "unknown";
-      
-setSuccess(`Saved ✅ Pulse ID: ${newId}`);
+        json?.pulse_id ||
+        json?.submission?.id ||
+        json?.latest?.pulse_id ||
+        json?.latest?.id ||
+        "unknown";
+
+      setSuccess(`Saved ✅ Pulse ID: ${newId}`);
 
 
       if (!newId) {
