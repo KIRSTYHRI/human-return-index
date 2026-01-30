@@ -4,54 +4,20 @@ import { supabaseServer } from "../../../lib/supabase/server";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-async function getLatestAssessment(supabase, organisation_id) {
-  const attempts = [
-    { table: "hri_assessments", orgCol: "org_id" },
-    { table: "hri_assessments", orgCol: "organisation_id" },
-    { table: "hri_assessments", orgCol: "organization_id" },
-
-    { table: "assessments", orgCol: "org_id" },
-    { table: "assessments", orgCol: "organisation_id" },
-    { table: "assessments", orgCol: "organization_id" },
-  ];
-
-  const tried = [];
-
-  for (const a of attempts) {
-    tried.push(`${a.table}.${a.orgCol}`);
-
-    const { data, error } = await supabase
-      .from(a.table)
-      .select("id, title, created_at")
-      .eq(a.orgCol, organisation_id)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (error) {
-      continue; // table/column missing or blocked → try next
-    }
-
-    if (data?.id) {
-      return { assessment: data, source: a, tried };
-    }
-  }
-
-  return { assessment: null, source: null, tried };
-}
-
 export async function GET() {
   try {
     const supabase = supabaseServer();
 
+    // ✅ Ensure auth
     const { data: userData, error: userErr } = await supabase.auth.getUser();
     if (userErr || !userData?.user) {
       return NextResponse.json({ ok: false, error: "Auth session missing!" }, { status: 401 });
     }
 
+    // ✅ Resolve org for this user
     const { data: orgRow, error: orgErr } = await supabase
       .from("organisation_users")
-      .select("organisation_id, role")
+      .select("organisation_id")
       .eq("user_id", userData.user.id)
       .maybeSingle();
 
@@ -64,7 +30,18 @@ export async function GET() {
 
     const organisation_id = orgRow.organisation_id;
 
-    const { assessment, source, tried } = await getLatestAssessment(supabase, organisation_id);
+    // ✅ MATCH /api/assessments: table = hri_assessments, org column = org_id
+    const { data: assessment, error: aErr } = await supabase
+      .from("hri_assessments")
+      .select("id, title, created_at, overall_score, pillar_scores")
+      .eq("org_id", organisation_id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (aErr) {
+      return NextResponse.json({ ok: false, error: aErr.message }, { status: 500 });
+    }
 
     return NextResponse.json({
       ok: true,
@@ -72,14 +49,10 @@ export async function GET() {
         organisation_id,
         assessment_id: assessment?.id || null,
         title: assessment?.title || null,
-        period_start: null,
-        period_end: null,
+        overall_score: assessment?.overall_score ?? null,
+        pillar_scores: assessment?.pillar_scores ?? {},
+        created_at: assessment?.created_at || null,
         status: assessment?.id ? "draft" : null,
-      },
-      debug: {
-        found: !!assessment?.id,
-        source,  // tells us EXACT table/column that worked
-        tried,   // shows what it checked
       },
     });
   } catch (e) {
