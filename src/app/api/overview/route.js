@@ -4,7 +4,7 @@ import { supabaseServer } from "../../../lib/supabase/server";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-// ✅ change this string and you will SEE it in the browser immediately
+// ✅ change this string and you will SEE it in the response
 const VERSION = "OVERVIEW_V3__HRI_ASSESSMENTS__ORG_ID__NO_PERIOD_FIELDS";
 
 export async function GET() {
@@ -34,6 +34,7 @@ export async function GET() {
 
     const organisation_id = orgRow.organisation_id;
 
+    // ✅ MATCH /api/assessments output: table = hri_assessments, org column = org_id
     const { data: assessment, error: aErr } = await supabase
       .from("hri_assessments")
       .select("id, title, created_at, overall_score, pillar_scores, org_id")
