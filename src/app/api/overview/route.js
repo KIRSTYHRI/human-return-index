@@ -8,13 +8,11 @@ export async function GET() {
   try {
     const supabase = supabaseServer();
 
-    // ✅ Ensure auth
     const { data: userData, error: userErr } = await supabase.auth.getUser();
     if (userErr || !userData?.user) {
       return NextResponse.json({ ok: false, error: "Auth session missing!" }, { status: 401 });
     }
 
-    // ✅ Find org for this user
     const { data: orgRow, error: orgErr } = await supabase
       .from("organisation_users")
       .select("organisation_id")
@@ -30,10 +28,10 @@ export async function GET() {
 
     const organisation_id = orgRow.organisation_id;
 
-    // ✅ MATCH /api/assessments: table = hri_assessments, org column = org_id
+    // ✅ This matches /api/assessments output
     const { data: assessment, error: aErr } = await supabase
       .from("hri_assessments")
-      .select("id, org_id, title, created_at, overall_score, pillar_scores")
+      .select("id, title, created_at, overall_score, pillar_scores, org_id")
       .eq("org_id", organisation_id)
       .order("created_at", { ascending: false })
       .limit(1)
