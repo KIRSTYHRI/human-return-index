@@ -14,7 +14,7 @@ export async function GET() {
       return NextResponse.json({ ok: false, error: "Auth session missing!" }, { status: 401 });
     }
 
-    // ✅ Resolve org for this user
+    // ✅ Find org for this user
     const { data: orgRow, error: orgErr } = await supabase
       .from("organisation_users")
       .select("organisation_id")
@@ -33,7 +33,7 @@ export async function GET() {
     // ✅ MATCH /api/assessments: table = hri_assessments, org column = org_id
     const { data: assessment, error: aErr } = await supabase
       .from("hri_assessments")
-      .select("id, title, created_at, overall_score, pillar_scores")
+      .select("id, org_id, title, created_at, overall_score, pillar_scores")
       .eq("org_id", organisation_id)
       .order("created_at", { ascending: false })
       .limit(1)
