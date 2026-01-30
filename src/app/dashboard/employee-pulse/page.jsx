@@ -76,9 +76,7 @@ export default function EmployeePulsePage() {
       if (!total) throw new Error("No questions loaded.");
       if (!allAnswered) throw new Error(`Please answer all questions (${answeredCount}/${total}).`);
 
-      const organisation_id =
-        org?.organisation_id || org?.organization_id || org?.org_id || null;
-
+      const organisation_id = org?.organisation_id || org?.organization_id || org?.org_id || null;
       if (!organisation_id) throw new Error("Missing organisation_id from /api/me/org");
 
       const payload = {
@@ -92,26 +90,28 @@ export default function EmployeePulsePage() {
         body: JSON.stringify(payload),
       });
 
-            const json = await res.json();
-
-      if (!res.ok || json?.ok === false) {
-        throw new Error(json?.error || "Failed to submit pulse.");
+      let json = null;
+      try {
+        json = await res.json();
+      } catch {
+        json = null;
       }
 
-      // ✅ Grab the pulse id from whatever shape the API returns
-const newId =
-  json?.latest?.pulse_id ||
-  json?.latest?.id ||
-  json?.submission?.id ||
-  json?.pulse_id ||
-  "unknown";
+      if (!res.ok || json?.ok === false) {
+        const msg =
+          json?.error ||
+          json?.message ||
+          `Failed to submit pulse (HTTP ${res.status})`;
+        throw new Error(msg);
+      }
 
-setSuccess(`Saved ✅ Pulse ID: ${newId}`);
-
-
+      // ✅ Your API guarantees pulse_id/id/submission.id — use that
+      const newId = json?.pulse_id || json?.id || json?.submission?.id || "";
 
       if (!newId) {
-        setSuccess(`Saved ✅ (but API returned no id) → ${JSON.stringify(json)}`);
+        setSuccess(
+          `Saved ✅ (but API returned no pulse id)\n\nResponse:\n${JSON.stringify(json, null, 2)}`
+        );
         return;
       }
 
@@ -134,7 +134,9 @@ setSuccess(`Saved ✅ Pulse ID: ${newId}`);
       {loading && <p style={{ color: "#9CA3AF" }}>Loading pulse questions…</p>}
 
       {!loading && error && <p style={{ color: "#F97316", marginBottom: 12 }}>{error}</p>}
-      {!loading && success && <p style={{ color: "#34D399", marginBottom: 12, whiteSpace: "pre-wrap" }}>{success}</p>}
+      {!loading && success && (
+        <p style={{ color: "#34D399", marginBottom: 12, whiteSpace: "pre-wrap" }}>{success}</p>
+      )}
 
       {!loading && questions.length === 0 && (
         <p style={{ color: "#9CA3AF" }}>No pulse questions found.</p>
