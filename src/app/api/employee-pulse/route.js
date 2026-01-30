@@ -12,6 +12,13 @@ function numOrNull(v) {
 export async function POST(req) {
   try {
     const supabase = supabaseServer();
+
+    // ✅ (Recommended) Require auth session
+    const { data: userData, error: userErr } = await supabase.auth.getUser();
+    if (userErr || !userData?.user) {
+      return NextResponse.json({ ok: false, error: "Auth session missing!" }, { status: 401 });
+    }
+
     const body = await req.json();
 
     const organisation_id = body?.organisation_id || body?.organization_id || null;
@@ -39,20 +46,20 @@ export async function POST(req) {
     const q10 = numOrNull(responses.q10);
 
     // Totals (only count non-null)
-    const vals = [q1,q2,q3,q4,q5,q6,q7,q8,q9,q10].filter((v) => v != null);
+    const vals = [q1, q2, q3, q4, q5, q6, q7, q8, q9, q10].filter((v) => v != null);
     const total_score = vals.reduce((s, v) => s + v, 0);
     const average_score = vals.length ? total_score / vals.length : null;
 
-    // Pillar scores (2 qs per pillar, adjust if yours differs)
-    const pillar_1_score = (q1 != null && q2 != null) ? (q1 + q2) / 2 : null;
-    const pillar_2_score = (q3 != null && q4 != null) ? (q3 + q4) / 2 : null;
-    const pillar_3_score = (q5 != null && q6 != null) ? (q5 + q6) / 2 : null;
-    const pillar_4_score = (q7 != null && q8 != null) ? (q7 + q8) / 2 : null;
-    const pillar_5_score = (q9 != null && q10 != null) ? (q9 + q10) / 2 : null;
+    // Pillar scores (2 qs per pillar)
+    const pillar_1_score = q1 != null && q2 != null ? (q1 + q2) / 2 : null;
+    const pillar_2_score = q3 != null && q4 != null ? (q3 + q4) / 2 : null;
+    const pillar_3_score = q5 != null && q6 != null ? (q5 + q6) / 2 : null;
+    const pillar_4_score = q7 != null && q8 != null ? (q7 + q8) / 2 : null;
+    const pillar_5_score = q9 != null && q10 != null ? (q9 + q10) / 2 : null;
 
     const insertRow = {
       // your table has BOTH columns, so we set both to keep everything happy:
-      organisation_id,                 // uuid column
+      organisation_id, // uuid column
       organization_id: String(organisation_id), // text column
       employee_email,
 
@@ -89,6 +96,7 @@ export async function POST(req) {
     // ✅ ALWAYS return the ID in a predictable place
     return NextResponse.json({
       ok: true,
+      id: data?.id || null,
       pulse_id: data?.id || null,
       submission: data,
     });
