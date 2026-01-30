@@ -15,7 +15,11 @@ async function getLatestAssessment(supabase, organisation_id) {
     { table: "assessments", orgCol: "organization_id" },
   ];
 
+  const tried = [];
+
   for (const a of attempts) {
+    tried.push(`${a.table}.${a.orgCol}`);
+
     const { data, error } = await supabase
       .from(a.table)
       .select("id, title, created_at")
@@ -24,11 +28,16 @@ async function getLatestAssessment(supabase, organisation_id) {
       .limit(1)
       .maybeSingle();
 
-    if (error) continue;
-    if (data?.id) return { assessment: data, source: a };
+    if (error) {
+      continue; // table/column missing or blocked → try next
+    }
+
+    if (data?.id) {
+      return { assessment: data, source: a, tried };
+    }
   }
 
-  return { assessment: null, source: null };
+  return { assessment: null, source: null, tried };
 }
 
 export async function GET() {
@@ -55,7 +64,7 @@ export async function GET() {
 
     const organisation_id = orgRow.organisation_id;
 
-    const { assessment, source } = await getLatestAssessment(supabase, organisation_id);
+    const { assessment, source, tried } = await getLatestAssessment(supabase, organisation_id);
 
     return NextResponse.json({
       ok: true,
@@ -69,7 +78,8 @@ export async function GET() {
       },
       debug: {
         found: !!assessment?.id,
-        source,
+        source,  // tells us EXACT table/column that worked
+        tried,   // shows what it checked
       },
     });
   } catch (e) {
