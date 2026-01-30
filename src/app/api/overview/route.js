@@ -4,7 +4,7 @@ import { supabaseServer } from "../../../lib/supabase/server";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const VERSION = "OVERVIEW_V4__DEBUG_HRI_ASSESSMENTS";
+const VERSION = "OVERVIEW_V3__HRI_ASSESSMENTS__ORG_ID__NO_PERIOD_FIELDS";
 
 export async function GET() {
   try {
@@ -33,13 +33,6 @@ export async function GET() {
 
     const organisation_id = orgRow.organisation_id;
 
-    // 1) Count how many rows exist for this org (if RLS blocks, you'll get 0 or an error)
-    const { count, error: countErr } = await supabase
-      .from("hri_assessments")
-      .select("*", { count: "exact", head: true })
-      .eq("org_id", organisation_id);
-
-    // 2) Try fetch latest
     const { data: assessment, error: aErr } = await supabase
       .from("hri_assessments")
       .select("id, title, created_at, overall_score, pillar_scores, org_id")
@@ -48,17 +41,16 @@ export async function GET() {
       .limit(1)
       .maybeSingle();
 
+    if (aErr) {
+      return NextResponse.json(
+        { ok: false, version: VERSION, error: aErr.message },
+        { status: 500 }
+      );
+    }
+
     return NextResponse.json({
       ok: true,
       version: VERSION,
-      debug: {
-        user_id: userData.user.id,
-        organisation_id,
-        count,
-        countErr: countErr ? countErr.message : null,
-        aErr: aErr ? aErr.message : null,
-        found: !!assessment?.id,
-      },
       overview: {
         organisation_id,
         assessment_id: assessment?.id || null,
