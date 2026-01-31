@@ -4,6 +4,9 @@ import { supabaseServer } from "../../../lib/supabase/server";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+const VERSION = "ASSESSMENT_SCORES_V2__FETCH_RESPONSES_FROM_DB__POST_ASSESSMENT_ID";
+
+// 1–5 -> 20–100
 function to100(v) {
   const n = Number(v);
   if (!Number.isFinite(n) || n < 1 || n > 5) return null;
@@ -53,37 +56,45 @@ function computeScores(responses) {
   return { overall_score, pillar_scores };
 }
 
+// Optional: GET for quick viewing
+export async function GET(req) {
+  return NextResponse.json({ ok: true, version: VERSION, message: "POST { assessment_id } to score." });
+}
+
 export async function POST(req) {
   try {
     const supabase = supabaseServer();
 
     const { data: userData, error: userErr } = await supabase.auth.getUser();
     if (userErr || !userData?.user) {
-      return NextResponse.json({ ok: false, error: "Auth session missing!" }, { status: 401 });
+      return NextResponse.json(
+        { ok: false, version: VERSION, error: "Auth session missing!" },
+        { status: 401 }
+      );
     }
 
     const body = await req.json().catch(() => ({}));
     const assessment_id = body?.assessment_id || null;
 
     if (!assessment_id) {
-      return NextResponse.json({ ok: false, error: "Missing assessment_id" }, { status: 400 });
+      return NextResponse.json({ ok: false, version: VERSION, error: "Missing assessment_id" }, { status: 400 });
     }
 
-    // Fetch assessment (RLS will apply — you already fixed org access)
+    // Fetch assessment (RLS applies; you fixed org access)
     const { data: row, error } = await supabase
       .from("hri_assessments")
       .select("id, org_id, title, responses, overall_score, pillar_scores")
       .eq("id", assessment_id)
       .maybeSingle();
 
-    if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
-    if (!row?.id) return NextResponse.json({ ok: false, error: "Assessment not found" }, { status: 404 });
+    if (error) return NextResponse.json({ ok: false, version: VERSION, error: error.message }, { status: 500 });
+    if (!row?.id) return NextResponse.json({ ok: false, version: VERSION, error: "Assessment not found" }, { status: 404 });
 
     const responses = row.responses && typeof row.responses === "object" ? row.responses : {};
 
     if (!Object.keys(responses).length) {
       return NextResponse.json(
-        { ok: false, error: "No responses stored on this assessment yet (responses is empty)." },
+        { ok: false, version: VERSION, error: "No responses stored on this assessment yet (responses is empty)." },
         { status: 400 }
       );
     }
@@ -94,6 +105,7 @@ export async function POST(req) {
       return NextResponse.json(
         {
           ok: false,
+          version: VERSION,
           error: "Could not compute score. Expected q1..q25 with values 1–5 in responses.",
           sample_keys: Object.keys(responses).slice(0, 30),
         },
@@ -108,16 +120,17 @@ export async function POST(req) {
       .select("id, overall_score, pillar_scores")
       .maybeSingle();
 
-    if (upErr) return NextResponse.json({ ok: false, error: upErr.message }, { status: 500 });
+    if (upErr) return NextResponse.json({ ok: false, version: VERSION, error: upErr.message }, { status: 500 });
 
     return NextResponse.json({
       ok: true,
+      version: VERSION,
       updated: true,
       assessment_id: updated.id,
       overall_score: updated.overall_score,
       pillar_scores: updated.pillar_scores,
     });
   } catch (e) {
-    return NextResponse.json({ ok: false, error: e?.message || "Unexpected error" }, { status: 500 });
+    return NextResponse.json({ ok: false, version: VERSION, error: e?.message || "Unexpected error" }, { status: 500 });
   }
 }
