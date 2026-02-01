@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
+<<<<<<< HEAD
 import { supabaseServer } from "../../lib/supabase/server";
+=======
+import { supabaseServer } from "../../../lib/supabase/server";
+
+>>>>>>> 46ddbd0 (Fix Vercel build: employer-questions import + pulse-latest syntax)
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;

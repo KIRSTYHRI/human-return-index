@@ -2,6 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+<<<<<<< HEAD
+=======
+const VERSION = "EMPLOYEE_PULSE_PAGE_V4__READ_PULSE_ID__DEBUG_PANEL";
+
+>>>>>>> 46ddbd0 (Fix Vercel build: employer-questions import + pulse-latest syntax)
 export default function EmployeePulsePage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -56,7 +61,10 @@ export default function EmployeePulsePage() {
 
   const allAnswered = total > 0 && answeredCount === total;
 
+<<<<<<< HEAD
   // Map question_id -> q1..q10 based on question.position (1..10)
+=======
+>>>>>>> 46ddbd0 (Fix Vercel build: employer-questions import + pulse-latest syntax)
   function buildQPayload() {
     const byPosition = {};
     for (const q of questions) {
@@ -79,7 +87,10 @@ export default function EmployeePulsePage() {
       if (!total) throw new Error("No questions loaded.");
       if (!allAnswered) throw new Error(`Please answer all questions (${answeredCount}/${total}).`);
 
+<<<<<<< HEAD
       // Try common shapes for org id
+=======
+>>>>>>> 46ddbd0 (Fix Vercel build: employer-questions import + pulse-latest syntax)
       const organisation_id =
         org?.organisation_id ||
         org?.organization_id ||
@@ -89,13 +100,22 @@ export default function EmployeePulsePage() {
         null;
 
       if (!organisation_id) {
+<<<<<<< HEAD
         setDebug({ where: "org", org });
         throw new Error("Missing organisation_id from /api/me/org (see debug below)");
+=======
+        setDebug({ where: "org-missing", org });
+        throw new Error("Missing organisation_id from /api/me/org (see debug).");
+>>>>>>> 46ddbd0 (Fix Vercel build: employer-questions import + pulse-latest syntax)
       }
 
       const payload = {
         organisation_id,
+<<<<<<< HEAD
         responses: buildQPayload(), // { q1:5, q2:4, ... q10:5 }
+=======
+        responses: buildQPayload(),
+>>>>>>> 46ddbd0 (Fix Vercel build: employer-questions import + pulse-latest syntax)
       };
 
       const res = await fetch("/api/employee-pulse", {
@@ -105,12 +125,25 @@ export default function EmployeePulsePage() {
       });
 
       const json = await res.json().catch(() => ({}));
+<<<<<<< HEAD
       setDebug({ where: "employee-pulse response", status: res.status, json });
 
+=======
+
+      setDebug({
+        where: "employee-pulse-response",
+        status: res.status,
+        json,
+        organisation_id_used: organisation_id,
+        version: VERSION,
+      });
+
+>>>>>>> 46ddbd0 (Fix Vercel build: employer-questions import + pulse-latest syntax)
       if (!res.ok || json?.ok === false) {
         throw new Error(json?.error || "Failed to submit pulse.");
       }
 
+<<<<<<< HEAD
 <<<<<<< HEAD
       // ✅ Correct field (your API returns pulse_id)
       const newId = json?.pulse_id || json?.submission?.id || null;
@@ -125,6 +158,16 @@ export default function EmployeePulsePage() {
       const newId = json?.submission?.id || "unknown";
       setSuccess(`Saved ✅ Pulse ID: `);
 >>>>>>> e9940c2 (Fix employee pulse success message to use submission.id)
+=======
+      // ✅ Your API returns { ok:true, pulse_id, submission }
+      const newId = json?.pulse_id || json?.submission?.id || null;
+
+      if (!newId) {
+        throw new Error("Pulse saved but no pulse_id returned (see debug).");
+      }
+
+      setSuccess(`Saved ✅ Pulse ID: ${newId}`);
+>>>>>>> 46ddbd0 (Fix Vercel build: employer-questions import + pulse-latest syntax)
     } catch (e) {
       setError(e?.message || "Unexpected error");
     } finally {
@@ -134,7 +177,13 @@ export default function EmployeePulsePage() {
 
   return (
     <main style={{ maxWidth: 1120, margin: "0 auto", padding: "24px 16px 40px", color: "#E5E7EB" }}>
+<<<<<<< HEAD
       <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 6 }}>Employee Pulse</h1>
+=======
+      <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 6 }}>
+        Employee Pulse <span style={{ fontSize: 12, opacity: 0.6 }}>({VERSION})</span>
+      </h1>
+>>>>>>> 46ddbd0 (Fix Vercel build: employer-questions import + pulse-latest syntax)
 
       <p style={{ fontSize: 14, color: "#9CA3AF", marginBottom: 18 }}>
         Quick, anonymous pulse check across the five HRI pillars. Please answer each question from 1–5.
@@ -143,6 +192,7 @@ export default function EmployeePulsePage() {
       {loading && <p style={{ color: "#9CA3AF" }}>Loading pulse questions…</p>}
 
       {!loading && error && <p style={{ color: "#F97316", marginBottom: 12 }}>{error}</p>}
+<<<<<<< HEAD
       {!loading && success && (
         <p style={{ color: "#34D399", marginBottom: 12, whiteSpace: "pre-wrap" }}>{success}</p>
       )}
@@ -157,6 +207,20 @@ export default function EmployeePulsePage() {
         </details>
       )}
 
+=======
+      {!loading && success && <p style={{ color: "#34D399", marginBottom: 12 }}>{success}</p>}
+
+      {/* Debug always visible when present */}
+      {!loading && debug && (
+        <details style={{ marginBottom: 14 }}>
+          <summary style={{ cursor: "pointer", color: "#9CA3AF" }}>Debug (click to expand)</summary>
+          <pre style={{ whiteSpace: "pre-wrap", fontSize: 12, color: "#9CA3AF" }}>
+            {JSON.stringify(debug, null, 2)}
+          </pre>
+        </details>
+      )}
+
+>>>>>>> 46ddbd0 (Fix Vercel build: employer-questions import + pulse-latest syntax)
       {!loading && questions.length === 0 && <p style={{ color: "#9CA3AF" }}>No pulse questions found.</p>}
 
       {!loading && questions.length > 0 && (
@@ -173,8 +237,7 @@ export default function EmployeePulsePage() {
                   border: "1px solid #1F2937",
                   borderRadius: 12,
                   padding: 14,
-                  background:
-                    "radial-gradient(circle at top left, #020617 0%, #020617 45%, #030712 100%)",
+                  background: "radial-gradient(circle at top left, #020617 0%, #020617 45%, #030712 100%)",
                 }}
               >
                 <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", color: "#9CA3AF" }}>
@@ -242,3 +305,4 @@ export default function EmployeePulsePage() {
     </main>
   );
 }
+

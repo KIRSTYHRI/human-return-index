@@ -24,6 +24,7 @@ export function supabaseServer() {
   );
 }
 
+<<<<<<< HEAD
 // 2) Service role client (server-only, for privileged DB reads in API routes)
 export function supabaseService() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -37,3 +38,5 @@ export function supabaseService() {
     auth: { persistSession: false },
   });
 }
+=======
+>>>>>>> 46ddbd0 (Fix Vercel build: employer-questions import + pulse-latest syntax)

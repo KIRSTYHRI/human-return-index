@@ -4,9 +4,14 @@ import { supabaseServer } from "../../../lib/supabase/server";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+<<<<<<< HEAD
 const VERSION = "ASSESSMENT_SCORES_V2__FETCH_RESPONSES_FROM_DB__POST_ASSESSMENT_ID";
 
 // 1–5 -> 20–100
+=======
+const VERSION = "ASSESSMENT_SCORES_V2__POST_ASSESSMENT_ID__READ_RESPONSES_COL";
+
+>>>>>>> 46ddbd0 (Fix Vercel build: employer-questions import + pulse-latest syntax)
 function to100(v) {
   const n = Number(v);
   if (!Number.isFinite(n) || n < 1 || n > 5) return null;
@@ -56,9 +61,14 @@ function computeScores(responses) {
   return { overall_score, pillar_scores };
 }
 
+<<<<<<< HEAD
 // Optional: GET for quick viewing
 export async function GET(req) {
   return NextResponse.json({ ok: true, version: VERSION, message: "POST { assessment_id } to score." });
+=======
+export async function GET() {
+  return NextResponse.json({ ok: true, version: VERSION, message: "POST { assessment_id } to calculate and save scores." });
+>>>>>>> 46ddbd0 (Fix Vercel build: employer-questions import + pulse-latest syntax)
 }
 
 export async function POST(req) {
@@ -67,6 +77,7 @@ export async function POST(req) {
 
     const { data: userData, error: userErr } = await supabase.auth.getUser();
     if (userErr || !userData?.user) {
+<<<<<<< HEAD
       return NextResponse.json(
         { ok: false, version: VERSION, error: "Auth session missing!" },
         { status: 401 }
@@ -122,6 +133,58 @@ export async function POST(req) {
 
     if (upErr) return NextResponse.json({ ok: false, version: VERSION, error: upErr.message }, { status: 500 });
 
+=======
+      return NextResponse.json({ ok: false, version: VERSION, error: "Auth session missing!" }, { status: 401 });
+    }
+
+    const body = await req.json().catch(() => ({}));
+    const assessment_id = body?.assessment_id || null;
+
+    if (!assessment_id) {
+      return NextResponse.json({ ok: false, version: VERSION, error: "Missing assessment_id" }, { status: 400 });
+    }
+
+    const { data: row, error } = await supabase
+      .from("hri_assessments")
+      .select("id, org_id, title, responses, overall_score, pillar_scores")
+      .eq("id", assessment_id)
+      .maybeSingle();
+
+    if (error) return NextResponse.json({ ok: false, version: VERSION, error: error.message }, { status: 500 });
+    if (!row?.id) return NextResponse.json({ ok: false, version: VERSION, error: "Assessment not found" }, { status: 404 });
+
+    const responses = row.responses && typeof row.responses === "object" ? row.responses : {};
+    if (!Object.keys(responses).length) {
+      return NextResponse.json(
+        { ok: false, version: VERSION, error: "No responses stored on this assessment yet (responses is empty)." },
+        { status: 400 }
+      );
+    }
+
+    const { overall_score, pillar_scores } = computeScores(responses);
+
+    if (overall_score == null) {
+      return NextResponse.json(
+        {
+          ok: false,
+          version: VERSION,
+          error: "Could not compute score. Expected q1..q25 with values 1–5 in responses.",
+          sample_keys: Object.keys(responses).slice(0, 30),
+        },
+        { status: 400 }
+      );
+    }
+
+    const { data: updated, error: upErr } = await supabase
+      .from("hri_assessments")
+      .update({ overall_score, pillar_scores })
+      .eq("id", assessment_id)
+      .select("id, overall_score, pillar_scores")
+      .maybeSingle();
+
+    if (upErr) return NextResponse.json({ ok: false, version: VERSION, error: upErr.message }, { status: 500 });
+
+>>>>>>> 46ddbd0 (Fix Vercel build: employer-questions import + pulse-latest syntax)
     return NextResponse.json({
       ok: true,
       version: VERSION,
@@ -134,3 +197,7 @@ export async function POST(req) {
     return NextResponse.json({ ok: false, version: VERSION, error: e?.message || "Unexpected error" }, { status: 500 });
   }
 }
+<<<<<<< HEAD
+=======
+
+>>>>>>> 46ddbd0 (Fix Vercel build: employer-questions import + pulse-latest syntax)
