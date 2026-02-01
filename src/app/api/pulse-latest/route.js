@@ -8,17 +8,14 @@ export const revalidate = 0;
 export async function GET() {
   try {
     const supabase = supabaseServer();
-    const { data: userData, error: userError } = await supabase.auth.getUser();
+ const { data, error } = await admin
+  .from("employee_pulse_summary")
+  .select("*")
+  .eq("organization_id", organisationId)
+  .order("created_at", { ascending: false })
+  .limit(1)
+  .maybeSingle();
 
-    if (userError || !userData?.user) {
-      return NextResponse.json({ ok: false, error: "Auth session missing!" }, { status: 401 });
-    }
-
-    const { data: orgRow, error: orgError } = await supabase
-      .from("organisation_users")
-      .select("organisation_id")
-      .eq("user_id", userData.user.id)
-      .maybeSingle();
 
     if (orgError || !orgRow?.organisation_id) {
       return NextResponse.json({ ok: false, error: "No organisation linked to this user." }, { status: 400 });
