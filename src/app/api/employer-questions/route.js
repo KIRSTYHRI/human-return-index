@@ -1,10 +1,5 @@
 import { NextResponse } from "next/server";
-<<<<<<< HEAD
-import { supabaseServer } from "../../lib/supabase/server";
-=======
 import { supabaseServer } from "../../../lib/supabase/server";
-
->>>>>>> 46ddbd0 (Fix Vercel build: employer-questions import + pulse-latest syntax)
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -13,22 +8,17 @@ export async function GET() {
   try {
     const supabase = supabaseServer();
 
-    // Questions are generic (not org-specific), so no auth required.
     const { data, error } = await supabase
       .from("employer_questions")
-      .select("id, pillar, position, question_text")
-      .order("pillar", { ascending: true })
+      .select("id, position, pillar, question_text")
       .order("position", { ascending: true });
 
     if (error) {
       return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true, questions: data || [] });
+    return NextResponse.json({ ok: true, questions: data || [] }, { status: 200 });
   } catch (e) {
-    return NextResponse.json(
-      { ok: false, error: e?.message || "Unexpected error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ ok: false, error: e?.message || "Unexpected error" }, { status: 500 });
   }
 }

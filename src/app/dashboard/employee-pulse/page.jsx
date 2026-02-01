@@ -2,22 +2,22 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-<<<<<<< HEAD
-=======
 const VERSION = "EMPLOYEE_PULSE_PAGE_V4__READ_PULSE_ID__DEBUG_PANEL";
 
->>>>>>> 46ddbd0 (Fix Vercel build: employer-questions import + pulse-latest syntax)
 export default function EmployeePulsePage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-
-  const [org, setOrg] = useState(null);
-  const [questions, setQuestions] = useState([]);
-  const [answers, setAnswers] = useState({}); // { [question_id]: 1..5 }
-
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [debug, setDebug] = useState(null);
+
+  const [questions, setQuestions] = useState([]);
+  const [answers, setAnswers] = useState({});
+  const [employeeEmail, setEmployeeEmail] = useState("");
+
+  const answeredCount = useMemo(() => Object.keys(answers || {}).length, [answers]);
+  const total = questions.length;
+  const allAnswered = total > 0 && answeredCount === total;
 
   useEffect(() => {
     (async () => {
@@ -25,97 +25,61 @@ export default function EmployeePulsePage() {
         setLoading(true);
         setError("");
         setSuccess("");
-        setDebug(null);
 
-        // 1) Get org context
-        const orgRes = await fetch("/api/me/org", { cache: "no-store" });
-        const orgJson = await orgRes.json();
+        const res = await fetch("/api/employee-questions", { cache: "no-store" });
+        const json = await res.json();
 
-        if (!orgRes.ok || orgJson?.ok === false) {
-          throw new Error(orgJson?.error || "Failed to load organisation context");
-        }
-        setOrg(orgJson);
+        if (!res.ok || !json.ok) throw new Error(json.error || "Failed to load employee questions.");
 
-        // 2) Load pulse questions
-        const qRes = await fetch("/api/pulse-questions", { cache: "no-store" });
-        const qJson = await qRes.json();
-
-        if (!qRes.ok || qJson?.ok === false) {
-          throw new Error(qJson?.error || "Failed to load pulse questions");
-        }
-
-        setQuestions(Array.isArray(qJson.questions) ? qJson.questions : []);
+        setQuestions(json.questions || []);
       } catch (e) {
-        setError(e?.message || "Unexpected error");
+        setError(e?.message || "Failed to load questions.");
       } finally {
         setLoading(false);
       }
     })();
   }, []);
 
-  const total = questions.length;
+  function setAnswer(questionId, value) {
+    setAnswers((prev) => ({ ...(prev || {}), [questionId]: value }));
+  }
 
-  const answeredCount = useMemo(() => {
-    return Object.values(answers).filter((v) => Number(v) >= 1 && Number(v) <= 5).length;
-  }, [answers]);
-
-  const allAnswered = total > 0 && answeredCount === total;
-
-<<<<<<< HEAD
-  // Map question_id -> q1..q10 based on question.position (1..10)
-=======
->>>>>>> 46ddbd0 (Fix Vercel build: employer-questions import + pulse-latest syntax)
   function buildQPayload() {
     const byPosition = {};
     for (const q of questions) {
-      const pos = Number(q.position);
-      if (!Number.isFinite(pos) || pos < 1 || pos > 10) continue;
-
-      const val = Number(answers[q.id]);
-      byPosition[`q${pos}`] = Number.isFinite(val) ? val : null;
+      const v = answers?.[q.id];
+      if (v != null) byPosition[q.position] = v;
     }
-    return byPosition;
+    const out = {};
+    for (let i = 1; i <= 10; i++) out[`q${i}`] = byPosition[i] ?? null;
+    return out;
   }
 
-  async function submitPulse() {
+  async function handleSubmit() {
     try {
       setSubmitting(true);
       setError("");
       setSuccess("");
-      setDebug(null);
 
       if (!total) throw new Error("No questions loaded.");
       if (!allAnswered) throw new Error(`Please answer all questions (${answeredCount}/${total}).`);
 
-<<<<<<< HEAD
-      // Try common shapes for org id
-=======
->>>>>>> 46ddbd0 (Fix Vercel build: employer-questions import + pulse-latest syntax)
+      const orgRes = await fetch("/api/me/org", { cache: "no-store" });
+      const orgJson = await orgRes.json().catch(() => ({}));
+      const org = orgJson?.org || orgJson;
+
       const organisation_id =
-        org?.organisation_id ||
-        org?.organization_id ||
-        org?.org_id ||
-        org?.organisation?.organisation_id ||
-        org?.organization?.organization_id ||
-        null;
+        org?.organisation_id || org?.organization_id || org?.organisationId || org?.org_id || null;
 
       if (!organisation_id) {
-<<<<<<< HEAD
-        setDebug({ where: "org", org });
-        throw new Error("Missing organisation_id from /api/me/org (see debug below)");
-=======
-        setDebug({ where: "org-missing", org });
+        setDebug({ where: "org-missing", orgJson });
         throw new Error("Missing organisation_id from /api/me/org (see debug).");
->>>>>>> 46ddbd0 (Fix Vercel build: employer-questions import + pulse-latest syntax)
       }
 
       const payload = {
         organisation_id,
-<<<<<<< HEAD
-        responses: buildQPayload(), // { q1:5, q2:4, ... q10:5 }
-=======
+        employee_email: employeeEmail || null,
         responses: buildQPayload(),
->>>>>>> 46ddbd0 (Fix Vercel build: employer-questions import + pulse-latest syntax)
       };
 
       const res = await fetch("/api/employee-pulse", {
@@ -125,49 +89,15 @@ export default function EmployeePulsePage() {
       });
 
       const json = await res.json().catch(() => ({}));
-<<<<<<< HEAD
-      setDebug({ where: "employee-pulse response", status: res.status, json });
 
-=======
+      setDebug({ where: "employee-pulse-response", status: res.status, json, version: VERSION });
 
-      setDebug({
-        where: "employee-pulse-response",
-        status: res.status,
-        json,
-        organisation_id_used: organisation_id,
-        version: VERSION,
-      });
+      if (!res.ok || json?.ok === false) throw new Error(json?.error || "Failed to submit pulse.");
 
->>>>>>> 46ddbd0 (Fix Vercel build: employer-questions import + pulse-latest syntax)
-      if (!res.ok || json?.ok === false) {
-        throw new Error(json?.error || "Failed to submit pulse.");
-      }
-
-<<<<<<< HEAD
-<<<<<<< HEAD
-      // ✅ Correct field (your API returns pulse_id)
       const newId = json?.pulse_id || json?.submission?.id || null;
-
-      if (!newId) {
-        throw new Error("Pulse saved but no pulse_id returned (see debug below).");
-      }
+      if (!newId) throw new Error("Pulse saved but no ID returned (check debug).");
 
       setSuccess(`Saved ✅ Pulse ID: ${newId}`);
-=======
-      const newId = json?.submission?.id ?? "unknown";
-      const newId = json?.submission?.id || "unknown";
-      setSuccess(`Saved ✅ Pulse ID: `);
->>>>>>> e9940c2 (Fix employee pulse success message to use submission.id)
-=======
-      // ✅ Your API returns { ok:true, pulse_id, submission }
-      const newId = json?.pulse_id || json?.submission?.id || null;
-
-      if (!newId) {
-        throw new Error("Pulse saved but no pulse_id returned (see debug).");
-      }
-
-      setSuccess(`Saved ✅ Pulse ID: ${newId}`);
->>>>>>> 46ddbd0 (Fix Vercel build: employer-questions import + pulse-latest syntax)
     } catch (e) {
       setError(e?.message || "Unexpected error");
     } finally {
@@ -175,134 +105,107 @@ export default function EmployeePulsePage() {
     }
   }
 
+  if (loading) {
+    return (
+      <main style={{ maxWidth: 1120, margin: "0 auto", padding: "24px 16px 40px", color: "#E5E7EB" }}>
+        <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 6 }}>Employee Pulse</h1>
+        <div style={{ opacity: 0.8 }}>Loading…</div>
+      </main>
+    );
+  }
+
   return (
     <main style={{ maxWidth: 1120, margin: "0 auto", padding: "24px 16px 40px", color: "#E5E7EB" }}>
-<<<<<<< HEAD
-      <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 6 }}>Employee Pulse</h1>
-=======
       <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 6 }}>
         Employee Pulse <span style={{ fontSize: 12, opacity: 0.6 }}>({VERSION})</span>
       </h1>
->>>>>>> 46ddbd0 (Fix Vercel build: employer-questions import + pulse-latest syntax)
 
-      <p style={{ fontSize: 14, color: "#9CA3AF", marginBottom: 18 }}>
-        Quick, anonymous pulse check across the five HRI pillars. Please answer each question from 1–5.
+      <p style={{ marginTop: 0, opacity: 0.8 }}>
+        Answer {total} questions. This writes a submission into <code>pulse_check_submissions</code>.
       </p>
 
-      {loading && <p style={{ color: "#9CA3AF" }}>Loading pulse questions…</p>}
-
-      {!loading && error && <p style={{ color: "#F97316", marginBottom: 12 }}>{error}</p>}
-<<<<<<< HEAD
-      {!loading && success && (
-        <p style={{ color: "#34D399", marginBottom: 12, whiteSpace: "pre-wrap" }}>{success}</p>
+      {error && (
+        <div style={{ background: "rgba(220,38,38,0.12)", border: "1px solid rgba(220,38,38,0.35)", padding: 12, borderRadius: 10, marginBottom: 12 }}>
+          <strong style={{ color: "#FCA5A5" }}>Error:</strong> {error}
+        </div>
       )}
 
-      {/* Debug panel (only shows when something is weird) */}
-      {!loading && debug && (
-        <details style={{ marginBottom: 14 }}>
-          <summary style={{ cursor: "pointer", color: "#9CA3AF" }}>Debug (click to expand)</summary>
-          <pre style={{ whiteSpace: "pre-wrap", fontSize: 12, color: "#9CA3AF" }}>
-            {JSON.stringify(debug, null, 2)}
-          </pre>
-        </details>
+      {success && (
+        <div style={{ background: "rgba(34,197,94,0.12)", border: "1px solid rgba(34,197,94,0.35)", padding: 12, borderRadius: 10, marginBottom: 12 }}>
+          <strong style={{ color: "#86EFAC" }}>{success}</strong>
+        </div>
       )}
 
-=======
-      {!loading && success && <p style={{ color: "#34D399", marginBottom: 12 }}>{success}</p>}
+      <div style={{ marginBottom: 14, display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+        <input
+          value={employeeEmail}
+          onChange={(e) => setEmployeeEmail(e.target.value)}
+          placeholder="Employee email (optional)"
+          style={{
+            padding: "10px 12px",
+            borderRadius: 10,
+            border: "1px solid rgba(255,255,255,0.15)",
+            background: "rgba(0,0,0,0.35)",
+            color: "white",
+            minWidth: 260,
+          }}
+        />
 
-      {/* Debug always visible when present */}
-      {!loading && debug && (
-        <details style={{ marginBottom: 14 }}>
-          <summary style={{ cursor: "pointer", color: "#9CA3AF" }}>Debug (click to expand)</summary>
-          <pre style={{ whiteSpace: "pre-wrap", fontSize: 12, color: "#9CA3AF" }}>
-            {JSON.stringify(debug, null, 2)}
-          </pre>
-        </details>
-      )}
+        <button
+          onClick={handleSubmit}
+          disabled={submitting || !allAnswered}
+          style={{
+            padding: "10px 14px",
+            borderRadius: 999,
+            border: "none",
+            background: submitting || !allAnswered ? "#374151" : "#FEE000",
+            color: submitting || !allAnswered ? "#9CA3AF" : "#111827",
+            fontWeight: 800,
+            cursor: submitting || !allAnswered ? "not-allowed" : "pointer",
+          }}
+        >
+          {submitting ? "Submitting…" : allAnswered ? "Submit pulse" : `Answer all (${answeredCount}/${total})`}
+        </button>
+      </div>
 
->>>>>>> 46ddbd0 (Fix Vercel build: employer-questions import + pulse-latest syntax)
-      {!loading && questions.length === 0 && <p style={{ color: "#9CA3AF" }}>No pulse questions found.</p>}
+      <div style={{ display: "grid", gap: 12 }}>
+        {(questions || []).map((q) => (
+          <div key={q.id} style={{ border: "1px solid rgba(255,255,255,0.12)", borderRadius: 14, padding: 14, background: "rgba(0,0,0,0.25)" }}>
+            <div style={{ fontSize: 12, opacity: 0.65, marginBottom: 6 }}>
+              {q.pillar} • Q{q.position}
+            </div>
+            <div style={{ fontWeight: 700, marginBottom: 10 }}>{q.question_text}</div>
 
-      {!loading && questions.length > 0 && (
-        <>
-          <div style={{ marginBottom: 14, fontSize: 12, color: "#9CA3AF" }}>
-            Answered: <strong style={{ color: "#E5E7EB" }}>{answeredCount}/{total}</strong>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {[1, 2, 3, 4, 5].map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setAnswer(q.id, v)}
+                  style={{
+                    padding: "8px 10px",
+                    borderRadius: 999,
+                    border: "1px solid rgba(255,255,255,0.18)",
+                    background: answers?.[q.id] === v ? "#FEE000" : "rgba(0,0,0,0.25)",
+                    color: answers?.[q.id] === v ? "#111827" : "#E5E7EB",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    minWidth: 40,
+                  }}
+                >
+                  {v}
+                </button>
+              ))}
+            </div>
           </div>
+        ))}
+      </div>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {questions.map((q) => (
-              <div
-                key={q.id}
-                style={{
-                  border: "1px solid #1F2937",
-                  borderRadius: 12,
-                  padding: 14,
-                  background: "radial-gradient(circle at top left, #020617 0%, #020617 45%, #030712 100%)",
-                }}
-              >
-                <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", color: "#9CA3AF" }}>
-                  {q.pillar}
-                </div>
-
-                <div style={{ fontSize: 14, color: "#F9FAFB", marginTop: 6, marginBottom: 10 }}>
-                  {q.position}. {q.question_text}
-                </div>
-
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  {[1, 2, 3, 4, 5].map((n) => {
-                    const active = Number(answers[q.id]) === n;
-                    return (
-                      <button
-                        key={n}
-                        type="button"
-                        onClick={() => setAnswers((prev) => ({ ...prev, [q.id]: n }))}
-                        style={{
-                          cursor: "pointer",
-                          padding: "8px 10px",
-                          borderRadius: 10,
-                          border: "1px solid #374151",
-                          background: active ? "#FEE000" : "transparent",
-                          color: active ? "#111827" : "#E5E7EB",
-                          fontWeight: 700,
-                          minWidth: 44,
-                        }}
-                      >
-                        {n}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div style={{ marginTop: 18 }}>
-            <button
-              type="button"
-              onClick={submitPulse}
-              disabled={submitting}
-              style={{
-                cursor: submitting ? "not-allowed" : "pointer",
-                padding: "10px 14px",
-                borderRadius: 12,
-                border: "1px solid #FEE000",
-                background: "#FEE000",
-                color: "#111827",
-                fontWeight: 800,
-              }}
-            >
-              {submitting ? "Submitting…" : "Submit pulse response"}
-            </button>
-
-            {!allAnswered && (
-              <div style={{ marginTop: 10, fontSize: 12, color: "#9CA3AF" }}>
-                Tip: you need to answer all questions before submitting.
-              </div>
-            )}
-          </div>
-        </>
-      )}
+      <details style={{ marginTop: 18, opacity: 0.9 }}>
+        <summary style={{ cursor: "pointer" }}>Debug panel</summary>
+        <pre style={{ whiteSpace: "pre-wrap", fontSize: 12, padding: 12, background: "rgba(0,0,0,0.35)", borderRadius: 12, border: "1px solid rgba(255,255,255,0.12)" }}>
+          {JSON.stringify({ debug, answers, questionsCount: questions.length }, null, 2)}
+        </pre>
+      </details>
     </main>
   );
 }
-
