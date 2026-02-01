@@ -1,22 +1,19 @@
-import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 
-/**
- * Cookie-based Supabase client (for logged-in user context).
- * Use this in API route handlers that rely on supabase.auth.getUser().
- */
+// 1) Cookie-based server client (for logged-in user sessions)
 export function supabaseServer() {
   const cookieStore = cookies();
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  if (!url || !anonKey) {
+  if (!url || !anon) {
     throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY");
   }
 
-  return createServerClient(url, anonKey, {
+  return createServerClient(url, anon, {
     cookies: {
       get(name) {
         return cookieStore.get(name)?.value;
@@ -25,16 +22,13 @@ export function supabaseServer() {
         cookieStore.set({ name, value, ...options });
       },
       remove(name, options) {
-        cookieStore.set({ name, value: "", ...options, maxAge: 0 });
+        cookieStore.set({ name, value: "", ...options });
       },
     },
   });
 }
 
-/**
- * Service role client (server-only, privileged access).
- * Use this ONLY inside API routes when you need to bypass RLS safely.
- */
+// 2) Service role client (server-only, privileged DB reads/writes in API routes)
 export function supabaseService() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -44,6 +38,6 @@ export function supabaseService() {
   }
 
   return createClient(url, serviceKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
+    auth: { persistSession: false },
   });
 }
