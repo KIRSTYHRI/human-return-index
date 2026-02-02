@@ -6,6 +6,7 @@
     "build": "next build",
     "start": "next start",
     "vercel-build": "next build"
+    "check-env": "node scripts/check-env.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.8.0",
