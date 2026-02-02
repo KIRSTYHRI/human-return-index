@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 
 const VERSION = "INTERNAL_ASSESSMENT_V3__DB_EMPLOYER_QUESTIONS__25Q__MAP_Q1_25";
 
-// Must match your pillar naming in the DB (yours does)
+// Must match your pillar naming in the DB
 const PILLAR_ORDER = [
   "Leadership",
   "Wellbeing & Mental Health",
@@ -38,6 +38,7 @@ export default function InternalAssessmentPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [debug, setDebug] = useState(null);
 
   // Load employer questions from DB and normalize order to a stable 1..25
   useEffect(() => {
@@ -46,9 +47,10 @@ export default function InternalAssessmentPage() {
         setLoading(true);
         setError("");
         setSuccess("");
+        setDebug(null);
 
         const res = await fetch("/api/employer-questions", { cache: "no-store" });
-        const json = await res.json();
+        const json = await res.json().catch(() => ({}));
 
         if (!res.ok || json?.ok === false) {
           throw new Error(json?.error || "Failed to load employer questions");
@@ -62,7 +64,6 @@ export default function InternalAssessmentPage() {
           const group = raw
             .filter((q) => q.pillar === pillar)
             .sort((a, b) => Number(a.position) - Number(b.position));
-
           ordered.push(...group);
         }
 
@@ -121,13 +122,14 @@ export default function InternalAssessmentPage() {
       setSaving(true);
       setError("");
       setSuccess("");
+      setDebug(null);
 
       if (!total) throw new Error("No questions loaded.");
       if (!allAnswered) throw new Error(`Please answer all questions (${answeredCount}/${total}).`);
 
-      // Get org context
+      // 1) Get org context
       const orgRes = await fetch("/api/me/org", { cache: "no-store" });
-      const orgJson = await orgRes.json();
+      const orgJson = await orgRes.json().catch(() => ({}));
 
       const organisation_id =
         orgJson?.organisation_id ||
@@ -138,10 +140,11 @@ export default function InternalAssessmentPage() {
         null;
 
       if (!orgRes.ok || orgJson?.ok === false || !organisation_id) {
+        setDebug({ where: "me-org", status: orgRes.status, orgJson });
         throw new Error(orgJson?.error || "Could not load organisation context.");
       }
 
-      // Create assessment row
+      // 2) Create assessment row
       const createRes = await fetch("/api/assessments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -153,13 +156,17 @@ export default function InternalAssessmentPage() {
 
       const createJson = await createRes.json().catch(() => ({}));
       if (!createRes.ok || createJson?.ok === false) {
+        setDebug({ where: "create-assessment", status: createRes.status, createJson });
         throw new Error(createJson?.error || "Failed to create assessment.");
       }
 
       const assessment_id = createJson?.assessment?.id || null;
-      if (!assessment_id) throw new Error("Assessment created but no id returned.");
+      if (!assessment_id) {
+        setDebug({ where: "create-assessment-missing-id", createJson });
+        throw new Error("Assessment created but no id returned.");
+      }
 
-      // Save pillar scores (0–100) + responses (q1..q25 1–5)
+      // 3) Save pillar scores + responses (q1..q25 1–5)
       const scores = buildPillarScoresFromAnswers();
 
       const saveRes = await fetch(`/api/assessments/${assessment_id}`, {
@@ -170,10 +177,11 @@ export default function InternalAssessmentPage() {
 
       const saveJson = await saveRes.json().catch(() => ({}));
       if (!saveRes.ok || saveJson?.ok === false) {
+        setDebug({ where: "save-assessment", status: saveRes.status, saveJson });
         throw new Error(saveJson?.error || "Failed to save assessment data.");
       }
 
-      // Trigger scoring engine
+      // 4) Trigger scoring engine
       const scoreRes = await fetch(`/api/assessment-scores`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -182,10 +190,13 @@ export default function InternalAssessmentPage() {
 
       const scoreJson = await scoreRes.json().catch(() => ({}));
       if (!scoreRes.ok || scoreJson?.ok === false) {
+        setDebug({ where: "score", status: scoreRes.status, scoreJson });
         throw new Error(scoreJson?.error || "Saved, but failed to calculate scores.");
       }
 
       setSuccess(`Saved ✅ Internal assessment created + HRI calculated (Assessment ID: ${assessment_id})`);
+      setDebug({ version: VERSION, assessment_id, scoreJson });
+
       router.push(`/dashboard/assessments/${assessment_id}`);
     } catch (e) {
       setError(e?.message || "Unexpected error");
@@ -200,4 +211,111 @@ export default function InternalAssessmentPage() {
         Internal Assessment <span style={{ fontSize: 12, opacity: 0.6 }}>({VERSION})</span>
       </h1>
 
-      <p style={{ opacity: 0
+      <p style={{ opacity: 0.75, marginBottom: 18 }}>
+        This uses your real employer question bank from Supabase. Answer 1–5, then we’ll save + calculate your HRI score.
+      </p>
+
+      {loading && <p style={{ opacity: 0.75 }}>Loading employer questions…</p>}
+      {!loading && error && <p style={{ color: "#F97316", marginBottom: 12 }}>{error}</p>}
+      {!loading && success && <p style={{ color: "#34D399", marginBottom: 12, whiteSpace: "pre-wrap" }}>{success}</p>}
+
+      {!loading && debug && (
+        <details style={{ marginBottom: 14 }}>
+          <summary style={{ cursor: "pointer", opacity: 0.7 }}>Debug (click to expand)</summary>
+          <pre style={{ whiteSpace: "pre-wrap", fontSize: 12, opacity: 0.75 }}>
+            {JSON.stringify(debug, null, 2)}
+          </pre>
+        </details>
+      )}
+
+      {!loading && (
+        <div style={{ marginBottom: 14, fontSize: 13, opacity: 0.8 }}>
+          {answeredCount} of {total} questions answered.
+        </div>
+      )}
+
+      {!loading && total === 0 && <p style={{ opacity: 0.75 }}>No employer questions found.</p>}
+
+      {!loading && total > 0 && (
+        <>
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {questions.map((q, idx) => {
+              const globalPos = idx + 1; // 1..25 stable
+              const key = `q${globalPos}`;
+              const current = Number(answers[key] || 0);
+
+              return (
+                <div
+                  key={q.id || globalPos}
+                  style={{
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    borderRadius: 12,
+                    padding: 14,
+                    background: "rgba(0,0,0,0.25)",
+                  }}
+                >
+                  <div style={{ fontSize: 12, letterSpacing: "0.08em", textTransform: "uppercase", opacity: 0.7 }}>
+                    {q.pillar}
+                  </div>
+
+                  <div style={{ fontSize: 14, fontWeight: 650, marginTop: 6 }}>
+                    {globalPos}. {q.question_text}
+                  </div>
+
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 10 }}>
+                    {SCALE.map((s) => {
+                      const active = current === s.v;
+                      return (
+                        <button
+                          key={s.v}
+                          type="button"
+                          onClick={() => setAnswer(globalPos, s.v)}
+                          style={{
+                            cursor: "pointer",
+                            borderRadius: 10,
+                            border: "1px solid rgba(255,255,255,0.18)",
+                            padding: "8px 10px",
+                            fontWeight: 800,
+                            background: active ? "#FEE000" : "transparent",
+                            color: active ? "#111827" : "rgba(255,255,255,0.92)",
+                          }}
+                        >
+                          {s.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div style={{ marginTop: 18 }}>
+            <button
+              type="button"
+              onClick={saveInternalAssessment}
+              disabled={saving}
+              style={{
+                cursor: saving ? "not-allowed" : "pointer",
+                padding: "10px 14px",
+                borderRadius: 12,
+                border: "1px solid #FEE000",
+                background: "#FEE000",
+                color: "#111827",
+                fontWeight: 900,
+              }}
+            >
+              {saving ? "Saving…" : "Save internal assessment (your 25 questions)"}
+            </button>
+
+            {!allAnswered && (
+              <div style={{ marginTop: 10, fontSize: 12, opacity: 0.7 }}>
+                Tip: answer all 25 questions to save.
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </main>
+  );
+}
