@@ -15,3 +15,8 @@
     "react-dom": "18.2.0"
   }
 }
+{
+  "scripts": {
+    "check-env": "node scripts/check-env.mjs"
+  }
+}
