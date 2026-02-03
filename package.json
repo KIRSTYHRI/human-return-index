@@ -1,14 +1,12 @@
 {
   "name": "human-return-index",
   "private": true,
-"scripts": {
-  "dev": "next dev",
-  "build": "next build",
-  "start": "next start",
-  "vercel-build": "next build",
-  "check-env": "node scripts/check-env.mjs"
-}
-}
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "vercel-build": "next build",
+    "check-env": "node scripts/check-env.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.8.0",
@@ -16,10 +14,5 @@
     "next": "14.2.5",
     "react": "18.2.0",
     "react-dom": "18.2.0"
-  }
-}
-{
-  "scripts": {
-    "check-env": "node scripts/check-env.mjs"
   }
 }
