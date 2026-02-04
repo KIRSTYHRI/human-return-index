@@ -4,19 +4,25 @@ import { supabaseServer } from "../../../lib/supabase/server";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const VERSION = "OVERVIEW_V3__HRI_ASSESSMENTS__ORG_ID__NO_PERIOD_FIELDS";
+const VERSION = "OVERVIEW_V4__CONSISTENT_RESPONSE_SHAPE";
+
+function ok(payload, status = 200) {
+  return NextResponse.json({ ok: true, version: VERSION, ...payload }, { status });
+}
+
+function fail(message, code = "UNKNOWN", status = 400, meta) {
+  return NextResponse.json(
+    { ok: false, version: VERSION, error: { message, code, ...(meta ? { meta } : {}) } },
+    { status }
+  );
+}
 
 export async function GET() {
   try {
     const supabase = supabaseServer();
 
     const { data: userData, error: userErr } = await supabase.auth.getUser();
-    if (userErr || !userData?.user) {
-      return NextResponse.json(
-        { ok: false, version: VERSION, error: "Auth session missing!" },
-        { status: 401 }
-      );
-    }
+    if (userErr || !userData?.user) return fail("Auth session missing!", "AUTH", 401);
 
     const { data: orgRow, error: orgErr } = await supabase
       .from("organisation_users")
@@ -25,10 +31,9 @@ export async function GET() {
       .maybeSingle();
 
     if (orgErr || !orgRow?.organisation_id) {
-      return NextResponse.json(
-        { ok: false, version: VERSION, error: "No organisation linked to this user." },
-        { status: 400 }
-      );
+      return fail("No organisation linked to this user.", "NO_ORG", 400, {
+        orgErr: orgErr?.message || null,
+      });
     }
 
     const organisation_id = orgRow.organisation_id;
@@ -41,31 +46,22 @@ export async function GET() {
       .limit(1)
       .maybeSingle();
 
-    if (aErr) {
-      return NextResponse.json(
-        { ok: false, version: VERSION, error: aErr.message },
-        { status: 500 }
-      );
-    }
+    if (aErr) return fail(aErr.message, "DB", 500);
 
-    return NextResponse.json({
-      ok: true,
-      version: VERSION,
-      overview: {
-        organisation_id,
-        assessment_id: assessment?.id || null,
-        title: assessment?.title || null,
-        overall_score: assessment?.overall_score ?? null,
-        pillar_scores: assessment?.pillar_scores ?? {},
-        created_at: assessment?.created_at || null,
-        status: assessment?.id ? "draft" : null,
-      },
-    });
+    const overview = {
+      organisation_id,
+      assessment_id: assessment?.id || null,
+      title: assessment?.title || null,
+      overall_score: assessment?.overall_score ?? null,
+      pillar_scores: assessment?.pillar_scores ?? {},
+      created_at: assessment?.created_at || null,
+      status: assessment?.id ? "draft" : null,
+    };
+
+    // Backwards compatible: `overview` stays top-level
+    // Forward compatible: also available under `data.overview`
+    return ok({ overview, data: { overview } });
   } catch (e) {
-    return NextResponse.json(
-      { ok: false, version: VERSION, error: e?.message || "Unexpected error" },
-      { status: 500 }
-    );
+    return fail(e?.message || "Unexpected error", "EXCEPTION", 500);
   }
 }
-
