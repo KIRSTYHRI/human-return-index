@@ -1,42 +1,41 @@
-import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
-import { cookies } from "next/headers";
 
-// 1) Cookie-based client (auth/session-aware)
+/**
+ * Server-side Supabase clients.
+ *
+ * IMPORTANT:
+ * - Never expose admin keys to the browser.
+ * - Use supabaseAdmin() ONLY in server code (route handlers / server actions).
+ */
+
+// Basic server client (non-admin). Useful for server-side reads that should respect RLS.
 export function supabaseServer() {
-  const cookieStore = cookies();
-
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            cookieStore.set(name, value, options);
-          });
-        },
-      },
-    }
-  );
-}
-
-<<<<<<< HEAD
-// 2) Service role client (server-only, for privileged DB reads in API routes)
-export function supabaseService() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const key =
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!url || !key) {
-    throw new Error("Missing env vars: NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
+    throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or publishable/anon key env vars");
   }
 
   return createClient(url, key, {
     auth: { persistSession: false },
   });
 }
-=======
->>>>>>> 46ddbd0 (Fix Vercel build: employer-questions import + pulse-latest syntax)
+
+// Admin server client (privileged). Use ONLY on the server.
+export function supabaseAdmin() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key =
+    process.env.SUPABASE_SECRET_KEY ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!url || !key) {
+    throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or server admin key env vars");
+  }
+
+  return createClient(url, key, {
+    auth: { persistSession: false },
+  });
+}
