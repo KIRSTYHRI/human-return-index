@@ -32,10 +32,23 @@ export default function LoginPage() {
 
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
-        if (error) throw error;
+if (error) {
+  setMsg(`Login failed: ${error.message}`);
+  console.log("LOGIN ERROR:", error);
+  return;
+}
 
-        const { data: sessionData } = await supabase.auth.getSession();
-        if (!sessionData?.session) throw new Error("Login worked but no session created.");
+console.log("LOGIN OK:", data);
+
+const { data: sessionData, error: sessionErr } = await supabase.auth.getSession();
+console.log("SESSION:", sessionData, "SESSION_ERR:", sessionErr);
+
+if (!sessionData?.session) {
+  setMsg("Login succeeded but session is missing. Likely cookie/auth config issue.");
+  return;
+}
+
+window.location.assign("/dashboard");
 
         window.location.assign("/dashboard");
         return;
