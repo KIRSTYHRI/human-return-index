@@ -12,10 +12,13 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState("");
 
-    console.log("ENV CHECK:", {
+  // ===== DEBUG: prove page + env load =====
+  console.log("🔥 LOGIN PAGE RENDERED");
+  console.log("ENV CHECK:", {
     url: process.env.NEXT_PUBLIC_SUPABASE_URL,
     anonStart: (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "").slice(0, 12),
   });
+  // =======================================
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -24,19 +27,16 @@ export default function LoginPage() {
 
     try {
       const supabase = supabaseBrowser();
-      console.log("SUPABASE OK");
 
       if (!supabase) {
-        throw new Error("Supabase client not initialised (check env keys)");
+        throw new Error("Supabase client not initialised");
       }
 
       if (!email) {
         throw new Error("Please enter your email");
       }
 
-      // =========================
-      // PASSWORD LOGIN
-      // =========================
+      // ---------- PASSWORD LOGIN ----------
       if (mode === "password") {
         if (!password) {
           throw new Error("Please enter your password");
@@ -54,24 +54,20 @@ export default function LoginPage() {
           return;
         }
 
-        // Check session exists
         const { data: sessionData } = await supabase.auth.getSession();
 
         console.log("SESSION AFTER LOGIN:", sessionData);
 
         if (!sessionData?.session) {
-          setMsg("Login worked but session not created. Check cookies/auth config.");
+          setMsg("No session created — auth config issue");
           return;
         }
 
-        // Redirect after success
         window.location.assign("/dashboard");
         return;
       }
 
-      // =========================
-      // MAGIC LINK LOGIN
-      // =========================
+      // ---------- MAGIC LINK LOGIN ----------
       const { data, error } = await supabase.auth.signInWithOtp({
         email,
         options: {
@@ -86,7 +82,7 @@ export default function LoginPage() {
         return;
       }
 
-      setMsg("Magic link sent. Check your inbox (and spam).");
+      setMsg("Magic link sent. Check your inbox.");
     } catch (err) {
       console.error("LOGIN ERROR:", err);
       setMsg(err?.message || "Login failed");
@@ -183,3 +179,4 @@ export default function LoginPage() {
     </main>
   );
 }
+
