@@ -1,11 +1,5 @@
-"use client";
-
-import CurrentAssessmentCard from "./CurrentAssessmentCard";
-
+<<<<<<< HEAD
 export default function DashboardPage() {
-  return (
-    <main style={{ padding: 24 }}>
-      <CurrentAssessmentCard />
-    </main>
-  );
-}
+=======
+export default function DashboardHome() {
+>>>>>>> 46ddbd0 ...
