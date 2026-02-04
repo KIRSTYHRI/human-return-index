@@ -1,3 +1,4 @@
+cat > src/app/login/page.jsx << 'EOF'
 "use client";
 
 export const dynamic = "force-dynamic";
@@ -74,15 +75,10 @@ export default function LoginPage() {
       <section style={{ width: "100%", maxWidth: 460 }}>
         <h1 style={{ fontSize: 22, fontWeight: 900, marginBottom: 10 }}>Log in</h1>
 
-        {/* DEBUG BOX — REMOVE LATER */}
         <div style={{ padding: 10, background: "#fff6bf", border: "1px solid #000", marginBottom: 12 }}>
           <div style={{ fontWeight: 800, marginBottom: 6 }}>Debug (remove later)</div>
-          <div>
-            <b>URL:</b> {String(envDebug.url)}
-          </div>
-          <div>
-            <b>ANON starts:</b> {envDebug.anonStart ? envDebug.anonStart + "…" : "(empty)"}
-          </div>
+          <div><b>URL:</b> {String(envDebug.url)}</div>
+          <div><b>ANON starts:</b> {envDebug.anonStart ? envDebug.anonStart + "…" : "(empty)"}</div>
         </div>
 
         <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
@@ -116,3 +112,4 @@ export default function LoginPage() {
     </main>
   );
 }
+EOF
