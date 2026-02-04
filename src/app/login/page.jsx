@@ -12,6 +12,11 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState("");
 
+    console.log("ENV CHECK:", {
+    url: process.env.NEXT_PUBLIC_SUPABASE_URL,
+    anonStart: (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "").slice(0, 12),
+  });
+
   async function handleSubmit(e) {
     e.preventDefault();
     setMsg("");
