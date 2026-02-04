@@ -60,8 +60,7 @@ export async function GET(req) {
       });
     }
 
-    // 2) No session: production guardrail
-    // In production we do NOT allow org_id fallback (prevents "anyone with an org UUID can pull data")
+    // 2) No session: production guardrail (do NOT allow org-id fallback in production)
     if (process.env.NODE_ENV === "production") {
       return NextResponse.json(
         { ok: false, error: "Auth required." },
@@ -72,7 +71,10 @@ export async function GET(req) {
     // 3) No session (dev/preview only): allow fallback for testing if org id provided
     if (!orgIdParam) {
       return NextResponse.json(
-        { ok: false, error: "Auth session missing (and no organisation_id provided)." },
+        {
+          ok: false,
+          error: "Auth session missing (and no organisation_id provided).",
+        },
         { status: 401 }
       );
     }
@@ -108,7 +110,10 @@ export async function GET(req) {
       .maybeSingle();
 
     if (error) {
-      return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+      return NextResponse.json(
+        { ok: false, error: error.message },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({
