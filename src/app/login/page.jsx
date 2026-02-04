@@ -19,6 +19,7 @@ export default function LoginPage() {
 
     try {
       const supabase = supabaseBrowser();
+      console.log("SUPABASE OK");
 
       if (!supabase) {
         throw new Error("Supabase client not initialised (check env keys)");
