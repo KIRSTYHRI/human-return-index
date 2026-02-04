@@ -1,3 +1,9 @@
+import dotenv from "dotenv";
+
+// Load local env files for node scripts
+dotenv.config({ path: ".env.local" });
+dotenv.config({ path: ".env" });
+
 const required = [
   "NEXT_PUBLIC_SUPABASE_URL",
   "NEXT_PUBLIC_SUPABASE_ANON_KEY",
