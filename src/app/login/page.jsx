@@ -20,26 +20,69 @@ export default function LoginPage() {
     try {
       const supabase = supabaseBrowser();
 
-      if (!email) throw new Error("Enter your email");
+      if (!supabase) {
+        throw new Error("Supabase client not initialised (check env keys)");
+      }
 
+      if (!email) {
+        throw new Error("Please enter your email");
+      }
+
+      // =========================
+      // PASSWORD LOGIN
+      // =========================
       if (mode === "password") {
-        if (!password) throw new Error("Enter your password");
+        if (!password) {
+          throw new Error("Please enter your password");
+        }
 
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
 
-        window.location.href = "/dashboard";
+        console.log("LOGIN RESULT:", { data, error });
+
+        if (error) {
+          setMsg(`Login failed: ${error.message}`);
+          return;
+        }
+
+        // Check session exists
+        const { data: sessionData } = await supabase.auth.getSession();
+
+        console.log("SESSION AFTER LOGIN:", sessionData);
+
+        if (!sessionData?.session) {
+          setMsg("Login worked but session not created. Check cookies/auth config.");
+          return;
+        }
+
+        // Redirect after success
+        window.location.assign("/dashboard");
         return;
       }
 
-      const { error } = await supabase.auth.signInWithOtp({
+      // =========================
+      // MAGIC LINK LOGIN
+      // =========================
+      const { data, error } = await supabase.auth.signInWithOtp({
         email,
-        options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
       });
-      if (error) throw error;
+
+      console.log("MAGIC LINK RESULT:", { data, error });
+
+      if (error) {
+        setMsg(`Magic link failed: ${error.message}`);
+        return;
+      }
 
       setMsg("Magic link sent. Check your inbox (and spam).");
     } catch (err) {
+      console.error("LOGIN ERROR:", err);
       setMsg(err?.message || "Login failed");
     } finally {
       setLoading(false);
@@ -47,31 +90,88 @@ export default function LoginPage() {
   }
 
   return (
-    <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24 }}>
+    <main
+      style={{
+        minHeight: "100vh",
+        display: "grid",
+        placeItems: "center",
+        padding: 24,
+      }}
+    >
       <section style={{ width: "100%", maxWidth: 420 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 900, marginBottom: 10 }}>Log in</h1>
+        <h1 style={{ fontSize: 22, fontWeight: 900, marginBottom: 10 }}>
+          Log in
+        </h1>
 
         <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-          <button type="button" onClick={() => setMode("password")} style={{ flex: 1 }}>
+          <button
+            type="button"
+            onClick={() => setMode("password")}
+            style={{
+              flex: 1,
+              background: mode === "password" ? "#000" : "#eee",
+              color: mode === "password" ? "#fff" : "#000",
+              padding: 8,
+            }}
+          >
             Password
           </button>
-          <button type="button" onClick={() => setMode("magic")} style={{ flex: 1 }}>
+
+          <button
+            type="button"
+            onClick={() => setMode("magic")}
+            style={{
+              flex: 1,
+              background: mode === "magic" ? "#000" : "#eee",
+              color: mode === "magic" ? "#fff" : "#000",
+              padding: 8,
+            }}
+          >
             Magic link
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} style={{ display: "grid", gap: 10 }}>
-          <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="you@company.com" />
+        <form
+          onSubmit={handleSubmit}
+          style={{ display: "grid", gap: 10 }}
+        >
+          <input
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            type="email"
+            placeholder="you@company.com"
+            required
+          />
 
           {mode === "password" && (
-            <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="••••••••" />
+            <input
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              type="password"
+              placeholder="••••••••"
+              required
+            />
           )}
 
           <button disabled={loading}>
-            {loading ? "Working…" : mode === "password" ? "Log in" : "Send magic link"}
+            {loading
+              ? "Working…"
+              : mode === "password"
+              ? "Log in"
+              : "Send magic link"}
           </button>
 
-          {msg && <p>{msg}</p>}
+          {msg && (
+            <p
+              style={{
+                marginTop: 6,
+                fontSize: 14,
+                color: msg.includes("failed") ? "red" : "green",
+              }}
+            >
+              {msg}
+            </p>
+          )}
         </form>
       </section>
     </main>
