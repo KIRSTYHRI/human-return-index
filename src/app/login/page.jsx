@@ -27,33 +27,33 @@ export default function LoginPage() {
 
       if (!email) throw new Error("Please enter your email");
 
+      // ---------- PASSWORD LOGIN ----------
       if (mode === "password") {
         if (!password) throw new Error("Please enter your password");
 
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
 
-if (error) {
-  setMsg(`Login failed: ${error.message}`);
-  console.log("LOGIN ERROR:", error);
-  return;
-}
+        if (error) {
+          setMsg(`Login failed: ${error.message}`);
+          return;
+        }
 
-console.log("LOGIN OK:", data);
+        const { data: sessionData } = await supabase.auth.getSession();
 
-const { data: sessionData, error: sessionErr } = await supabase.auth.getSession();
-console.log("SESSION:", sessionData, "SESSION_ERR:", sessionErr);
+        if (!sessionData?.session) {
+          setMsg("Login succeeded but session is missing (cookie/auth config issue).");
+          return;
+        }
 
-if (!sessionData?.session) {
-  setMsg("Login succeeded but session is missing. Likely cookie/auth config issue.");
-  return;
-}
-
-window.location.assign("/dashboard");
-
+        setMsg("Login OK ✅ Redirecting...");
         window.location.assign("/dashboard");
         return;
       }
 
+      // ---------- MAGIC LINK LOGIN ----------
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
@@ -77,8 +77,12 @@ window.location.assign("/dashboard");
         {/* DEBUG BOX — REMOVE LATER */}
         <div style={{ padding: 10, background: "#fff6bf", border: "1px solid #000", marginBottom: 12 }}>
           <div style={{ fontWeight: 800, marginBottom: 6 }}>Debug (remove later)</div>
-          <div><b>URL:</b> {String(envDebug.url)}</div>
-          <div><b>ANON starts:</b> {envDebug.anonStart ? envDebug.anonStart + "…" : "(empty)"}</div>
+          <div>
+            <b>URL:</b> {String(envDebug.url)}
+          </div>
+          <div>
+            <b>ANON starts:</b> {envDebug.anonStart ? envDebug.anonStart + "…" : "(empty)"}
+          </div>
         </div>
 
         <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
@@ -91,12 +95,7 @@ window.location.assign("/dashboard");
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: "grid", gap: 10 }}>
-          <input
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            type="email"
-            placeholder="you@company.com"
-          />
+          <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="you@company.com" />
 
           {mode === "password" && (
             <input
