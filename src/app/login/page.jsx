@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabaseBrowser } from "../../lib/supabase/client";
 
 export const dynamic = "force-dynamic";
@@ -12,175 +12,111 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState("");
 
+  // Persist msg so it won't "disappear" if the page reloads
+  useEffect(() => {
+    const saved = window.localStorage.getItem("login_msg");
+    if (saved) setMsg(saved);
+  }, []);
+
+  function setMsgPersist(text) {
+    setMsg(text);
+    window.localStorage.setItem("login_msg", text || "");
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     e.stopPropagation();
 
-    console.log("🚀 SUBMIT CLICKED");
+    alert("✅ SUBMIT FIRED"); // <-- cannot be missed
 
-    setMsg("");
+    setMsgPersist("");
     setLoading(true);
 
     try {
       const supabase = supabaseBrowser();
 
-      if (!email) {
-        throw new Error("Please enter your email");
-      }
+      if (!email) throw new Error("Please enter your email");
 
-      // ----------------------
       // PASSWORD LOGIN
-      // ----------------------
       if (mode === "password") {
-        if (!password) {
-          throw new Error("Please enter your password");
+        if (!password) throw new Error("Please enter your password");
+
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+
+        if (error) {
+          setMsgPersist(`Login failed: ${error.message}`);
+          return;
         }
 
-        console.log("🔐 Trying password login...");
-
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-
-        console.log("LOGIN RESPONSE:", data, error);
-
-        if (error) throw error;
-
-        setMsg("Login OK ✅ Redirecting...");
-        console.log("✅ LOGIN SUCCESS");
-
-        setTimeout(() => {
-          window.location.href = "/dashboard";
-        }, 800);
-
+        setMsgPersist("Login OK ✅ Redirecting...");
+        setTimeout(() => window.location.assign("/dashboard"), 800);
         return;
       }
 
-      // ----------------------
       // MAGIC LINK
-      // ----------------------
-      console.log("📩 Sending magic link...");
-
       const { error } = await supabase.auth.signInWithOtp({
         email,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-        },
+        options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
       });
 
-      if (error) throw error;
+      if (error) {
+        setMsgPersist(`Magic link failed: ${error.message}`);
+        return;
+      }
 
-      setMsg("Magic link sent. Check your inbox 📩");
+      setMsgPersist("Magic link sent. Check your inbox (and spam).");
     } catch (err) {
-      console.error("❌ LOGIN ERROR:", err);
-      setMsg(err?.message || "Login failed");
+      setMsgPersist(err?.message || "Login failed");
     } finally {
       setLoading(false);
     }
   }
 
-  // ----------------------
-  // ENV DEBUG
-  // ----------------------
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        display: "grid",
-        placeItems: "center",
-        padding: 24,
-      }}
-    >
-      <section style={{ width: "100%", maxWidth: 420 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 900, marginBottom: 10 }}>
-          Log in
-        </h1>
+    <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24 }}>
+      <section style={{ width: "100%", maxWidth: 520 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 900, marginBottom: 10 }}>Log in</h1>
 
-        {/* ---------------- DEBUG BOX ---------------- */}
-        <div
-          style={{
-            fontSize: 12,
-            background: "#f3f3f3",
-            padding: 10,
-            marginBottom: 15,
-            borderRadius: 6,
-          }}
-        >
-          <strong>Debug (remove later)</strong>
-          <br />
-          URL: {supabaseUrl || "❌ missing"}
-          <br />
-          ANON starts: {anonKey ? anonKey.slice(0, 12) + "…" : "❌ missing"}
-          <br />
-          mode: {mode} | loading: {String(loading)}
-          <br />
-          email length: {email.length} | password length: {password.length}
-          <br />
-          msg: {msg || "(empty)"}
+        {/* DEBUG BOX */}
+        <div style={{ padding: 10, background: "#fff6bf", border: "1px solid #000", marginBottom: 12 }}>
+          <div style={{ fontWeight: 800, marginBottom: 6 }}>Debug (remove later)</div>
+          <div><b>URL:</b> {supabaseUrl || "❌ missing"}</div>
+          <div><b>ANON starts:</b> {anonKey ? anonKey.slice(0, 12) + "…" : "❌ missing"}</div>
+          <div style={{ marginTop: 8 }}><b>mode:</b> {mode} | <b>loading:</b> {String(loading)}</div>
+          <div><b>email length:</b> {email.length} | <b>password length:</b> {password.length}</div>
+          <div><b>msg:</b> {msg || "(empty)"}</div>
         </div>
 
-        {/* ---------------- MODE BUTTONS ---------------- */}
         <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-          <button
-            type="button"
-            onClick={() => setMode("password")}
-            style={{ flex: 1 }}
-          >
+          <button type="button" onClick={() => setMode("password")} style={{ flex: 1 }}>
             Password
           </button>
-
-          <button
-            type="button"
-            onClick={() => setMode("magic")}
-            style={{ flex: 1 }}
-          >
+          <button type="button" onClick={() => setMode("magic")} style={{ flex: 1 }}>
             Magic link
           </button>
         </div>
 
-        {/* ---------------- FORM ---------------- */}
         <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            handleSubmit(e);
-          }}
+          onSubmit={handleSubmit}
+          onSubmitCapture={() => setMsgPersist("🟡 submit captured")}
           style={{ display: "grid", gap: 10 }}
         >
-          <input
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            type="email"
-            placeholder="you@company.com"
-          />
+          <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="you@company.com" />
 
           {mode === "password" && (
-            <input
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              type="password"
-              placeholder="••••••••"
-            />
+            <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="••••••••" />
           )}
 
-          <button type="submit" disabled={loading}>
-            {loading
-              ? "Working…"
-              : mode === "password"
-              ? "Log in"
-              : "Send magic link"}
+          <button
+            type="submit"
+            disabled={loading}
+            onClick={() => setMsgPersist("🟢 button clicked")}
+          >
+            {loading ? "Working…" : mode === "password" ? "Log in" : "Send magic link"}
           </button>
-
-          {/* ---------------- MESSAGE ---------------- */}
-          {msg && (
-            <p style={{ fontSize: 14, marginTop: 6 }}>
-              {msg}
-            </p>
-          )}
         </form>
       </section>
     </main>
