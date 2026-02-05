@@ -12,11 +12,23 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState("");
 
-  // Persist msg so it won't "disappear" if the page reloads
+  // A step log that persists across reloads
+  const [trace, setTrace] = useState([]);
+
   useEffect(() => {
-    const saved = window.localStorage.getItem("login_msg");
-    if (saved) setMsg(saved);
+    const savedMsg = window.localStorage.getItem("login_msg");
+    const savedTrace = window.localStorage.getItem("login_trace");
+    if (savedMsg) setMsg(savedMsg);
+    if (savedTrace) setTrace(JSON.parse(savedTrace));
   }, []);
+
+  function pushTrace(line) {
+    setTrace((prev) => {
+      const next = [...prev, `${new Date().toISOString()} ${line}`].slice(-20);
+      window.localStorage.setItem("login_trace", JSON.stringify(next));
+      return next;
+    });
+  }
 
   function setMsgPersist(text) {
     setMsg(text);
@@ -27,33 +39,59 @@ export default function LoginPage() {
     e.preventDefault();
     e.stopPropagation();
 
-    alert("✅ SUBMIT FIRED"); // <-- cannot be missed
+    alert("✅ SUBMIT FIRED");
+    pushTrace("A) submit fired");
 
-    setMsgPersist("");
     setLoading(true);
+    pushTrace("B) setLoading(true)");
 
     try {
       const supabase = supabaseBrowser();
+      pushTrace("C) got supabaseBrowser()");
 
-      if (!email) throw new Error("Please enter your email");
+      if (!email) {
+        setMsgPersist("Please enter your email");
+        pushTrace("D) missing email -> msg set");
+        return;
+      }
 
-      // PASSWORD LOGIN
       if (mode === "password") {
-        if (!password) throw new Error("Please enter your password");
+        pushTrace("E) mode=password");
 
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (!password) {
+          setMsgPersist("Please enter your password");
+          pushTrace("F) missing password -> msg set");
+          return;
+        }
+
+        pushTrace("G) calling signInWithPassword...");
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        pushTrace(`H) signIn returned (error=${error ? "YES" : "NO"})`);
 
         if (error) {
           setMsgPersist(`Login failed: ${error.message}`);
+          pushTrace(`I) set error msg: ${error.message}`);
+          return;
+        }
+
+        pushTrace("J) fetching session...");
+        const { data: sessionData, error: sessErr } = await supabase.auth.getSession();
+        pushTrace(`K) getSession returned (session=${sessionData?.session ? "YES" : "NO"}) (err=${sessErr ? "YES" : "NO"})`);
+
+        if (!sessionData?.session) {
+          setMsgPersist("Login succeeded but session is missing (cookie/auth config issue).");
+          pushTrace("L) session missing -> msg set");
           return;
         }
 
         setMsgPersist("Login OK ✅ Redirecting...");
+        pushTrace("M) success msg set; redirecting");
         setTimeout(() => window.location.assign("/dashboard"), 800);
         return;
       }
 
-      // MAGIC LINK
+      // magic link
+      pushTrace("E2) mode=magic -> calling signInWithOtp...");
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
@@ -61,14 +99,18 @@ export default function LoginPage() {
 
       if (error) {
         setMsgPersist(`Magic link failed: ${error.message}`);
+        pushTrace(`F2) magic link error msg set: ${error.message}`);
         return;
       }
 
       setMsgPersist("Magic link sent. Check your inbox (and spam).");
+      pushTrace("G2) magic link sent msg set");
     } catch (err) {
-      setMsgPersist(err?.message || "Login failed");
+      setMsgPersist(err?.message || "Login failed (catch)");
+      pushTrace(`Z) catch: ${err?.message || "unknown"}`);
     } finally {
       setLoading(false);
+      pushTrace("Y) finally setLoading(false)");
     }
   }
 
@@ -77,10 +119,9 @@ export default function LoginPage() {
 
   return (
     <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24 }}>
-      <section style={{ width: "100%", maxWidth: 520 }}>
+      <section style={{ width: "100%", maxWidth: 760 }}>
         <h1 style={{ fontSize: 22, fontWeight: 900, marginBottom: 10 }}>Log in</h1>
 
-        {/* DEBUG BOX */}
         <div style={{ padding: 10, background: "#fff6bf", border: "1px solid #000", marginBottom: 12 }}>
           <div style={{ fontWeight: 800, marginBottom: 6 }}>Debug (remove later)</div>
           <div><b>URL:</b> {supabaseUrl || "❌ missing"}</div>
@@ -88,6 +129,22 @@ export default function LoginPage() {
           <div style={{ marginTop: 8 }}><b>mode:</b> {mode} | <b>loading:</b> {String(loading)}</div>
           <div><b>email length:</b> {email.length} | <b>password length:</b> {password.length}</div>
           <div><b>msg:</b> {msg || "(empty)"}</div>
+          <div style={{ marginTop: 8, fontWeight: 800 }}>Trace (latest 20)</div>
+          <pre style={{ whiteSpace: "pre-wrap", fontSize: 11, background: "#fff", padding: 8 }}>
+{trace.length ? trace.join("\n") : "(no trace yet)"}
+          </pre>
+          <button
+            type="button"
+            onClick={() => {
+              window.localStorage.removeItem("login_msg");
+              window.localStorage.removeItem("login_trace");
+              setMsg("");
+              setTrace([]);
+            }}
+            style={{ marginTop: 8 }}
+          >
+            Clear debug
+          </button>
         </div>
 
         <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
@@ -99,22 +156,12 @@ export default function LoginPage() {
           </button>
         </div>
 
-        <form
-          onSubmit={handleSubmit}
-          onSubmitCapture={() => setMsgPersist("🟡 submit captured")}
-          style={{ display: "grid", gap: 10 }}
-        >
+        <form onSubmit={handleSubmit} style={{ display: "grid", gap: 10 }}>
           <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="you@company.com" />
-
           {mode === "password" && (
             <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="••••••••" />
           )}
-
-          <button
-            type="submit"
-            disabled={loading}
-            onClick={() => setMsgPersist("🟢 button clicked")}
-          >
+          <button type="submit" disabled={loading}>
             {loading ? "Working…" : mode === "password" ? "Log in" : "Send magic link"}
           </button>
         </form>
