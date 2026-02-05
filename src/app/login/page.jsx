@@ -8,11 +8,11 @@ import { supabaseBrowser } from "../../lib/supabase/client";
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [mode, setMode] = useState("password"); // "password" | "magic"
+  const [mode, setMode] = useState("password");
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState("");
+  const [testOut, setTestOut] = useState("");
 
-  // Persist msg so it won’t vanish if the page reloads/hot-refreshes
   useEffect(() => {
     const saved = window.localStorage.getItem("login_msg");
     if (saved) setMsg(saved);
@@ -27,7 +27,6 @@ export default function LoginPage() {
     e.preventDefault();
     e.stopPropagation();
 
-    alert("✅ SUBMIT FIRED");
     setMsgPersist("SUBMIT FIRED ✅");
     setLoading(true);
 
@@ -57,16 +56,16 @@ export default function LoginPage() {
         const { data: sessionData } = await supabase.auth.getSession();
 
         if (!sessionData?.session) {
-          setMsgPersist("Login succeeded but session is missing (cookie/auth config issue).");
+          setMsgPersist("Login succeeded but session is missing.");
           return;
         }
 
         setMsgPersist("Login OK ✅ Redirecting...");
-        setTimeout(() => window.location.assign("/dashboard"), 800);
+        setTimeout(() => window.location.assign("/dashboard"), 600);
         return;
       }
 
-      // magic link
+      const supabase = supabaseBrowser();
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
@@ -85,6 +84,55 @@ export default function LoginPage() {
     }
   }
 
+  async function testSessionAndOrg() {
+    setTestOut("Running test…");
+    try {
+      const supabase = supabaseBrowser();
+
+      const { data: sessionData, error: sessErr } = await supabase.auth.getSession();
+      if (sessErr) throw sessErr;
+
+      const token = sessionData?.session?.access_token;
+
+      const result = {
+        hasSession: !!sessionData?.session,
+        tokenStart: token ? token.slice(0, 16) + "…" : null,
+      };
+
+      if (!token) {
+        setTestOut(JSON.stringify({ ...result, api: "SKIPPED (no token)" }, null, 2));
+        return;
+      }
+
+      const res = await fetch("/api/me/org", {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+      });
+
+      const text = await res.text();
+      let parsed;
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        parsed = text;
+      }
+
+      setTestOut(
+        JSON.stringify(
+          {
+            ...result,
+            apiStatus: res.status,
+            apiBody: parsed,
+          },
+          null,
+          2
+        )
+      );
+    } catch (e) {
+      setTestOut(`Test failed: ${e?.message || String(e)}`);
+    }
+  }
+
   const envDebug = {
     url: process.env.NEXT_PUBLIC_SUPABASE_URL,
     anonStart: (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "").slice(0, 12),
@@ -92,10 +140,9 @@ export default function LoginPage() {
 
   return (
     <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24 }}>
-      <section style={{ width: "100%", maxWidth: 520 }}>
+      <section style={{ width: "100%", maxWidth: 560 }}>
         <h1 style={{ fontSize: 22, fontWeight: 900, marginBottom: 10 }}>Log in</h1>
 
-        {/* DEBUG BOX */}
         <div style={{ padding: 10, background: "#fff6bf", border: "1px solid #000", marginBottom: 12 }}>
           <div style={{ fontWeight: 800, marginBottom: 6 }}>Debug (remove later)</div>
           <div><b>URL:</b> {String(envDebug.url)}</div>
@@ -104,16 +151,27 @@ export default function LoginPage() {
           <div><b>email length:</b> {email.length} | <b>password length:</b> {password.length}</div>
           <div><b>msg:</b> {msg || "(empty)"}</div>
 
-          <button
-            type="button"
-            onClick={() => {
-              window.localStorage.removeItem("login_msg");
-              setMsg("");
-            }}
-            style={{ marginTop: 8 }}
-          >
-            Clear msg
-          </button>
+          <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+            <button type="button" onClick={testSessionAndOrg}>
+              Test Session + /api/me/org
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                window.localStorage.removeItem("login_msg");
+                setMsg("");
+                setTestOut("");
+              }}
+            >
+              Clear
+            </button>
+          </div>
+
+          {testOut && (
+            <pre style={{ marginTop: 10, whiteSpace: "pre-wrap", fontSize: 12 }}>
+              {testOut}
+            </pre>
+          )}
         </div>
 
         <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
