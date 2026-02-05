@@ -1,10 +1,9 @@
-cat > src/app/login/page.jsx << 'EOF'
 "use client";
-
-export const dynamic = "force-dynamic";
 
 import { useState } from "react";
 import { supabaseBrowser } from "../../lib/supabase/client";
+
+export const dynamic = "force-dynamic";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -13,85 +12,151 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState("");
 
-  const envDebug = {
-    url: process.env.NEXT_PUBLIC_SUPABASE_URL,
-    anonStart: (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "").slice(0, 12),
-  };
-
   async function handleSubmit(e) {
     e.preventDefault();
+    e.stopPropagation();
+
+    console.log("🚀 SUBMIT CLICKED");
+
     setMsg("");
     setLoading(true);
 
     try {
       const supabase = supabaseBrowser();
 
-      if (!email) throw new Error("Please enter your email");
+      if (!email) {
+        throw new Error("Please enter your email");
+      }
 
-      // ---------- PASSWORD LOGIN ----------
+      // ----------------------
+      // PASSWORD LOGIN
+      // ----------------------
       if (mode === "password") {
-        if (!password) throw new Error("Please enter your password");
+        if (!password) {
+          throw new Error("Please enter your password");
+        }
+
+        console.log("🔐 Trying password login...");
 
         const { data, error } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
 
-        if (error) {
-          setMsg(`Login failed: ${error.message}`);
-          return;
-        }
+        console.log("LOGIN RESPONSE:", data, error);
 
-        const { data: sessionData } = await supabase.auth.getSession();
-
-        if (!sessionData?.session) {
-          setMsg("Login succeeded but session is missing (cookie/auth config issue).");
-          return;
-        }
+        if (error) throw error;
 
         setMsg("Login OK ✅ Redirecting...");
-        window.location.assign("/dashboard");
+        console.log("✅ LOGIN SUCCESS");
+
+        setTimeout(() => {
+          window.location.href = "/dashboard";
+        }, 800);
+
         return;
       }
 
-      // ---------- MAGIC LINK LOGIN ----------
+      // ----------------------
+      // MAGIC LINK
+      // ----------------------
+      console.log("📩 Sending magic link...");
+
       const { error } = await supabase.auth.signInWithOtp({
         email,
-        options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
       });
 
       if (error) throw error;
 
-      setMsg("Magic link sent. Check your inbox (and spam).");
+      setMsg("Magic link sent. Check your inbox 📩");
     } catch (err) {
+      console.error("❌ LOGIN ERROR:", err);
       setMsg(err?.message || "Login failed");
     } finally {
       setLoading(false);
     }
   }
 
-  return (
-    <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24 }}>
-      <section style={{ width: "100%", maxWidth: 460 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 900, marginBottom: 10 }}>Log in</h1>
+  // ----------------------
+  // ENV DEBUG
+  // ----------------------
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
-        <div style={{ padding: 10, background: "#fff6bf", border: "1px solid #000", marginBottom: 12 }}>
-          <div style={{ fontWeight: 800, marginBottom: 6 }}>Debug (remove later)</div>
-          <div><b>URL:</b> {String(envDebug.url)}</div>
-          <div><b>ANON starts:</b> {envDebug.anonStart ? envDebug.anonStart + "…" : "(empty)"}</div>
+  return (
+    <main
+      style={{
+        minHeight: "100vh",
+        display: "grid",
+        placeItems: "center",
+        padding: 24,
+      }}
+    >
+      <section style={{ width: "100%", maxWidth: 420 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 900, marginBottom: 10 }}>
+          Log in
+        </h1>
+
+        {/* ---------------- DEBUG BOX ---------------- */}
+        <div
+          style={{
+            fontSize: 12,
+            background: "#f3f3f3",
+            padding: 10,
+            marginBottom: 15,
+            borderRadius: 6,
+          }}
+        >
+          <strong>Debug (remove later)</strong>
+          <br />
+          URL: {supabaseUrl || "❌ missing"}
+          <br />
+          ANON starts: {anonKey ? anonKey.slice(0, 12) + "…" : "❌ missing"}
+          <br />
+          mode: {mode} | loading: {String(loading)}
+          <br />
+          email length: {email.length} | password length: {password.length}
+          <br />
+          msg: {msg || "(empty)"}
         </div>
 
+        {/* ---------------- MODE BUTTONS ---------------- */}
         <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-          <button type="button" onClick={() => setMode("password")} style={{ flex: 1 }}>
+          <button
+            type="button"
+            onClick={() => setMode("password")}
+            style={{ flex: 1 }}
+          >
             Password
           </button>
-          <button type="button" onClick={() => setMode("magic")} style={{ flex: 1 }}>
+
+          <button
+            type="button"
+            onClick={() => setMode("magic")}
+            style={{ flex: 1 }}
+          >
             Magic link
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} style={{ display: "grid", gap: 10 }}>
-          <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="you@company.com" />
+        {/* ---------------- FORM ---------------- */}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            handleSubmit(e);
+          }}
+          style={{ display: "grid", gap: 10 }}
+        >
+          <input
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            type="email"
+            placeholder="you@company.com"
+          />
 
           {mode === "password" && (
             <input
@@ -102,14 +167,22 @@ export default function LoginPage() {
             />
           )}
 
-          <button disabled={loading}>
-            {loading ? "Working…" : mode === "password" ? "Log in" : "Send magic link"}
+          <button type="submit" disabled={loading}>
+            {loading
+              ? "Working…"
+              : mode === "password"
+              ? "Log in"
+              : "Send magic link"}
           </button>
 
-          {msg && <p style={{ marginTop: 6 }}>{msg}</p>}
+          {/* ---------------- MESSAGE ---------------- */}
+          {msg && (
+            <p style={{ fontSize: 14, marginTop: 6 }}>
+              {msg}
+            </p>
+          )}
         </form>
       </section>
     </main>
   );
 }
-EOF
