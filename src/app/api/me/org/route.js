@@ -1,43 +1,68 @@
-"use client";
+import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import { createServerClient } from "@supabase/ssr";
 
-import { useEffect, useState } from "react";
+export const dynamic = "force-dynamic";
 
-export default function DashboardOverview() {
-  const [loading, setLoading] = useState(true);
-  const [org, setOrg] = useState(null);
-  const [error, setError] = useState(null);
+function supabaseFromCookies() {
+  const cookieStore = cookies();
 
-  useEffect(() => {
-    async function loadOrg() {
-      try {
-        const res = await fetch("/api/me/org", { cache: "no-store" });
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              cookieStore.set(name, value, options);
+            });
+          } catch {
+            // Server Components can throw on set; safe to ignore in read-only cases
+          }
+        },
+      },
+    }
+  );
+}
 
-        if (!res.ok) {
-          const text = await res.text();
-          throw new Error(text || "Failed to load organisation");
-        }
+export async function GET() {
+  try {
+    const supabase = supabaseFromCookies();
 
-        const data = await res.json();
-        console.log("ORG DATA:", data); // 👈 keep this for now
-        setOrg(data);
-      } catch (err) {
-        console.error(err);
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError || !userData?.user) {
+      return NextResponse.json({ ok: false, error: "Auth required." }, { status: 401 });
     }
 
-    loadOrg();
-  }, []);
+    const user = userData.user;
 
-  if (loading) return <p>Loading…</p>;
-  if (error) return <p style={{ color: "red" }}>{error}</p>;
+    // ✅ Update table name/columns if yours differs
+    const { data: orgRow, error: orgError } = await supabase
+      .from("user_organisations")
+      .select("organisation_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
 
-  return (
-    <main>
-      <h1>Overview</h1>
-      <pre>{JSON.stringify(org, null, 2)}</pre>
-    </main>
-  );
+    if (orgError || !orgRow?.organisation_id) {
+      return NextResponse.json(
+        { ok: false, error: "No organisation linked to this user." },
+        { status: 400 }
+      );
+    }
+
+    return NextResponse.json({
+      ok: true,
+      user_id: user.id,
+      organisation_id: orgRow.organisation_id,
+    });
+  } catch (e) {
+    return NextResponse.json(
+      { ok: false, error: e?.message || "Unexpected error" },
+      { status: 500 }
+    );
+  }
 }
