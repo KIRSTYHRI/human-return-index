@@ -46,7 +46,9 @@ export default function LoginPage() {
 
         setMsgPersist("Attempting login…");
 
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+console.log("LOGIN RESULT:", { data, error });
+
 
         if (error) {
           setMsgPersist(`Login failed: ${error.message}`);
