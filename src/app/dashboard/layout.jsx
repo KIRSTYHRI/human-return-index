@@ -11,34 +11,28 @@ export default function DashboardLayout({ children }) {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    let alive = true;
+    const supabase = supabaseBrowser();
 
-    async function run() {
-      try {
-        const supabase = supabaseBrowser();
-        const { data, error } = await supabase.auth.getSession();
+    // 1) Immediate check (but don't instantly bounce)
+    supabase.auth.getSession().then(({ data }) => {
+      if (data?.session) setReady(true);
+    });
 
-        if (error) {
-          router.replace("/login");
-          return;
-        }
+    // 2) Listen for auth state changes (this is the reliable bit)
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) setReady(true);
+      else router.replace("/login");
+    });
 
-        const session = data?.session;
-        if (!session) {
-          router.replace("/login");
-          return;
-        }
-
-        if (alive) setReady(true);
-      } catch {
-        router.replace("/login");
-      }
-    }
-
-    run();
+    // 3) Failsafe: if after 1s we still don't have a session, go login
+    const t = setTimeout(async () => {
+      const { data } = await supabase.auth.getSession();
+      if (!data?.session) router.replace("/login");
+    }, 1000);
 
     return () => {
-      alive = false;
+      sub?.subscription?.unsubscribe?.();
+      clearTimeout(t);
     };
   }, [router]);
 
