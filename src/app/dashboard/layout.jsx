@@ -96,7 +96,7 @@ export default function DashboardLayout({ children }) {
             <NavBtn href="/dashboard/settings" label="Settings" />
           </nav>
         </header>
-
+        
         {children}
       </div>
     </div>
