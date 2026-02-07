@@ -1,9 +1,4 @@
-"use client";
-
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { supabaseBrowser } from "../../lib/supabase/client";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +13,7 @@ function NavBtn({ href, label }) {
         background: "#0B1220",
         color: "#E5E7EB",
         textDecoration: "none",
-        fontWeight: 800,
+        fontWeight: 700,
         fontSize: 13,
       }}
     >
@@ -28,36 +23,7 @@ function NavBtn({ href, label }) {
 }
 
 export default function DashboardLayout({ children }) {
-  const router = useRouter();
-  const [ready, setReady] = useState(false);
-
-  useEffect(() => {
-    let alive = true;
-
-    async function run() {
-      try {
-        const supabase = supabaseBrowser();
-        const { data, error } = await supabase.auth.getSession();
-
-        if (error || !data?.session) {
-          router.replace("/login");
-          return;
-        }
-
-        if (alive) setReady(true);
-      } catch {
-        router.replace("/login");
-      }
-    }
-
-    run();
-    return () => {
-      alive = false;
-    };
-  }, [router]);
-
-  if (!ready) return <main style={{ padding: 24 }}>Loading…</main>;
-
+  // 🚫 NO server-side redirect here. We keep MVP unblocked.
   return (
     <div style={{ minHeight: "100vh", background: "#0B0F19", color: "#E5E7EB" }}>
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "18px 16px 28px" }}>
