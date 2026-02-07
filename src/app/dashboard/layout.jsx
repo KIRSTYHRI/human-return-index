@@ -12,14 +12,14 @@ function NavBtn({ href, label }) {
     <Link
       href={href}
       style={{
-        padding: "8px 12px",
+        padding: "10px 12px",
         borderRadius: 12,
         border: "1px solid #1F2937",
-        background: "#0B0F19",
+        background: "#0B1220",
         color: "#E5E7EB",
         textDecoration: "none",
+        fontWeight: 800,
         fontSize: 13,
-        fontWeight: 700,
       }}
     >
       {label}
@@ -39,9 +39,7 @@ export default function DashboardLayout({ children }) {
         const supabase = supabaseBrowser();
         const { data, error } = await supabase.auth.getSession();
 
-        const session = data?.session;
-
-        if (error || !session) {
+        if (error || !data?.session) {
           router.replace("/login");
           return;
         }
@@ -58,18 +56,11 @@ export default function DashboardLayout({ children }) {
     };
   }, [router]);
 
-  if (!ready) {
-    return (
-      <main style={{ minHeight: "100vh", background: "#0B0F19", color: "#E5E7EB", padding: 24 }}>
-        Loading…
-      </main>
-    );
-  }
+  if (!ready) return <main style={{ padding: 24 }}>Loading…</main>;
 
   return (
     <div style={{ minHeight: "100vh", background: "#0B0F19", color: "#E5E7EB" }}>
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "18px 16px 28px" }}>
-        {/* Top bar */}
         <header
           style={{
             display: "flex",
@@ -96,7 +87,7 @@ export default function DashboardLayout({ children }) {
             <NavBtn href="/dashboard/settings" label="Settings" />
           </nav>
         </header>
-        
+
         {children}
       </div>
     </div>
