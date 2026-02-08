@@ -1,6 +1,5 @@
-import { supabaseBrowser } from "./supabase/client";
+import { supabaseBrowser } from "./supabase/client.ts";
 
-// Fetch helper that always attaches the logged-in user's token
 export async function apiFetch(path, options = {}) {
   const supabase = supabaseBrowser();
   const { data } = await supabase.auth.getSession();
@@ -9,9 +8,5 @@ export async function apiFetch(path, options = {}) {
   const headers = new Headers(options.headers || {});
   if (token) headers.set("Authorization", `Bearer ${token}`);
 
-  return fetch(path, {
-    ...options,
-    headers,
-    cache: "no-store",
-  });
+  return fetch(path, { ...options, headers, cache: "no-store" });
 }
