@@ -1,4 +1,9 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { supabaseBrowser } from "../../lib/supabase/client";
 
 export const dynamic = "force-dynamic";
 
@@ -10,11 +15,11 @@ function NavBtn({ href, label }) {
         padding: "10px 12px",
         borderRadius: 12,
         border: "1px solid #1F2937",
-        background: "#0B1220",
+        background: "#0B1020",
         color: "#E5E7EB",
         textDecoration: "none",
-        fontWeight: 700,
         fontSize: 13,
+        fontWeight: 700,
       }}
     >
       {label}
@@ -23,7 +28,51 @@ function NavBtn({ href, label }) {
 }
 
 export default function DashboardLayout({ children }) {
-  // 🚫 NO server-side redirect here. We keep MVP unblocked.
+  const router = useRouter();
+  const [ready, setReady] = useState(false);
+  const [trace, setTrace] = useState([]);
+
+  useEffect(() => {
+    let alive = true;
+    const supabase = supabaseBrowser();
+
+    const add = (m) =>
+      setTrace((t) => [`${new Date().toISOString()} ${m}`, ...t].slice(0, 20));
+
+    (async () => {
+      add("dashboard layout mounted");
+      const { data, error } = await supabase.auth.getSession();
+      add(`getSession error=${!!error} hasSession=${!!data?.session}`);
+
+      if (error || !data?.session) {
+        add("no session -> redirect /login");
+        router.replace("/login");
+        return;
+      }
+
+      add("session ok -> ready");
+      if (alive) setReady(true);
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [router]);
+
+  if (!ready) {
+    return (
+      <main style={{ padding: 24, color: "#E5E7EB" }}>
+        Loading…
+        <div style={{ marginTop: 12, opacity: 0.9 }}>
+          <div style={{ fontWeight: 800, marginBottom: 6 }}>Trace</div>
+          <pre style={{ whiteSpace: "pre-wrap", fontSize: 12 }}>
+            {trace.join("\n")}
+          </pre>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <div style={{ minHeight: "100vh", background: "#0B0F19", color: "#E5E7EB" }}>
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "18px 16px 28px" }}>
@@ -41,7 +90,9 @@ export default function DashboardLayout({ children }) {
           }}
         >
           <div style={{ display: "flex", flexDirection: "column" }}>
-            <div style={{ fontWeight: 1000, letterSpacing: 0.2 }}>Human Return Index™</div>
+            <div style={{ fontWeight: 1000, letterSpacing: 0.2 }}>
+              Human Return Index™
+            </div>
             <div style={{ fontSize: 12, color: "#9CA3AF" }}>Dashboard</div>
           </div>
 
