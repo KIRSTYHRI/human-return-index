@@ -38,26 +38,32 @@ export default function DashboardLayout({ children }) {
     const supabase = supabaseBrowser();
 
     async function check() {
-      const { data, error } = await supabase.auth.getSession();
+      try {
+        const { data, error } = await supabase.auth.getSession();
 
-      if (error) {
+        if (error) {
+          if (!alive) return;
+          setDebug("Session error: " + error.message);
+          router.replace("/login");
+          return;
+        }
+
+        const session = data?.session;
+        if (!session) {
+          if (!alive) return;
+          setDebug("No session found → redirecting to /login");
+          router.replace("/login");
+          return;
+        }
+
         if (!alive) return;
-        setDebug("Session error: " + error.message);
-        router.replace("/login");
-        return;
-      }
-
-      const session = data?.session;
-      if (!session) {
+        setDebug("Session OK ✅");
+        setReady(true);
+      } catch (e) {
         if (!alive) return;
-        setDebug("No session found → redirecting to /login");
+        setDebug("Session check crashed: " + (e?.message || "unknown error"));
         router.replace("/login");
-        return;
       }
-
-      if (!alive) return;
-      setDebug("Session OK ✅");
-      setReady(true);
     }
 
     check();
@@ -74,7 +80,14 @@ export default function DashboardLayout({ children }) {
 
   if (!ready) {
     return (
-      <main style={{ padding: 24, color: "#E5E7EB", background: "#0B0F19", minHeight: "100vh" }}>
+      <main
+        style={{
+          padding: 24,
+          color: "#E5E7EB",
+          background: "#0B0F19",
+          minHeight: "100vh",
+        }}
+      >
         <div style={{ fontWeight: 900, marginBottom: 8 }}>Loading dashboard…</div>
         <div style={{ fontSize: 13, color: "#9CA3AF" }}>{debug}</div>
       </main>
