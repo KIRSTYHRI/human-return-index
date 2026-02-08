@@ -6,11 +6,11 @@ import { supabaseBrowser } from "@/lib/supabase/client";
 
 export const dynamic = "force-dynamic";
 
+const DEBUG_MODE = true; // 🔥 set false once fixed
+
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-
-  // Build once (prevents accidental multiple clients)
   const supabase = useMemo(() => supabaseBrowser(), []);
 
   const [email, setEmail] = useState("");
@@ -20,7 +20,11 @@ export default function LoginPage() {
   const [msg, setMsg] = useState("Please log in.");
   const [debug, setDebug] = useState("");
 
-  // If user already has a session, go straight to dashboard
+  function trace(line) {
+    console.log("[LOGIN TRACE]", line);
+    setDebug((d) => (d ? `${d}\n${line}` : line));
+  }
+
   useEffect(() => {
     let alive = true;
 
@@ -29,20 +33,23 @@ export default function LoginPage() {
       if (!alive) return;
 
       if (error) {
-        setDebug(`getSession error: ${error.message}`);
+        trace(`getSession error: ${error.message}`);
         return;
       }
 
-      if (data?.session) {
+      const has = !!data?.session;
+      trace(`initial getSession hasSession=${has}`);
+
+      // In debug mode, do NOT auto-redirect — we want to SEE persistence
+      if (has && !DEBUG_MODE) {
         setMsg("Session already active ✅ Redirecting…");
         router.replace("/dashboard");
       }
     })();
 
-    // Listen for auth events (useful for debugging)
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       if (!alive) return;
-      setDebug(`onAuthStateChange: ${event} | hasSession=${!!session}`);
+      trace(`onAuthStateChange: ${event} | hasSession=${!!session}`);
     });
 
     return () => {
@@ -57,10 +64,9 @@ export default function LoginPage() {
     setMsg("Signing in…");
     setDebug("");
 
-    try {
-      // Optional: support magic redirect target like /login?next=/dashboard
-      const next = searchParams.get("next") || "/dashboard";
+    const next = searchParams.get("next") || "/dashboard";
 
+    try {
       const { data, error } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password,
@@ -68,42 +74,51 @@ export default function LoginPage() {
 
       if (error) {
         setMsg("Login failed ❌");
-        setDebug(error.message);
+        trace(`signIn error: ${error.message}`);
         setLoading(false);
         return;
       }
 
-      setMsg("Login OK ✅ Checking persistence…");
+      setMsg("Signed in ✅ Checking storage + session…");
+      trace(`signIn ok user=${data?.user?.id || "unknown"}`);
 
-      // Give storage a moment to populate
+      // Check localStorage keys shortly after login
       setTimeout(() => {
         const keys = Object.keys(localStorage || {});
         const supaKeys = keys.filter((k) => k.includes("sb-") || k.includes("hri-sb-auth"));
-        setDebug((d) => `${d}\nlocalStorage supabase keys: ${JSON.stringify(supaKeys)}`);
-      }, 250);
+        trace(`localStorage supabase keys: ${JSON.stringify(supaKeys)}`);
+      }, 300);
 
+      // Check session after login
       setTimeout(async () => {
         const { data: sData, error: sErr } = await supabase.auth.getSession();
         if (sErr) {
-          setMsg("Session read failed ❌");
-          setDebug((d) => `${d}\ngetSession after login error: ${sErr.message}`);
+          setMsg("Session check failed ❌");
+          trace(`getSession after login error: ${sErr.message}`);
           setLoading(false);
           return;
         }
 
-        if (!sData?.session) {
-          setMsg("No session after login ❌");
-          setDebug((d) => `${d}\nSession object is null after login.`);
+        const hasSession = !!sData?.session;
+        trace(`getSession after login hasSession=${hasSession}`);
+
+        if (!hasSession) {
+          setMsg("No session after login ❌ (persistence still broken)");
           setLoading(false);
           return;
         }
 
-        setMsg("Session persisted ✅ Redirecting…");
-        router.replace(next);
-      }, 500);
+        setMsg(DEBUG_MODE ? "Session OK ✅ (debug hold 3s)" : "Session OK ✅ Redirecting…");
+
+        if (DEBUG_MODE) {
+          setTimeout(() => router.replace(next), 3000);
+        } else {
+          router.replace(next);
+        }
+      }, 700);
     } catch (err) {
       setMsg("Login crashed ❌");
-      setDebug(String(err?.message || err));
+      trace(String(err?.message || err));
       setLoading(false);
     }
   }
@@ -111,7 +126,7 @@ export default function LoginPage() {
   return (
     <main style={{ maxWidth: 420, margin: "40px auto", padding: 16 }}>
       <h1 style={{ fontSize: 28, marginBottom: 8 }}>Log in</h1>
-      <p style={{ marginTop: 0, opacity: 0.8 }}>{msg}</p>
+      <p style={{ marginTop: 0, opacity: 0.85 }}>{msg}</p>
 
       <form onSubmit={handleSubmit} style={{ display: "grid", gap: 12, marginTop: 16 }}>
         <label style={{ display: "grid", gap: 6 }}>
@@ -146,7 +161,7 @@ export default function LoginPage() {
             borderRadius: 12,
             border: "1px solid #333",
             cursor: loading ? "not-allowed" : "pointer",
-            fontWeight: 600,
+            fontWeight: 700,
           }}
         >
           {loading ? "Signing in…" : "Sign in"}
