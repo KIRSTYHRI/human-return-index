@@ -1,3 +1,4 @@
+cat > src/app/dashboard/layout.jsx <<'EOF'
 "use client";
 
 import Link from "next/link";
@@ -59,10 +60,8 @@ export default function DashboardLayout({ children }) {
       setReady(true);
     }
 
-    // run now
     check();
 
-    // also listen for changes
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!session) router.replace("/login");
     });
@@ -117,3 +116,4 @@ export default function DashboardLayout({ children }) {
     </div>
   );
 }
+EOF
