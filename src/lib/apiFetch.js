@@ -1,4 +1,4 @@
-import { supabaseBrowser } from "./supabase/client.ts";
+import { supabaseBrowser } from "./supabase/browser";
 
 export async function apiFetch(path, options = {}) {
   const supabase = supabaseBrowser();
