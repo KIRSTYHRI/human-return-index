@@ -1,49 +1,40 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { supabaseFromBearer } from "../../../../lib/supabase/bearerRouteClient";
 
-export const dynamic = "force-dynamic";
-
-function supabaseFromBearer(req) {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  const auth = req.headers.get("authorization") || "";
-  const token = auth.toLowerCase().startsWith("bearer ") ? auth.slice(7) : null;
-
-  const supabase = createClient(url, anon, {
-    global: token ? { headers: { Authorization: `Bearer ${token}` } } : undefined,
-  });
-
-  return { supabase, token };
-}
+const VERSION = "ME_ORG_V1";
 
 export async function GET(req) {
   try {
-    const { supabase, token } = supabaseFromBearer(req);
-    if (!token) {
-      return NextResponse.json({ ok: false, error: "Missing Bearer token." }, { status: 401 });
+    const { supabase } = supabaseFromBearer(req);
+
+    if (!supabase) {
+      return NextResponse.json(
+        { ok: false, version: VERSION, error: "Missing Bearer token" },
+        { status: 401 }
+      );
     }
 
-    const { data: userData, error: userError } = await supabase.auth.getUser();
-    if (userError || !userData?.user) {
-      return NextResponse.json({ ok: false, error: "Auth required." }, { status: 401 });
+    const { data: userData, error: userErr } = await supabase.auth.getUser();
+    const user = userData?.user;
+
+    if (userErr || !user) {
+      return NextResponse.json(
+        { ok: false, version: VERSION, error: "Auth session missing!" },
+        { status: 401 }
+      );
     }
 
-    const user = userData.user;
-
-    const { data: orgRow, error: orgError } = await supabase
-      .from("user_organisations")
-      .select("organisation_id")
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    if (orgError) return NextResponse.json({ ok: false, error: orgError.message }, { status: 500 });
-    if (!orgRow?.organisation_id) {
-      return NextResponse.json({ ok: false, error: "No organisation linked to this user." }, { status: 400 });
-    }
-
-    return NextResponse.json({ ok: true, user_id: user.id, organisation_id: orgRow.organisation_id });
+    // ✅ TEMP: return user only (wire your org lookup back in next)
+    return NextResponse.json({
+      ok: true,
+      version: VERSION,
+      user_id: user.id,
+      email: user.email,
+    });
   } catch (e) {
-    return NextResponse.json({ ok: false, error: e?.message || "Unexpected error" }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, version: VERSION, error: String(e?.message || e) },
+      { status: 500 }
+    );
   }
 }
