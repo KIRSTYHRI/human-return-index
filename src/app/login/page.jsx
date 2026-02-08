@@ -1,132 +1,173 @@
-cat > src/app/dashboard/layout.jsx <<'EOF'
 "use client";
 
-import Link from "next/link";
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { supabaseBrowser } from "../../lib/supabase/client";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { supabaseBrowser } from "@/lib/supabase/client";
 
 export const dynamic = "force-dynamic";
 
-function NavBtn({ href, label }) {
-  return (
-    <Link
-      href={href}
-      style={{
-        padding: "8px 12px",
-        borderRadius: 12,
-        border: "1px solid #1F2937",
-        background: "#0B1220",
-        color: "#E5E7EB",
-        textDecoration: "none",
-        fontSize: 13,
-        fontWeight: 700,
-      }}
-    >
-      {label}
-    </Link>
-  );
-}
-
-export default function DashboardLayout({ children }) {
+export default function LoginPage() {
   const router = useRouter();
-  const [ready, setReady] = useState(false);
-  const [debug, setDebug] = useState("Checking session…");
+  const searchParams = useSearchParams();
 
+  // Build once (prevents accidental multiple clients)
+  const supabase = useMemo(() => supabaseBrowser(), []);
+
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState("Please log in.");
+  const [debug, setDebug] = useState("");
+
+  // If user already has a session, go straight to dashboard
   useEffect(() => {
     let alive = true;
-    const supabase = supabaseBrowser();
 
-    async function check() {
-      try {
-        const { data, error } = await supabase.auth.getSession();
+    (async () => {
+      const { data, error } = await supabase.auth.getSession();
+      if (!alive) return;
 
-        if (error) {
-          if (!alive) return;
-          setDebug("Session error: " + error.message);
-          router.replace("/login");
-          return;
-        }
-
-        const session = data?.session;
-        if (!session) {
-          if (!alive) return;
-          setDebug("No session found → redirecting to /login");
-          router.replace("/login");
-          return;
-        }
-
-        if (!alive) return;
-        setDebug("Session OK ✅");
-        setReady(true);
-      } catch (e) {
-        if (!alive) return;
-        setDebug("Session check crashed: " + (e?.message || "unknown error"));
-        router.replace("/login");
+      if (error) {
+        setDebug(`getSession error: ${error.message}`);
+        return;
       }
-    }
 
-    check();
+      if (data?.session) {
+        setMsg("Session already active ✅ Redirecting…");
+        router.replace("/dashboard");
+      }
+    })();
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session) router.replace("/login");
+    // Listen for auth events (useful for debugging)
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!alive) return;
+      setDebug(`onAuthStateChange: ${event} | hasSession=${!!session}`);
     });
 
     return () => {
       alive = false;
-      sub?.subscription?.unsubscribe?.();
+      sub?.subscription?.unsubscribe();
     };
-  }, [router]);
+  }, [router, supabase]);
 
-  if (!ready) {
-    return (
-      <main
-        style={{
-          padding: 24,
-          color: "#E5E7EB",
-          background: "#0B0F19",
-          minHeight: "100vh",
-        }}
-      >
-        <div style={{ fontWeight: 900, marginBottom: 8 }}>Loading dashboard…</div>
-        <div style={{ fontSize: 13, color: "#9CA3AF" }}>{debug}</div>
-      </main>
-    );
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setLoading(true);
+    setMsg("Signing in…");
+    setDebug("");
+
+    try {
+      // Optional: support magic redirect target like /login?next=/dashboard
+      const next = searchParams.get("next") || "/dashboard";
+
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+
+      if (error) {
+        setMsg("Login failed ❌");
+        setDebug(error.message);
+        setLoading(false);
+        return;
+      }
+
+      setMsg("Login OK ✅ Checking persistence…");
+
+      // Give storage a moment to populate
+      setTimeout(() => {
+        const keys = Object.keys(localStorage || {});
+        const supaKeys = keys.filter((k) => k.includes("sb-") || k.includes("hri-sb-auth"));
+        setDebug((d) => `${d}\nlocalStorage supabase keys: ${JSON.stringify(supaKeys)}`);
+      }, 250);
+
+      setTimeout(async () => {
+        const { data: sData, error: sErr } = await supabase.auth.getSession();
+        if (sErr) {
+          setMsg("Session read failed ❌");
+          setDebug((d) => `${d}\ngetSession after login error: ${sErr.message}`);
+          setLoading(false);
+          return;
+        }
+
+        if (!sData?.session) {
+          setMsg("No session after login ❌");
+          setDebug((d) => `${d}\nSession object is null after login.`);
+          setLoading(false);
+          return;
+        }
+
+        setMsg("Session persisted ✅ Redirecting…");
+        router.replace(next);
+      }, 500);
+    } catch (err) {
+      setMsg("Login crashed ❌");
+      setDebug(String(err?.message || err));
+      setLoading(false);
+    }
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "#0B0F19", color: "#E5E7EB" }}>
-      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "18px 16px 28px" }}>
-        <header
+    <main style={{ maxWidth: 420, margin: "40px auto", padding: 16 }}>
+      <h1 style={{ fontSize: 28, marginBottom: 8 }}>Log in</h1>
+      <p style={{ marginTop: 0, opacity: 0.8 }}>{msg}</p>
+
+      <form onSubmit={handleSubmit} style={{ display: "grid", gap: 12, marginTop: 16 }}>
+        <label style={{ display: "grid", gap: 6 }}>
+          <span>Email</span>
+          <input
+            type="email"
+            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            style={{ padding: 10, borderRadius: 10, border: "1px solid #333" }}
+          />
+        </label>
+
+        <label style={{ display: "grid", gap: 6 }}>
+          <span>Password</span>
+          <input
+            type="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            style={{ padding: 10, borderRadius: 10, border: "1px solid #333" }}
+          />
+        </label>
+
+        <button
+          type="submit"
+          disabled={loading}
           style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 12,
-            padding: "14px 14px",
-            border: "1px solid #1F2937",
-            borderRadius: 16,
-            background: "#070A12",
-            marginBottom: 16,
+            padding: 12,
+            borderRadius: 12,
+            border: "1px solid #333",
+            cursor: loading ? "not-allowed" : "pointer",
+            fontWeight: 600,
           }}
         >
-          <div style={{ display: "flex", flexDirection: "column" }}>
-            <div style={{ fontWeight: 1000, letterSpacing: 0.2 }}>Human Return Index™</div>
-            <div style={{ fontSize: 12, color: "#9CA3AF" }}>Dashboard</div>
-          </div>
+          {loading ? "Signing in…" : "Sign in"}
+        </button>
+      </form>
 
-          <nav style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <NavBtn href="/dashboard" label="Overview" />
-            <NavBtn href="/dashboard/hri-assessment" label="HRI Assessment" />
-            <NavBtn href="/dashboard/employee-pulse" label="Employee Pulse" />
-            <NavBtn href="/dashboard/scores" label="Scores" />
-            <NavBtn href="/dashboard/settings" label="Settings" />
-          </nav>
-        </header>
-
-        {children}
-      </div>
-    </div>
+      {debug ? (
+        <pre
+          style={{
+            marginTop: 16,
+            padding: 12,
+            borderRadius: 12,
+            background: "rgba(0,0,0,0.06)",
+            overflowX: "auto",
+            fontSize: 12,
+            whiteSpace: "pre-wrap",
+          }}
+        >
+          {debug}
+        </pre>
+      ) : null}
+    </main>
   );
 }
-EOF
