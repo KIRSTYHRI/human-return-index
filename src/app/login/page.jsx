@@ -1,51 +1,56 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/client";
 
 export const dynamic = "force-dynamic";
 
-const DEBUG_MODE = true; // 🔥 set false once fixed
+const DEBUG_MODE = true;
 
 export default function LoginPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const supabase = useMemo(() => supabaseBrowser(), []);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState("Please log in.");
   const [debug, setDebug] = useState("");
 
   function trace(line) {
-    console.log("[LOGIN TRACE]", line);
-    setDebug((d) => (d ? `${d}\n${line}` : line));
+    console.log("[LOGIN]", line);
+    setDebug((d) => (d ? d + "\n" + line : line));
+  }
+
+  // Dump current auth + storage state
+  async function dumpAuth() {
+    const keys = Object.keys(localStorage || {});
+    const supa = keys.filter((k) => k.includes("sb-") || k.includes("hri-sb-auth"));
+
+    trace("localStorage supabase keys: " + JSON.stringify(supa));
+
+    const { data, error } = await supabase.auth.getSession();
+
+    if (error) trace("getSession error: " + error.message);
+    else trace("getSession hasSession=" + !!data?.session);
+  }
+
+  // Force logout
+  async function signOut() {
+    await supabase.auth.signOut();
+    trace("SIGNED OUT ✅");
+
+    const keys = Object.keys(localStorage || {});
+    const supa = keys.filter((k) => k.includes("sb-") || k.includes("hri-sb-auth"));
+    trace("post-signout keys: " + JSON.stringify(supa));
   }
 
   useEffect(() => {
     let alive = true;
 
-    (async () => {
-      const { data, error } = await supabase.auth.getSession();
-      if (!alive) return;
-
-      if (error) {
-        trace(`getSession error: ${error.message}`);
-        return;
-      }
-
-      const has = !!data?.session;
-      trace(`initial getSession hasSession=${has}`);
-
-      // In debug mode, do NOT auto-redirect — we want to SEE persistence
-      if (has && !DEBUG_MODE) {
-        setMsg("Session already active ✅ Redirecting…");
-        router.replace("/dashboard");
-      }
-    })();
+    // Initial dump
+    dumpAuth();
 
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       if (!alive) return;
@@ -56,133 +61,92 @@ export default function LoginPage() {
       alive = false;
       sub?.subscription?.unsubscribe();
     };
-  }, [router, supabase]);
+  }, [supabase]);
 
   async function handleSubmit(e) {
     e.preventDefault();
-    setLoading(true);
+
     setMsg("Signing in…");
     setDebug("");
 
-    const next = searchParams.get("next") || "/dashboard";
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
 
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password,
-      });
-
-      if (error) {
-        setMsg("Login failed ❌");
-        trace(`signIn error: ${error.message}`);
-        setLoading(false);
-        return;
-      }
-
-      setMsg("Signed in ✅ Checking storage + session…");
-      trace(`signIn ok user=${data?.user?.id || "unknown"}`);
-
-      // Check localStorage keys shortly after login
-      setTimeout(() => {
-        const keys = Object.keys(localStorage || {});
-        const supaKeys = keys.filter((k) => k.includes("sb-") || k.includes("hri-sb-auth"));
-        trace(`localStorage supabase keys: ${JSON.stringify(supaKeys)}`);
-      }, 300);
-
-      // Check session after login
-      setTimeout(async () => {
-        const { data: sData, error: sErr } = await supabase.auth.getSession();
-        if (sErr) {
-          setMsg("Session check failed ❌");
-          trace(`getSession after login error: ${sErr.message}`);
-          setLoading(false);
-          return;
-        }
-
-        const hasSession = !!sData?.session;
-        trace(`getSession after login hasSession=${hasSession}`);
-
-        if (!hasSession) {
-          setMsg("No session after login ❌ (persistence still broken)");
-          setLoading(false);
-          return;
-        }
-
-        setMsg(DEBUG_MODE ? "Session OK ✅ (debug hold 3s)" : "Session OK ✅ Redirecting…");
-
-        if (DEBUG_MODE) {
-          setTimeout(() => router.replace(next), 3000);
-        } else {
-          router.replace(next);
-        }
-      }, 700);
-    } catch (err) {
-      setMsg("Login crashed ❌");
-      trace(String(err?.message || err));
-      setLoading(false);
+    if (error) {
+      setMsg("Login failed ❌");
+      trace("signIn error: " + error.message);
+      return;
     }
+
+    setMsg("Signed in ✅ Checking storage…");
+
+    // Give storage time to write
+    setTimeout(async () => {
+      await dumpAuth();
+
+      setMsg("Redirecting to dashboard…");
+
+      setTimeout(() => {
+        if (!DEBUG_MODE) router.replace("/dashboard");
+      }, 2000);
+    }, 600);
   }
 
   return (
     <main style={{ maxWidth: 420, margin: "40px auto", padding: 16 }}>
-      <h1 style={{ fontSize: 28, marginBottom: 8 }}>Log in</h1>
-      <p style={{ marginTop: 0, opacity: 0.85 }}>{msg}</p>
+      <h1 style={{ fontSize: 28 }}>Login (Debug Mode)</h1>
+      <p>{msg}</p>
 
-      <form onSubmit={handleSubmit} style={{ display: "grid", gap: 12, marginTop: 16 }}>
-        <label style={{ display: "grid", gap: 6 }}>
-          <span>Email</span>
-          <input
-            type="email"
-            autoComplete="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            style={{ padding: 10, borderRadius: 10, border: "1px solid #333" }}
-          />
-        </label>
+      <form onSubmit={handleSubmit} style={{ display: "grid", gap: 12 }}>
+        <input
+          type="email"
+          placeholder="Email"
+          required
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          style={{ padding: 10 }}
+        />
 
-        <label style={{ display: "grid", gap: 6 }}>
-          <span>Password</span>
-          <input
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            style={{ padding: 10, borderRadius: 10, border: "1px solid #333" }}
-          />
-        </label>
+        <input
+          type="password"
+          placeholder="Password"
+          required
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          style={{ padding: 10 }}
+        />
 
-        <button
-          type="submit"
-          disabled={loading}
-          style={{
-            padding: 12,
-            borderRadius: 12,
-            border: "1px solid #333",
-            cursor: loading ? "not-allowed" : "pointer",
-            fontWeight: 700,
-          }}
-        >
-          {loading ? "Signing in…" : "Sign in"}
+        <button type="submit" style={{ padding: 10, fontWeight: 700 }}>
+          Sign in
         </button>
       </form>
 
-      {debug ? (
+      <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
+        <button onClick={dumpAuth} style={{ padding: 8 }}>
+          Dump Auth
+        </button>
+
+        <button onClick={signOut} style={{ padding: 8 }}>
+          Sign Out
+        </button>
+      </div>
+
+      {debug && (
         <pre
           style={{
             marginTop: 16,
             padding: 12,
-            borderRadius: 12,
-            background: "rgba(0,0,0,0.06)",
-            overflowX: "auto",
+            background: "#eee",
+            borderRadius: 8,
             fontSize: 12,
             whiteSpace: "pre-wrap",
           }}
         >
           {debug}
         </pre>
-      ) : null}
+      )}
     </main>
   );
 }
