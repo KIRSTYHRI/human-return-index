@@ -1,19 +1,39 @@
 import { NextResponse } from "next/server";
-import { supabaseServer } from "../../../lib/supabase/server";
+import { createClient } from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const VERSION = "OVERVIEW_V3__HRI_ASSESSMENTS__ORG_ID__NO_PERIOD_FIELDS";
+const VERSION = "OVERVIEW_V3__HRI_ASSESSMENTS__ORG_ID__NO_PERIOD_FIELDS__BEARER";
 
-export async function GET() {
+export async function GET(req) {
   try {
-    const supabase = supabaseServer();
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-    const { data: userData, error: userErr } = await supabase.auth.getUser();
+    if (!url || !anon) throw new Error("Missing Supabase env vars");
+
+    // ✅ Bearer token from dashboard apiFetch()
+    const authHeader = req.headers.get("authorization") || "";
+    const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
+
+    if (!token) {
+      return NextResponse.json(
+        { ok: false, version: VERSION, error: "Missing Bearer token" },
+        { status: 401 }
+      );
+    }
+
+    // ✅ Use token for DB queries (RLS) + for getUser(token)
+    const supabase = createClient(url, anon, {
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+      global: { headers: { Authorization: `Bearer ${token}` } },
+    });
+
+    const { data: userData, error: userErr } = await supabase.auth.getUser(token);
     if (userErr || !userData?.user) {
       return NextResponse.json(
-        { ok: false, version: VERSION, error: "Auth session missing!" },
+        { ok: false, version: VERSION, error: userErr?.message || "Auth session missing!" },
         { status: 401 }
       );
     }
@@ -68,4 +88,3 @@ export async function GET() {
     );
   }
 }
-

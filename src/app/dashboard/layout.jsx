@@ -1,73 +1,94 @@
-import Link from "next/link";
-import { redirect } from "next/navigation";
-import { supabaseServer } from "../../lib/supabase/server";
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { supabaseBrowser } from "../../lib/supabase/client";
 
 export const dynamic = "force-dynamic";
 
-export default async function DashboardLayout({ children }) {
-  const supabase = supabaseServer();
-  const { data } = await supabase.auth.getUser();
-
-  if (!data?.user) redirect("/login");
-
-  return (
-    <div style={{ minHeight: "100vh", background: "#0B0F19", color: "#E5E7EB" }}>
-      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "18px 16px 28px" }}>
-        {/* Top bar */}
-        <header
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 12,
-            padding: "14px 14px",
-            border: "1px solid #1F2937",
-            borderRadius: 16,
-            background: "#070A12",
-            marginBottom: 16,
-          }}
-        >
-          <div style={{ display: "flex", flexDirection: "column" }}>
-            <div style={{ fontWeight: 1000, letterSpacing: 0.2 }}>
-              Human Return Index™
-            </div>
-            <div style={{ fontSize: 12, color: "#9CA3AF" }}>
-              Dashboard
-            </div>
-          </div>
-
-          <nav style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <NavBtn href="/dashboard" label="Overview" />
-            <NavBtn href="/dashboard/hri-assessment" label="Assessment" />
-            <NavBtn href="/dashboard/employee-pulse" label="Employee Pulse" />
-            <NavBtn href="/dashboard/scores" label="Scores" />
-            <NavBtn href="/dashboard/settings" label="Settings" />
-          </nav>
-        </header>
-
-        {/* Page content */}
-        {children}
-      </div>
-    </div>
-  );
+function getStoredTokens() {
+  try {
+    const raw = localStorage.getItem("hri-sb-auth");
+    if (!raw) return null;
+    const obj = JSON.parse(raw);
+    const access_token = obj?.access_token;
+    const refresh_token = obj?.refresh_token;
+    if (!access_token || !refresh_token) return null;
+    return { access_token, refresh_token };
+  } catch {
+    return null;
+  }
 }
 
-function NavBtn({ href, label }) {
-  return (
-    <Link
-      href={href}
-      style={{
-        textDecoration: "none",
-        padding: "8px 10px",
-        borderRadius: 12,
-        border: "1px solid #1F2937",
-        background: "transparent",
-        color: "#E5E7EB",
-        fontWeight: 900,
-        fontSize: 13,
-      }}
-    >
-      {label}
-    </Link>
-  );
+export default function DashboardLayout({ children }) {
+  const router = useRouter();
+  const [ready, setReady] = useState(false);
+  const [debug, setDebug] = useState("Checking session…");
+
+  useEffect(() => {
+    const supabase = supabaseBrowser();
+    let alive = true;
+
+    (async () => {
+      try {
+        setDebug("getSession()…");
+        const { data, error } = await supabase.auth.getSession();
+        if (!alive) return;
+
+        if (error) {
+          setDebug(`getSession error: ${error.message}`);
+          router.replace("/login");
+          return;
+        }
+
+        if (data?.session) {
+          setDebug("Session OK ✅");
+          setReady(true);
+          return;
+        }
+
+        // ✅ No session? Hydrate from localStorage
+        setDebug("No session. Trying localStorage hydrate…");
+        const tokens = getStoredTokens();
+
+        if (!tokens) {
+          setDebug("No tokens in localStorage → /login");
+          router.replace("/login");
+          return;
+        }
+
+        const setRes = await supabase.auth.setSession(tokens);
+        if (!alive) return;
+
+        if (setRes?.error) {
+          setDebug(`setSession failed: ${setRes.error.message} → /login`);
+          router.replace("/login");
+          return;
+        }
+
+        const { data: data2 } = await supabase.auth.getSession();
+        if (!alive) return;
+
+        if (data2?.session) {
+          setDebug("Hydrated ✅");
+          setReady(true);
+          return;
+        }
+
+        setDebug("Still no session → /login");
+        router.replace("/login");
+      } catch (e) {
+        setDebug(`Exception: ${String(e?.message || e)} → /login`);
+        router.replace("/login");
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [router]);
+
+  if (!ready) return <div style={{ padding: 16 }}>Loading… {debug}</div>;
+
+  return <>{children}</>;
 }
