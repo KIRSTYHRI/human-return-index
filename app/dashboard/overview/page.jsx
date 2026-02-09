@@ -6,23 +6,18 @@ export const dynamic = "force-dynamic";
 
 export default function DashboardOverview() {
   return (
-    <main>
-      <h1 className="pageTitle">Dashboard</h1>
-      <p className="pageSub">Your HRI overview — what’s working, what’s risky, and what to fix first.</p>
+    <main className="shell">
+      <div className="bannerTop">
+        DEMO MODE · Experience the Human Return Index™ pilot — built to scale, powered by people.
+      </div>
 
-      <div className="grid2">
+      <div className="bannerMid">
+        <span>LIVE PILOT ENVIRONMENT · INTERNAL USE ONLY</span>
+        <span>HRI — THE NEW KPI FOR HUMAN RETURN</span>
+      </div>
+
+      <div style={{ marginTop: 16 }}>
         <CurrentAssessmentCard />
-
-        <div className="card">
-          <h2 className="cardTitle">Badge</h2>
-          <p className="pageSub" style={{ marginTop: 0 }}>
-            This is where your badge status will show once the assessment and payment logic is fully wired.
-          </p>
-          <div className="stat">
-            <div className="statLabel">Current badge</div>
-            <div className="statValue">No badge yet</div>
-          </div>
-        </div>
       </div>
     </main>
   );

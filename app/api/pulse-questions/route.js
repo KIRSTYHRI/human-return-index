@@ -1,34 +1,27 @@
 import { NextResponse } from "next/server";
 
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const QUESTIONS = [
-  // Growth & Development (2)
-  { id: "P1Q1", pillar: "Growth & Development", text: "I have opportunities to learn and grow in my role." },
-  { id: "P1Q2", pillar: "Growth & Development", text: "My strengths are used well in my day-to-day work." },
+// 2 from each pillar = 10
+const questions = [
+  { id: "p_wmh_1", pillar: "WELLBEING & MENTAL HEALTH", text: "In the past 2 weeks, my workload has felt manageable." },
+  { id: "p_wmh_2", pillar: "WELLBEING & MENTAL HEALTH", text: "I feel supported when I’m under pressure." },
 
-  // Leadership (2)
-  { id: "P2Q1", pillar: "Leadership", text: "My manager supports me to do my best work." },
-  { id: "P2Q2", pillar: "Leadership", text: "Leadership communicates clearly and follows through." },
+  { id: "p_lead_1", pillar: "LEADERSHIP", text: "My manager communicates expectations clearly." },
+  { id: "p_lead_2", pillar: "LEADERSHIP", text: "Leadership decisions feel fair and well explained." },
 
-  // Trust & Communication (2)
-  { id: "P3Q1", pillar: "Trust & Communication", text: "I feel informed about changes that affect my work." },
-  { id: "P3Q2", pillar: "Trust & Communication", text: "I can raise concerns without fear of negative consequences." },
+  { id: "p_tc_1", pillar: "TRUST & COMMUNICATION", text: "I feel comfortable speaking up with ideas or concerns." },
+  { id: "p_tc_2", pillar: "TRUST & COMMUNICATION", text: "Important information is shared in time for me to do my job well." },
 
-  // Wellbeing & Mental Health (2)
-  { id: "P4Q1", pillar: "Wellbeing & Mental Health", text: "My workload is manageable most of the time." },
-  { id: "P4Q2", pillar: "Wellbeing & Mental Health", text: "I feel able to take breaks and switch off when needed." },
+  { id: "p_gd_1", pillar: "GROWTH & DEVELOPMENT", text: "I have opportunities to learn and develop in my role." },
+  { id: "p_gd_2", pillar: "GROWTH & DEVELOPMENT", text: "I receive useful feedback that helps me improve." },
 
-  // Inclusion & Belonging (2)
-  { id: "P5Q1", pillar: "Inclusion & Belonging", text: "I feel respected and included at work." },
-  { id: "P5Q2", pillar: "Inclusion & Belonging", text: "Different views and backgrounds are valued here." },
+  { id: "p_ib_1", pillar: "INCLUSION & BELONGING", text: "I feel I belong and I’m respected at work." },
+  { id: "p_ib_2", pillar: "INCLUSION & BELONGING", text: "My needs are understood and reasonably supported." },
 ];
 
 export async function GET() {
-  return NextResponse.json({
-    ok: true,
-    scale: { min: 1, max: 5, labels: ["Strongly disagree", "Disagree", "Neutral", "Agree", "Strongly agree"] },
-    questions: QUESTIONS,
-  });
+  return NextResponse.json({ ok: true, questions });
 }
