@@ -1,5 +1,13 @@
-import { redirect } from "next/navigation";
+"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 export default function DashboardIndex() {
-  redirect("/dashboard/overview");
+  const router = useRouter();
+  useEffect(() => {
+    router.replace("/dashboard/overview");
+  }, [router]);
+
+  return <div style={{ padding: 16 }}>Loading dashboard…</div>;
 }
