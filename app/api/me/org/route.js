@@ -24,22 +24,29 @@ export async function GET(req) {
       );
     }
 
-    // ✅ Minimal org lookup (won't break if org tables differ)
-    // Adjust table names if needed.
-    const { data: membership, error: mErr } = await supabase
-      .from("organisation_members")
+    // ✅ Try organisation_users first
+    let organisation_id = null;
+
+    const try1 = await supabase
+      .from("organisation_users")
       .select("organisation_id")
       .eq("user_id", user.id)
+      .limit(1)
       .maybeSingle();
 
-    if (mErr) {
-      return NextResponse.json(
-        { ok: false, version: VERSION, error: `Org lookup failed: ${mErr.message}` },
-        { status: 500 }
-      );
-    }
+    if (try1.data?.organisation_id) organisation_id = try1.data.organisation_id;
 
-    const organisation_id = membership?.organisation_id || null;
+    // ✅ Fallback: organisation_members
+    if (!organisation_id) {
+      const try2 = await supabase
+        .from("organisation_members")
+        .select("organisation_id")
+        .eq("user_id", user.id)
+        .limit(1)
+        .maybeSingle();
+
+      if (try2.data?.organisation_id) organisation_id = try2.data.organisation_id;
+    }
 
     return NextResponse.json({
       ok: true,
