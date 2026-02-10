@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { apiFetch } from "../../../lib/apiFetch";
 
 const SCALE = [
   { value: 1, label: "Never (1)" },
@@ -32,7 +33,9 @@ export default function AssessmentClient() {
       try {
         setLoading(true);
         setLoadError("");
-        const res = await fetch("/api/employer-questions", { cache: "no-store" });
+
+        // ✅ IMPORTANT: use apiFetch so Bearer token is included
+        const res = await apiFetch("/api/employer-questions", { method: "GET" });
         const json = await res.json();
 
         if (!res.ok || json.ok === false) {
@@ -55,10 +58,8 @@ export default function AssessmentClient() {
   const allAnswered = totalQuestions > 0 && answeredCount === totalQuestions;
 
   const grouped = useMemo(() => {
-    // If your DB pillars are the older 5 names, keep a stable fallback ordering:
     const uniquePillars = Array.from(new Set(questions.map((q) => q.pillar))).filter(Boolean);
 
-    // Prefer your new pillar names if present, else use whatever exists
     const order = PILLAR_ORDER.filter((p) => uniquePillars.includes(p));
     const finalOrder = order.length ? order : uniquePillars;
 
@@ -89,7 +90,8 @@ export default function AssessmentClient() {
         score_1to5: answers[q.id],
       }));
 
-      const res = await fetch("/api/assessments/new", {
+      // ✅ IMPORTANT: use apiFetch so Bearer token is included
+      const res = await apiFetch("/api/assessments/new", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -116,9 +118,7 @@ export default function AssessmentClient() {
   if (loading) {
     return (
       <div style={{ maxWidth: 1120, margin: "0 auto", padding: "24px 24px 40px", color: "#E5E7EB" }}>
-        <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 8 }}>
-          Internal Assessment
-        </h1>
+        <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 8 }}>Internal Assessment</h1>
         <p style={{ fontSize: 14, color: "#9CA3AF" }}>Loading…</p>
       </div>
     );
@@ -127,9 +127,7 @@ export default function AssessmentClient() {
   if (loadError) {
     return (
       <div style={{ maxWidth: 1120, margin: "0 auto", padding: "24px 24px 40px", color: "#E5E7EB" }}>
-        <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 8 }}>
-          Internal Assessment
-        </h1>
+        <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 8 }}>Internal Assessment</h1>
         <p style={{ fontSize: 14, color: "#FCA5A5" }}>{loadError}</p>
       </div>
     );
@@ -137,9 +135,7 @@ export default function AssessmentClient() {
 
   return (
     <div style={{ maxWidth: 1120, margin: "0 auto", padding: "24px 24px 40px", color: "#E5E7EB" }}>
-      <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 6 }}>
-        Internal Assessment
-      </h1>
+      <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 6 }}>Internal Assessment</h1>
       <p style={{ fontSize: 14, color: "#9CA3AF", marginBottom: 10 }}>
         Capture how your organisation sees itself across the five HRI pillars.
       </p>
@@ -148,13 +144,33 @@ export default function AssessmentClient() {
       </p>
 
       {submitError && (
-        <div style={{ marginBottom: 16, padding: 10, borderRadius: 8, border: "1px solid #F97316", background: "#451a03", color: "#FED7AA", fontSize: 13 }}>
+        <div
+          style={{
+            marginBottom: 16,
+            padding: 10,
+            borderRadius: 8,
+            border: "1px solid #F97316",
+            background: "#451a03",
+            color: "#FED7AA",
+            fontSize: 13,
+          }}
+        >
           {submitError}
         </div>
       )}
 
       {submitSuccess && (
-        <div style={{ marginBottom: 16, padding: 10, borderRadius: 8, border: "1px solid #22C55E", background: "#052e16", color: "#BBF7D0", fontSize: 13 }}>
+        <div
+          style={{
+            marginBottom: 16,
+            padding: 10,
+            borderRadius: 8,
+            border: "1px solid #22C55E",
+            background: "#052e16",
+            color: "#BBF7D0",
+            fontSize: 13,
+          }}
+        >
           Assessment saved. Your dashboard and ROI view now reflect these updated pillar scores.
         </div>
       )}
@@ -180,9 +196,7 @@ export default function AssessmentClient() {
                   const current = answers[q.id] ?? null;
                   return (
                     <div key={q.id} style={{ borderRadius: 12, border: "1px solid #111827", padding: 12 }}>
-                      <div style={{ fontSize: 13, color: "#E5E7EB", marginBottom: 10 }}>
-                        {q.question_text}
-                      </div>
+                      <div style={{ fontSize: 13, color: "#E5E7EB", marginBottom: 10 }}>{q.question_text}</div>
 
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                         {SCALE.map((opt) => (
