@@ -128,7 +128,10 @@ export default function InternalAssessmentPage() {
       if (!allAnswered) throw new Error(`Please answer all questions (${answeredCount}/${total}).`);
 
       // 1) Get org context
-      const orgRes = await fetch("/api/me/org", { cache: "no-store" });
+      import { apiFetch } from "../../../lib/apiFetch";
+...
+const orgRes = await apiFetch("/api/me/org");
+      
       const orgJson = await orgRes.json().catch(() => ({}));
 
       const organisation_id =
