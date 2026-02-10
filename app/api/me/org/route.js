@@ -1,7 +1,8 @@
+cat > app/api/me/org/route.js <<'EOF'
 import { NextResponse } from "next/server";
 import { supabaseFromBearer } from "../../../../lib/supabase/bearerRouteClient";
 
-const VERSION = "ME_ORG_V1";
+const VERSION = "ME_ORG_V2";
 
 export async function GET(req) {
   try {
@@ -14,27 +15,52 @@ export async function GET(req) {
       );
     }
 
-    const { data: userData, error: userErr } = await supabase.auth.getUser();
+    const { data: userData, error: userErr } =
+      await supabase.auth.getUser();
+
     const user = userData?.user;
 
     if (userErr || !user) {
       return NextResponse.json(
-        { ok: false, version: VERSION, error: "Auth session missing!" },
+        { ok: false, version: VERSION, error: "Auth session missing" },
         { status: 401 }
       );
     }
 
-    // ✅ TEMP: return user only (wire your org lookup back in next)
+    // 🔹 Get org membership
+    const { data: membership, error: memErr } = await supabase
+      .from("organisation_members")
+      .select("organisation_id")
+      .eq("user_id", user.id)
+      .single();
+
+    if (memErr || !membership) {
+      return NextResponse.json(
+        {
+          ok: false,
+          version: VERSION,
+          error: "No organisation linked to user",
+        },
+        { status: 404 }
+      );
+    }
+
     return NextResponse.json({
       ok: true,
       version: VERSION,
       user_id: user.id,
       email: user.email,
+      organisation_id: membership.organisation_id,
     });
   } catch (e) {
     return NextResponse.json(
-      { ok: false, version: VERSION, error: String(e?.message || e) },
+      {
+        ok: false,
+        version: VERSION,
+        error: String(e?.message || e),
+      },
       { status: 500 }
     );
   }
 }
+EOF
