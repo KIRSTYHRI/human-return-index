@@ -1,211 +1,101 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-
-const VERSION = "EMPLOYEE_PULSE_PAGE_V4__READ_PULSE_ID__DEBUG_PANEL";
+import { useEffect, useState } from "react";
+import { apiFetch } from "@/lib/apiFetch";
 
 export default function EmployeePulsePage() {
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
-  const [debug, setDebug] = useState(null);
-
   const [questions, setQuestions] = useState([]);
   const [answers, setAnswers] = useState({});
-  const [employeeEmail, setEmployeeEmail] = useState("");
-
-  const answeredCount = useMemo(() => Object.keys(answers || {}).length, [answers]);
-  const total = questions.length;
-  const allAnswered = total > 0 && answeredCount === total;
+  const [orgId, setOrgId] = useState(null);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    (async () => {
+    async function load() {
       try {
-        setLoading(true);
-        setError("");
-        setSuccess("");
+        // Get org
+        const orgRes = await apiFetch("/api/me/org");
+        const orgJson = await orgRes.json();
 
-        const res = await fetch("/api/employee-questions", { cache: "no-store" });
-        const json = await res.json();
+        if (!orgRes.ok || !orgJson.organisation_id) {
+          throw new Error("No organisation found for this user");
+        }
 
-        if (!res.ok || !json.ok) throw new Error(json.error || "Failed to load employee questions.");
+        setOrgId(orgJson.organisation_id);
 
-        setQuestions(json.questions || []);
+        // Get questions
+        const qRes = await apiFetch("/api/employee-questions");
+        const qJson = await qRes.json();
+
+        if (!qRes.ok) throw new Error("Failed loading questions");
+
+        setQuestions(qJson.questions || []);
       } catch (e) {
-        setError(e?.message || "Failed to load questions.");
-      } finally {
-        setLoading(false);
+        console.error(e);
+        setError(e.message);
       }
-    })();
+    }
+
+    load();
   }, []);
 
-  function setAnswer(questionId, value) {
-    setAnswers((prev) => ({ ...(prev || {}), [questionId]: value }));
+  function setAnswer(id, val) {
+    setAnswers((p) => ({ ...p, [id]: val }));
   }
 
-  function buildQPayload() {
-    const byPosition = {};
-    for (const q of questions) {
-      const v = answers?.[q.id];
-      if (v != null) byPosition[q.position] = v;
-    }
-    const out = {};
-    for (let i = 1; i <= 10; i++) out[`q${i}`] = byPosition[i] ?? null;
-    return out;
-  }
-
-  async function handleSubmit() {
+  async function submit() {
     try {
-      setSubmitting(true);
-      setError("");
-      setSuccess("");
-
-      if (!total) throw new Error("No questions loaded.");
-      if (!allAnswered) throw new Error(`Please answer all questions (${answeredCount}/${total}).`);
-
-      const orgRes = await fetch("/api/me/org", { cache: "no-store" });
-      const orgJson = await orgRes.json().catch(() => ({}));
-      const org = orgJson?.org || orgJson;
-
-      const organisation_id =
-        org?.organisation_id || org?.organization_id || org?.organisationId || org?.org_id || null;
-
-      if (!organisation_id) {
-        setDebug({ where: "org-missing", orgJson });
-        throw new Error("Missing organisation_id from /api/me/org (see debug).");
-      }
+      if (!orgId) throw new Error("Missing org");
 
       const payload = {
-        organisation_id,
-        employee_email: employeeEmail || null,
-        responses: buildQPayload(),
+        organisation_id: orgId,
+        answers,
       };
 
-      const res = await fetch("/api/employee-pulse", {
+      const res = await apiFetch("/api/employee-pulse/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
-      const json = await res.json().catch(() => ({}));
+      const json = await res.json();
 
-      setDebug({ where: "employee-pulse-response", status: res.status, json, version: VERSION });
+      if (!res.ok) throw new Error(json.error || "Submit failed");
 
-      if (!res.ok || json?.ok === false) throw new Error(json?.error || "Failed to submit pulse.");
-
-      const newId = json?.pulse_id || json?.submission?.id || null;
-      if (!newId) throw new Error("Pulse saved but no ID returned (check debug).");
-
-      setSuccess(`Saved ✅ Pulse ID: ${newId}`);
+      alert("Pulse submitted ✅");
     } catch (e) {
-      setError(e?.message || "Unexpected error");
-    } finally {
-      setSubmitting(false);
+      alert(e.message);
     }
   }
 
-  if (loading) {
-    return (
-      <main style={{ maxWidth: 1120, margin: "0 auto", padding: "24px 16px 40px", color: "#E5E7EB" }}>
-        <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 6 }}>Employee Pulse</h1>
-        <div style={{ opacity: 0.8 }}>Loading…</div>
-      </main>
-    );
-  }
+  if (error) return <p style={{ color: "red" }}>{error}</p>;
+  if (!questions.length) return <p>Loading…</p>;
 
   return (
-    <main style={{ maxWidth: 1120, margin: "0 auto", padding: "24px 16px 40px", color: "#E5E7EB" }}>
-      <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 6 }}>
-        Employee Pulse <span style={{ fontSize: 12, opacity: 0.6 }}>({VERSION})</span>
-      </h1>
+    <div style={{ padding: 24 }}>
+      <h1>Employee Pulse</h1>
 
-      <p style={{ marginTop: 0, opacity: 0.8 }}>
-        Answer {total} questions. This writes a submission into <code>pulse_check_submissions</code>.
-      </p>
+      {questions.map((q) => (
+        <div key={q.id} style={{ marginBottom: 16 }}>
+          <strong>{q.question_text}</strong>
 
-      {error && (
-        <div style={{ background: "rgba(220,38,38,0.12)", border: "1px solid rgba(220,38,38,0.35)", padding: 12, borderRadius: 10, marginBottom: 12 }}>
-          <strong style={{ color: "#FCA5A5" }}>Error:</strong> {error}
-        </div>
-      )}
-
-      {success && (
-        <div style={{ background: "rgba(34,197,94,0.12)", border: "1px solid rgba(34,197,94,0.35)", padding: 12, borderRadius: 10, marginBottom: 12 }}>
-          <strong style={{ color: "#86EFAC" }}>{success}</strong>
-        </div>
-      )}
-
-      <div style={{ marginBottom: 14, display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
-        <input
-          value={employeeEmail}
-          onChange={(e) => setEmployeeEmail(e.target.value)}
-          placeholder="Employee email (optional)"
-          style={{
-            padding: "10px 12px",
-            borderRadius: 10,
-            border: "1px solid rgba(255,255,255,0.15)",
-            background: "rgba(0,0,0,0.35)",
-            color: "white",
-            minWidth: 260,
-          }}
-        />
-
-        <button
-          onClick={handleSubmit}
-          disabled={submitting || !allAnswered}
-          style={{
-            padding: "10px 14px",
-            borderRadius: 999,
-            border: "none",
-            background: submitting || !allAnswered ? "#374151" : "#FEE000",
-            color: submitting || !allAnswered ? "#9CA3AF" : "#111827",
-            fontWeight: 800,
-            cursor: submitting || !allAnswered ? "not-allowed" : "pointer",
-          }}
-        >
-          {submitting ? "Submitting…" : allAnswered ? "Submit pulse" : `Answer all (${answeredCount}/${total})`}
-        </button>
-      </div>
-
-      <div style={{ display: "grid", gap: 12 }}>
-        {(questions || []).map((q) => (
-          <div key={q.id} style={{ border: "1px solid rgba(255,255,255,0.12)", borderRadius: 14, padding: 14, background: "rgba(0,0,0,0.25)" }}>
-            <div style={{ fontSize: 12, opacity: 0.65, marginBottom: 6 }}>
-              {q.pillar} • Q{q.position}
-            </div>
-            <div style={{ fontWeight: 700, marginBottom: 10 }}>{q.question_text}</div>
-
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {[1, 2, 3, 4, 5].map((v) => (
-                <button
-                  key={v}
-                  onClick={() => setAnswer(q.id, v)}
-                  style={{
-                    padding: "8px 10px",
-                    borderRadius: 999,
-                    border: "1px solid rgba(255,255,255,0.18)",
-                    background: answers?.[q.id] === v ? "#FEE000" : "rgba(0,0,0,0.25)",
-                    color: answers?.[q.id] === v ? "#111827" : "#E5E7EB",
-                    fontWeight: 700,
-                    cursor: "pointer",
-                    minWidth: 40,
-                  }}
-                >
-                  {v}
-                </button>
-              ))}
-            </div>
+          <div>
+            {[1,2,3,4,5].map((v) => (
+              <label key={v} style={{ marginRight: 10 }}>
+                <input
+                  type="radio"
+                  name={q.id}
+                  value={v}
+                  checked={answers[q.id] === v}
+                  onChange={() => setAnswer(q.id, v)}
+                />
+                {v}
+              </label>
+            ))}
           </div>
-        ))}
-      </div>
+        </div>
+      ))}
 
-      <details style={{ marginTop: 18, opacity: 0.9 }}>
-        <summary style={{ cursor: "pointer" }}>Debug panel</summary>
-        <pre style={{ whiteSpace: "pre-wrap", fontSize: 12, padding: 12, background: "rgba(0,0,0,0.35)", borderRadius: 12, border: "1px solid rgba(255,255,255,0.12)" }}>
-          {JSON.stringify({ debug, answers, questionsCount: questions.length }, null, 2)}
-        </pre>
-      </details>
-    </main>
+      <button onClick={submit}>Submit</button>
+    </div>
   );
 }
