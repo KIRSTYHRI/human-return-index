@@ -3,7 +3,6 @@ import { supabaseFromBearer } from "../../../../src/lib/supabase/bearerRouteClie
 export const dynamic = "force-dynamic";
 
 export async function GET(req) {
-  // Debug: prove header arrived
   const authHeader = req.headers.get("authorization") || "";
   console.log("[/api/me/org] auth header present?", !!authHeader);
   console.log("[/api/me/org] auth header starts:", authHeader.slice(0, 20));
@@ -17,7 +16,6 @@ export async function GET(req) {
     );
   }
 
-  // Confirm user
   const { data: userData, error: userErr } = await supabase.auth.getUser();
 
   if (userErr || !userData?.user) {
@@ -29,7 +27,6 @@ export async function GET(req) {
 
   const user = userData.user;
 
-  // ORG LOOKUP (assumes profiles table contains organisation_id)
   const { data: profile, error: profileErr } = await supabase
     .from("profiles")
     .select("organisation_id")
