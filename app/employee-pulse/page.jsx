@@ -1,1 +1,5 @@
-export { default } from "../dashboard/employee-pulse/page";
+import { redirect } from "next/navigation";
+
+export default function EmployeePulseRedirect() {
+  redirect("/dashboard/employee-pulse");
+}
