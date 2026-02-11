@@ -1,4 +1,4 @@
-import { supabaseFromBearer } from "@/src/lib/supabase/bearerRouteClient";
+import { supabaseFromBearer } from "../../../../src/lib/supabase/bearerRouteClient";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +17,7 @@ export async function GET(req) {
     );
   }
 
-  // 1) Confirm user
+  // Confirm user
   const { data: userData, error: userErr } = await supabase.auth.getUser();
 
   if (userErr || !userData?.user) {
@@ -29,13 +29,7 @@ export async function GET(req) {
 
   const user = userData.user;
 
-  // 2) ORG LOOKUP
-  // ✅ This assumes you have a table that maps user_id -> organisation_id.
-  // Most common table names are: profiles, user_profiles, organisation_members, org_members
-  //
-  // START by trying "profiles" with columns: id (user id), organisation_id
-  // If your table/columns are different, tell me the table name and I’ll swap it in.
-
+  // ORG LOOKUP (assumes profiles table contains organisation_id)
   const { data: profile, error: profileErr } = await supabase
     .from("profiles")
     .select("organisation_id")
@@ -66,14 +60,10 @@ export async function GET(req) {
     );
   }
 
-  // ✅ Success
   return Response.json({
     ok: true,
     version: "ME_ORG_V5",
     organisation_id: profile.organisation_id,
-    user: {
-      id: user.id,
-      email: user.email,
-    },
+    user: { id: user.id, email: user.email },
   });
 }
