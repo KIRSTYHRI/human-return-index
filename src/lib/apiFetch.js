@@ -1,29 +1,21 @@
 "use client";
 
-import { supabaseBrowser } from "./supabase/browser";
+import { createClient } from "@supabase/supabase-js";
 
-export async function apiFetch(path, options = {}) {
-  const supabase = supabaseBrowser();
+export function supabaseBrowser() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  // Get the current session (fast + local)
-  const { data: { session }, error } = await supabase.auth.getSession();
+  if (!url || !anon) {
+    console.error("Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY");
+  }
 
-  const token = session?.access_token;
-
-  // Debug (remove later)
-  console.log("[apiFetch] session?", !!session);
-  console.log("[apiFetch] token?", token ? `${token.slice(0, 12)}...` : null);
-  if (error) console.log("[apiFetch] getSession error:", error);
-
-  const headers = new Headers(options.headers || {});
-  if (token) headers.set("Authorization", `Bearer ${token}`);
-  headers.set("Content-Type", headers.get("Content-Type") || "application/json");
-
-  return fetch(path, {
-    ...options,
-    headers,
-    // Not required for bearer, but harmless and helps if you later add cookie auth
-    credentials: "include",
-    cache: "no-store",
+  return createClient(url, anon, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+      storageKey: "hri-sb-auth",
+    },
   });
 }
