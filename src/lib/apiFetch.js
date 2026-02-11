@@ -1,21 +1,36 @@
 "use client";
 
-import { createClient } from "@supabase/supabase-js";
+import { supabaseBrowser } from "./supabase/browser";
 
-export function supabaseBrowser() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+export async function apiFetch(path, options = {}) {
+  const supabase = supabaseBrowser();
 
-  if (!url || !anon) {
-    console.error("Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY");
+  // Get session from Supabase (in-browser)
+  const { data, error } = await supabase.auth.getSession();
+  const session = data?.session || null;
+  const token = session?.access_token || null;
+
+  // Helpful debug (remove later if you want)
+  console.log("[apiFetch] path:", path);
+  console.log("[apiFetch] session exists?", !!session);
+  console.log("[apiFetch] token exists?", !!token);
+
+  if (error) console.log("[apiFetch] getSession error:", error);
+
+  // Build headers
+  const headers = new Headers(options.headers || {});
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+
+  // Only set JSON content type if not already set
+  if (!headers.get("Content-Type")) {
+    headers.set("Content-Type", "application/json");
   }
 
-  return createClient(url, anon, {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true,
-      storageKey: "hri-sb-auth",
-    },
+  // Make request
+  return fetch(path, {
+    ...options,
+    headers,
+    cache: "no-store",
+    credentials: "include",
   });
 }
