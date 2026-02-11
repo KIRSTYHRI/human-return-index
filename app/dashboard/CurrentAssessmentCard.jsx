@@ -169,10 +169,10 @@ export default function CurrentAssessmentCard() {
             </div>
 
             <div className="linkRow">
-              <Link className="linkChip" href="/dashboard/assessment">Internal Assessment</Link>
-              <Link className="linkChip" href="/dashboard/employee-pulse">Employee Pulse</Link>
-              <Link className="linkChip" href="/dashboard/scores">Scores</Link>
-            </div>
+  <Link className="linkChip" href="/dashboard/hri-assessment">Internal Assessment</Link>
+  <Link className="linkChip" href="/dashboard/employee-pulse">Employee Pulse</Link>
+  <Link className="linkChip" href="/dashboard/scores">Scores</Link>
+</div>
           </div>
 
           {/* Org metrics */}
