@@ -199,6 +199,7 @@ export default function InternalAssessmentPage() {
       setDebug({ version: VERSION, assessment_id, scoreJson });
 
       router.push(`/dashboard/assessments/${assessment_id}`);
+
     } catch (e) {
       setError(e?.message || "Unexpected error");
     } finally {
