@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { apiFetch } from "../../../src/lib/apiFetch";
 
 const VERSION = "INTERNAL_ASSESSMENT_V3__DB_EMPLOYER_QUESTIONS__25Q__MAP_Q1_25";
 
@@ -28,6 +29,8 @@ function toHriScore(v) {
   return Number.isFinite(n) ? n * 20 : null;
 }
 
+export const dynamic = "force-dynamic";
+
 export default function InternalAssessmentPage() {
   const router = useRouter();
 
@@ -49,6 +52,7 @@ export default function InternalAssessmentPage() {
         setSuccess("");
         setDebug(null);
 
+        // This endpoint is public (no token needed). fetch() is fine here.
         const res = await fetch("/api/employer-questions", { cache: "no-store" });
         const json = await res.json().catch(() => ({}));
 
@@ -89,7 +93,7 @@ export default function InternalAssessmentPage() {
   const allAnswered = total > 0 && answeredCount === total;
 
   function setAnswer(idx1to25, val) {
-    setAnswers((prev) => ({ ...prev, [`q${idx1to25}`]: val }));
+    setAnswers((prev) => ({ ...prev, [`q${idx1to25}`]: Number(val) }));
   }
 
   function buildPillarScoresFromAnswers() {
@@ -127,12 +131,8 @@ export default function InternalAssessmentPage() {
       if (!total) throw new Error("No questions loaded.");
       if (!allAnswered) throw new Error(`Please answer all questions (${answeredCount}/${total}).`);
 
-      // 1) Get org context
-      import { apiFetch } from "../../../lib/apiFetch";
-...
-const orgRes = await apiFetch("/api/me/org");
-
-      
+      // 1) Get org context (PROTECTED => apiFetch)
+      const orgRes = await apiFetch("/api/me/org");
       const orgJson = await orgRes.json().catch(() => ({}));
 
       const organisation_id =
@@ -148,10 +148,9 @@ const orgRes = await apiFetch("/api/me/org");
         throw new Error(orgJson?.error || "Could not load organisation context.");
       }
 
-      // 2) Create assessment row
-      const createRes = await fetch("/api/assessments", {
+      // 2) Create assessment row (PROTECTED => apiFetch)
+      const createRes = await apiFetch("/api/assessments", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: "Pilot Baseline Assessment",
           org_id: organisation_id,
@@ -170,12 +169,11 @@ const orgRes = await apiFetch("/api/me/org");
         throw new Error("Assessment created but no id returned.");
       }
 
-      // 3) Save pillar scores + responses (q1..q25 1–5)
+      // 3) Save pillar scores + responses (PROTECTED => apiFetch)
       const scores = buildPillarScoresFromAnswers();
 
-      const saveRes = await fetch(`/api/assessments/${assessment_id}`, {
+      const saveRes = await apiFetch(`/api/assessments/${assessment_id}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ scores, responses: answers }),
       });
 
@@ -185,10 +183,9 @@ const orgRes = await apiFetch("/api/me/org");
         throw new Error(saveJson?.error || "Failed to save assessment data.");
       }
 
-      // 4) Trigger scoring engine
-      const scoreRes = await fetch(`/api/assessment-scores`, {
+      // 4) Trigger scoring engine (PROTECTED => apiFetch)
+      const scoreRes = await apiFetch(`/api/assessment-scores`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ assessment_id }),
       });
 
@@ -221,7 +218,9 @@ const orgRes = await apiFetch("/api/me/org");
 
       {loading && <p style={{ opacity: 0.75 }}>Loading employer questions…</p>}
       {!loading && error && <p style={{ color: "#F97316", marginBottom: 12 }}>{error}</p>}
-      {!loading && success && <p style={{ color: "#34D399", marginBottom: 12, whiteSpace: "pre-wrap" }}>{success}</p>}
+      {!loading && success && (
+        <p style={{ color: "#34D399", marginBottom: 12, whiteSpace: "pre-wrap" }}>{success}</p>
+      )}
 
       {!loading && debug && (
         <details style={{ marginBottom: 14 }}>
