@@ -16,11 +16,10 @@ const SCALE = [
 export default function EmployeePulsePage() {
   const [orgId, setOrgId] = useState(null);
   const [questions, setQuestions] = useState([]);
-  const [answers, setAnswers] = useState({}); // { [questionId]: 1..5 }
+  const [responses, setResponses] = useState({}); // { [questionId]: 1..5 }
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-
   const [error, setError] = useState("");
   const [debug, setDebug] = useState(null);
 
@@ -31,7 +30,7 @@ export default function EmployeePulsePage() {
         setError("");
         setDebug(null);
 
-        // 1) Org context (protected)
+        // 1) Org context
         const orgRes = await apiFetch("/api/me/org");
         const orgJson = await orgRes.json().catch(() => null);
 
@@ -52,15 +51,13 @@ export default function EmployeePulsePage() {
         const qJson = await qRes.json().catch(() => null);
 
         if (!qRes.ok || qJson?.ok === false) {
-          setDebug({ where: "questions-failed", qJson });
+          setDebug({ where: "questions-load-failed", qJson });
           throw new Error(qJson?.error || "Failed to load employee questions");
         }
 
-        const qs = Array.isArray(qJson?.questions) ? qJson.questions : [];
-        setQuestions(qs);
+        setQuestions(Array.isArray(qJson?.questions) ? qJson.questions : []);
       } catch (e) {
-        console.error(e);
-        setError(e?.message || "Failed to load.");
+        setError(e?.message || "Failed to load");
       } finally {
         setLoading(false);
       }
@@ -70,13 +67,13 @@ export default function EmployeePulsePage() {
   const total = questions.length;
 
   const answeredCount = useMemo(() => {
-    return Object.values(answers).filter((v) => Number(v) >= 1 && Number(v) <= 5).length;
-  }, [answers]);
+    return Object.values(responses).filter((v) => Number(v) >= 1 && Number(v) <= 5).length;
+  }, [responses]);
 
   const allAnswered = total > 0 && answeredCount === total;
 
-  function setAnswer(questionId, value) {
-    setAnswers((prev) => ({ ...prev, [questionId]: Number(value) }));
+  function setResponse(questionId, value) {
+    setResponses((prev) => ({ ...prev, [questionId]: Number(value) }));
   }
 
   async function submitPulse() {
@@ -89,12 +86,13 @@ export default function EmployeePulsePage() {
       if (!total) throw new Error("No questions loaded.");
       if (!allAnswered) throw new Error(`Please answer all questions (${answeredCount}/${total}).`);
 
-      // ✅ IMPORTANT: your API expects "responses", not "answers"
+      // ✅ IMPORTANT: backend expects "responses"
       const res = await apiFetch("/api/employee-pulse", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           organisation_id: orgId,
-          responses: answers,
+          responses,
         }),
       });
 
@@ -106,9 +104,8 @@ export default function EmployeePulsePage() {
       }
 
       alert("Pulse submitted ✅");
-      setAnswers({});
+      setResponses({});
     } catch (e) {
-      console.error(e);
       setError(e?.message || "Failed to submit pulse");
     } finally {
       setSubmitting(false);
@@ -116,130 +113,153 @@ export default function EmployeePulsePage() {
   }
 
   return (
-    <main style={{ maxWidth: 960, margin: "0 auto", padding: "24px 16px 40px" }}>
-      <h1 style={{ fontSize: 24, fontWeight: 900, marginBottom: 6 }}>Employee Pulse</h1>
-      <p style={{ opacity: 0.75, marginBottom: 14 }}>Quick pulse. Real signals. No waffle.</p>
+    <main style={{ maxWidth: 980, margin: "0 auto", padding: "28px 16px 44px" }}>
+      <div style={wrap}>
+        <h1 style={h1}>Employee Pulse</h1>
+        <p style={sub}>Quick pulse. Real signals. No fluff.</p>
 
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
-        <span style={pillStyle}>
-          Org ID: <strong>{orgId || "—"}</strong>
-        </span>
-        <span style={pillStyle}>
-          Answered: <strong>{answeredCount}/{total}</strong>
-        </span>
-        <span style={pillStyle}>
-          Status: <strong>{loading ? "Loading…" : allAnswered ? "Ready ✅" : "In progress"}</strong>
-        </span>
-      </div>
-
-      {error ? (
-        <div style={errorBoxStyle}>
-          <strong>Error:</strong> {error}
+        <div style={row}>
+          <span style={pill}>
+            Org: <strong style={{ color: "#FEE000" }}>{orgId || "—"}</strong>
+          </span>
+          <span style={pill}>
+            Answered: <strong style={{ color: "#FEE000" }}>{answeredCount}/{total}</strong>
+          </span>
+          <span style={pill}>
+            Status:{" "}
+            <strong style={{ color: "#FEE000" }}>
+              {loading ? "Loading…" : allAnswered ? "Ready ✅" : "In progress"}
+            </strong>
+          </span>
         </div>
-      ) : null}
 
-      {debug ? (
-        <details style={{ margin: "12px 0" }}>
-          <summary style={{ cursor: "pointer", opacity: 0.7 }}>Debug</summary>
-          <pre style={{ whiteSpace: "pre-wrap", fontSize: 12, opacity: 0.85 }}>
-            {JSON.stringify(debug, null, 2)}
-          </pre>
-        </details>
-      ) : null}
+        {error ? <div style={errorBox}><strong>Error:</strong> {error}</div> : null}
 
-      {loading ? (
-        <p style={{ opacity: 0.75 }}>Loading questions…</p>
-      ) : total === 0 ? (
-        <p style={{ opacity: 0.75 }}>No questions found.</p>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          {questions.map((q) => {
-            const current = Number(answers[q.id] || 0);
+        {debug ? (
+          <details style={{ marginTop: 12 }}>
+            <summary style={{ cursor: "pointer", opacity: 0.8 }}>Debug</summary>
+            <pre style={{ whiteSpace: "pre-wrap", fontSize: 12, opacity: 0.85 }}>
+              {JSON.stringify(debug, null, 2)}
+            </pre>
+          </details>
+        ) : null}
 
-            return (
-              <div key={q.id} style={cardStyle}>
-                <div style={{ fontSize: 12, letterSpacing: "0.08em", textTransform: "uppercase", opacity: 0.7 }}>
-                  {q.pillar || "Pulse"}
+        {loading ? (
+          <p style={{ opacity: 0.8, marginTop: 14 }}>Loading questions…</p>
+        ) : total === 0 ? (
+          <p style={{ opacity: 0.8, marginTop: 14 }}>No questions found.</p>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 14 }}>
+            {questions.map((q) => {
+              const current = Number(responses[q.id] || 0);
+
+              return (
+                <div key={q.id} style={card}>
+                  <div style={pillSmall}>{q.pillar || "Pulse"}</div>
+                  <div style={qText}>{q.question_text}</div>
+
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 10 }}>
+                    {SCALE.map((s) => {
+                      const active = current === s.v;
+                      return (
+                        <button
+                          key={s.v}
+                          type="button"
+                          onClick={() => setResponse(q.id, s.v)}
+                          style={{
+                            cursor: "pointer",
+                            borderRadius: 12,
+                            border: "1px solid rgba(255,255,255,0.18)",
+                            padding: "10px 12px",
+                            fontWeight: 900,
+                            background: active ? "#FEE000" : "transparent",
+                            color: active ? "#111827" : "rgba(255,255,255,0.92)",
+                          }}
+                        >
+                          {s.v}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div style={{ marginTop: 8, fontSize: 12, opacity: 0.75 }}>
+                    1 = Strongly disagree · 5 = Strongly agree
+                  </div>
                 </div>
+              );
+            })}
 
-                {/* ✅ LOCKED: this is the field your API should be returning */}
-                <div style={{ fontSize: 15, fontWeight: 700, marginTop: 6 }}>
-                  {q.question_text}
-                </div>
+            <button type="button" onClick={submitPulse} disabled={submitting} style={cta(submitting)}>
+              {submitting ? "Submitting…" : "Submit Pulse"}
+            </button>
 
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 10 }}>
-                  {SCALE.map((s) => {
-                    const active = current === s.v;
-                    return (
-                      <button
-                        key={s.v}
-                        type="button"
-                        onClick={() => setAnswer(q.id, s.v)}
-                        style={{
-                          cursor: "pointer",
-                          borderRadius: 10,
-                          border: "1px solid rgba(255,255,255,0.18)",
-                          padding: "8px 10px",
-                          fontWeight: 800,
-                          background: active ? "#FEE000" : "transparent",
-                          color: active ? "#111827" : "rgba(255,255,255,0.92)",
-                        }}
-                      >
-                        {s.label}
-                      </button>
-                    );
-                  })}
-                </div>
+            {!allAnswered ? (
+              <div style={{ fontSize: 12, opacity: 0.75 }}>
+                Tip: answer all questions to submit.
               </div>
-            );
-          })}
-
-          <button
-            onClick={submitPulse}
-            disabled={submitting || loading}
-            style={{
-              marginTop: 6,
-              padding: "12px 14px",
-              borderRadius: 12,
-              border: "1px solid #FEE000",
-              background: "#FEE000",
-              color: "#111827",
-              fontWeight: 900,
-              cursor: submitting ? "not-allowed" : "pointer",
-            }}
-          >
-            {submitting ? "Submitting…" : "Submit Pulse"}
-          </button>
-
-          {!allAnswered ? (
-            <div style={{ marginTop: 6, fontSize: 12, opacity: 0.7 }}>
-              Tip: answer all questions to submit.
-            </div>
-          ) : null}
-        </div>
-      )}
+            ) : null}
+          </div>
+        )}
+      </div>
     </main>
   );
 }
 
-const cardStyle = {
-  border: "1px solid rgba(255,255,255,0.08)",
-  borderRadius: 12,
-  padding: 14,
-  background: "rgba(0,0,0,0.25)",
+const wrap = {
+  background: "#0b0b0b",
+  border: "1px solid rgba(255,255,255,0.10)",
+  borderRadius: 18,
+  padding: 18,
 };
 
-const pillStyle = {
-  border: "1px solid rgba(255,255,255,0.12)",
+const h1 = { fontSize: 26, fontWeight: 950, color: "#fff", margin: 0 };
+const sub = { color: "rgba(255,255,255,0.72)", marginTop: 6, marginBottom: 14 };
+
+const row = { display: "flex", gap: 10, flexWrap: "wrap" };
+
+const pill = {
+  border: "1px solid rgba(255,255,255,0.14)",
   borderRadius: 999,
   padding: "8px 10px",
   fontSize: 12,
-  opacity: 0.9,
+  color: "rgba(255,255,255,0.85)",
+  background: "rgba(255,255,255,0.03)",
 };
 
-const errorBoxStyle = {
-  margin: "12px 0",
-  padding: 12,
-  border: "1px solid #F97316",
-  borderRadius: 10,
+const pillSmall = {
+  display: "inline-block",
+  border: "1px solid rgba(255,255,255,0.14)",
+  borderRadius: 999,
+  padding: "6px 10px",
+  fontSize: 11,
+  color: "rgba(255,255,255,0.85)",
+  background: "rgba(255,255,255,0.03)",
 };
+
+const card = {
+  border: "1px solid rgba(255,255,255,0.10)",
+  borderRadius: 16,
+  padding: 14,
+  background: "rgba(0,0,0,0.35)",
+};
+
+const qText = { color: "#fff", fontSize: 15, fontWeight: 800, marginTop: 8 };
+
+const errorBox = {
+  marginTop: 12,
+  padding: 12,
+  borderRadius: 12,
+  border: "1px solid #F97316",
+  color: "#fff",
+};
+
+const cta = (disabled) => ({
+  marginTop: 6,
+  padding: "12px 14px",
+  borderRadius: 14,
+  border: "1px solid #FEE000",
+  background: "#FEE000",
+  color: "#111827",
+  fontWeight: 950,
+  cursor: disabled ? "not-allowed" : "pointer",
+});
