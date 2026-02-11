@@ -130,8 +130,6 @@ export default function InternalAssessmentPage() {
       // 1) Get org context
       import { apiFetch } from "../../../lib/apiFetch";
 ...
-import { apiFetch } from "../../../lib/apiFetch";
-...
 const orgRes = await apiFetch("/api/me/org");
 
       
