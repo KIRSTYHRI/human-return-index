@@ -1,64 +1,43 @@
-import { NextResponse } from "next/server";
-import { supabaseFromBearer } from "../../../../lib/supabase/bearerRouteClient";
+import { supabaseFromBearer } from "@/src/lib/supabase/bearerRouteClient";
 
-const VERSION = "ME_ORG_V2";
+export const dynamic = "force-dynamic";
 
 export async function GET(req) {
-  try {
-    const { supabase } = supabaseFromBearer(req);
+  // Debug: prove header arrived
+  const authHeader = req.headers.get("authorization") || "";
+  console.log("[/api/me/org] auth header present?", !!authHeader);
+  console.log("[/api/me/org] auth header starts:", authHeader.slice(0, 20));
 
-    if (!supabase) {
-      return NextResponse.json(
-        { ok: false, version: VERSION, error: "Missing Bearer token" },
-        { status: 401 }
-      );
-    }
+  const { supabase, error } = supabaseFromBearer(req);
 
-    const { data: userData, error: userErr } = await supabase.auth.getUser();
-    const user = userData?.user;
-
-    if (userErr || !user) {
-      return NextResponse.json(
-        { ok: false, version: VERSION, error: "Auth session missing!" },
-        { status: 401 }
-      );
-    }
-
-    // ✅ Try organisation_users first
-    let organisation_id = null;
-
-    const try1 = await supabase
-      .from("organisation_users")
-      .select("organisation_id")
-      .eq("user_id", user.id)
-      .limit(1)
-      .maybeSingle();
-
-    if (try1.data?.organisation_id) organisation_id = try1.data.organisation_id;
-
-    // ✅ Fallback: organisation_members
-    if (!organisation_id) {
-      const try2 = await supabase
-        .from("organisation_members")
-        .select("organisation_id")
-        .eq("user_id", user.id)
-        .limit(1)
-        .maybeSingle();
-
-      if (try2.data?.organisation_id) organisation_id = try2.data.organisation_id;
-    }
-
-    return NextResponse.json({
-      ok: true,
-      version: VERSION,
-      user_id: user.id,
-      email: user.email,
-      organisation_id,
-    });
-  } catch (e) {
-    return NextResponse.json(
-      { ok: false, version: VERSION, error: String(e?.message || e) },
-      { status: 500 }
+  if (error || !supabase) {
+    return Response.json(
+      { ok: false, version: "ME_ORG_V4", error: error || "No supabase client" },
+      { status: 401 }
     );
   }
+
+  // 1) Confirm user
+  const { data: userData, error: userErr } = await supabase.auth.getUser();
+
+  if (userErr || !userData?.user) {
+    return Response.json(
+      { ok: false, version: "ME_ORG_V4", error: "Auth user missing", details: userErr?.message || null },
+      { status: 401 }
+    );
+  }
+
+  const user = userData.user;
+
+  // 2) TEMP response (just to prove token works end-to-end)
+  // Once this works, we’ll add your org lookup logic back in.
+  return Response.json({
+    ok: true,
+    version: "ME_ORG_V4",
+    user: {
+      id: user.id,
+      email: user.email,
+    },
+    note: "Bearer token received + user verified. Next: org lookup.",
+  });
 }
