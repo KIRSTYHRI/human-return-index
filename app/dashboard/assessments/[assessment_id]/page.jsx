@@ -15,7 +15,8 @@ export default function AssessmentDetailPage() {
         Assessment ID: <strong>{assessmentId}</strong>
       </p>
       <p style={{ opacity: 0.75, marginTop: 12 }}>
-        This page is a placeholder so you don’t hit a 404. Next step: we’ll display the saved pillar scores + responses here.
+        This is a placeholder page so you don’t hit a 404.
+        Next step: display saved pillar scores + responses here.
       </p>
     </main>
   );
