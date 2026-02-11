@@ -20,6 +20,7 @@ export default function EmployeePulsePage() {
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+
   const [error, setError] = useState("");
   const [debug, setDebug] = useState(null);
 
@@ -30,7 +31,7 @@ export default function EmployeePulsePage() {
         setError("");
         setDebug(null);
 
-        // 1) Org context
+        // 1) Org context (protected)
         const orgRes = await apiFetch("/api/me/org");
         const orgJson = await orgRes.json().catch(() => null);
 
@@ -55,7 +56,8 @@ export default function EmployeePulsePage() {
           throw new Error(qJson?.error || "Failed to load employee questions");
         }
 
-        setQuestions(Array.isArray(qJson?.questions) ? qJson.questions : []);
+        const qs = Array.isArray(qJson?.questions) ? qJson.questions : [];
+        setQuestions(qs);
       } catch (e) {
         console.error(e);
         setError(e?.message || "Failed to load.");
@@ -87,11 +89,12 @@ export default function EmployeePulsePage() {
       if (!total) throw new Error("No questions loaded.");
       if (!allAnswered) throw new Error(`Please answer all questions (${answeredCount}/${total}).`);
 
+      // ✅ IMPORTANT: your API expects "responses", not "answers"
       const res = await apiFetch("/api/employee-pulse", {
         method: "POST",
         body: JSON.stringify({
           organisation_id: orgId,
-          responses: answers, // ✅ IMPORTANT: your API expects "responses"
+          responses: answers,
         }),
       });
 
@@ -115,9 +118,7 @@ export default function EmployeePulsePage() {
   return (
     <main style={{ maxWidth: 960, margin: "0 auto", padding: "24px 16px 40px" }}>
       <h1 style={{ fontSize: 24, fontWeight: 900, marginBottom: 6 }}>Employee Pulse</h1>
-      <p style={{ opacity: 0.75, marginBottom: 14 }}>
-        Quick pulse. Real signals. No waffle.
-      </p>
+      <p style={{ opacity: 0.75, marginBottom: 14 }}>Quick pulse. Real signals. No waffle.</p>
 
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
         <span style={pillStyle}>
@@ -154,14 +155,16 @@ export default function EmployeePulsePage() {
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           {questions.map((q) => {
             const current = Number(answers[q.id] || 0);
+
             return (
               <div key={q.id} style={cardStyle}>
                 <div style={{ fontSize: 12, letterSpacing: "0.08em", textTransform: "uppercase", opacity: 0.7 }}>
                   {q.pillar || "Pulse"}
                 </div>
 
+                {/* ✅ LOCKED: this is the field your API should be returning */}
                 <div style={{ fontSize: 15, fontWeight: 700, marginTop: 6 }}>
-                  {q.question_text || q.text || q.question || "Question text missing"}
+                  {q.question_text}
                 </div>
 
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 10 }}>
