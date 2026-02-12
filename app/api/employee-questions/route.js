@@ -1,37 +1,39 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-function getSupabase() {
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+const VERSION = "EMPLOYEE_QUESTIONS_DB_V1";
+
+function supabaseAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!url) throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL");
-  if (!key) throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY");
-
-  return createClient(url, key, {
-    auth: { persistSession: false },
-  });
+  if (!url) throw new Error("Missing env: NEXT_PUBLIC_SUPABASE_URL");
+  if (!key) throw new Error("Missing env: SUPABASE_SERVICE_ROLE_KEY");
+  return createClient(url, key, { auth: { persistSession: false } });
 }
 
 export async function GET() {
   try {
-    const supabase = getSupabase();
+    const supabase = supabaseAdmin();
 
     const { data, error } = await supabase
       .from("employee_questions")
-      .select("id, pillar, question_text, position, code")
+      .select("id,pillar,question_text,position,code")
       .order("pillar", { ascending: true })
       .order("position", { ascending: true });
 
     if (error) throw error;
 
-    return NextResponse.json({
-      ok: true,
-      questions: data,
-    });
+    return NextResponse.json(
+      { ok: true, version: VERSION, source: "employee_questions", questions: data || [] },
+      { status: 200 }
+    );
   } catch (e) {
     return NextResponse.json(
-      { ok: false, error: e.message },
+      { ok: false, version: VERSION, error: String(e?.message || e) },
       { status: 500 }
     );
   }
