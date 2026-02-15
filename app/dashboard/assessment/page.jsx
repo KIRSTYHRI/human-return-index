@@ -1,18 +1,7 @@
-mkdir -p app/dashboard/assessment
-
-cat > app/dashboard/assessment/page.jsx <<'EOF'
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import InternalAssessmentPage from "../hri-assessment/page.jsx";
 
-export default function AssessmentRedirect() {
-  const router = useRouter();
-
-  useEffect(() => {
-    router.replace("/dashboard/hri-assessment");
-  }, [router]);
-
-  return null;
+export default function AssessmentPage() {
+  return <InternalAssessmentPage />;
 }
-EOF

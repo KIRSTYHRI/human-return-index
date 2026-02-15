@@ -1,170 +1,184 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { apiFetch } from "..
-import { apiFetch } from "../../../lib/apiFetch";
+import { useEffect, useMemo, useState } from "react";
+import { apiFetch } from "../../../src/lib/apiFetch";
 
 export const dynamic = "force-dynamic";
 
+const SCALE = [
+  { v: 1, label: "Strongly disagree" },
+  { v: 2, label: "Disagree" },
+  { v: 3, label: "Neutral" },
+  { v: 4, label: "Agree" },
+  { v: 5, label: "Strongly agree" },
+];
+
 export default function EmployeePulsePage() {
+  const [loading, setLoading] = useState(true);
   const [questions, setQuestions] = useState([]);
   const [answers, setAnswers] = useState({});
-  const [orgId, setOrgId] = useState(null);
-
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [debug, setDebug] = useState(null);
+  const [success, setSuccess] = useState("");
 
   useEffect(() => {
     (async () => {
       try {
         setLoading(true);
         setError("");
-        setDebug(null);
+        setSuccess("");
 
-        // ✅ MUST include Bearer token, so use apiFetch
-        const orgRes = await apiFetch("/api/me/org");
-        const orgJson = await orgRes.json().catch(() => null);
+        const res = await fetch("/api/employee-questions", { cache: "no-store" });
+        const json = await res.json().catch(() => ({}));
 
-        if (!orgRes.ok || orgJson?.ok === false) {
-          setDebug({ where: "org-missing", orgJson });
-          throw new Error(orgJson?.error || "Failed to load /api/me/org");
+        if (!res.ok || json?.ok === false) {
+          throw new Error(json?.error || "Failed to load employee questions");
         }
 
-        if (!orgJson?.organisation_id) {
-          setDebug({ where: "org-no-id", orgJson });
-          throw new Error("Missing organisation_id from /api/me/org (see debug).");
-        }
-
-        setOrgId(orgJson.organisation_id);
-
-        const qRes = await apiFetch("/api/employee-questions");
-        const qJson = await qRes.json().catch(() => null);
-
-        if (!qRes.ok || qJson?.ok === false) {
-          throw new Error(qJson?.error || "Failed to load employee questions");
-        }
-
-        const items = Array.isArray(qJson?.questions) ? qJson.questions : [];
-        setQuestions(items);
+        const qs = Array.isArray(json.questions) ? json.questions : [];
+        setQuestions(qs);
       } catch (e) {
-        console.error(e);
-        setError(e?.message || "Failed to load.");
+        setError(e?.message || "Unexpected error");
       } finally {
         setLoading(false);
       }
     })();
   }, []);
 
-  function setAnswer(questionId, value) {
-    setAnswers((prev) => ({ ...prev, [questionId]: Number(value) }));
-  }
+  const total = questions.length;
 
-  const questionsCount = questions.length;
+  const answeredCount = useMemo(() => {
+    return Object.values(answers).filter((v) => Number(v) >= 1 && Number(v) <= 5).length;
+  }, [answers]);
+
+  const allAnswered = total > 0 && answeredCount === total;
+
+  function setAnswer(qid, val) {
+    setAnswers((prev) => ({ ...prev, [qid]: Number(val) }));
+  }
 
   async function submitPulse() {
     try {
-      setSubmitting(true);
+      setSaving(true);
       setError("");
+      setSuccess("");
 
-      if (!orgId) throw new Error("Missing organisation_id (org not loaded).");
-      if (!questionsCount) throw new Error("No questions loaded.");
+      if (!total) throw new Error("No questions loaded.");
+      if (!allAnswered) throw new Error(`Please answer all questions (${answeredCount}/${total}).`);
 
       const res = await apiFetch("/api/employee-pulse", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          organisation_id: orgId,
-          answers,
-        }),
+        body: JSON.stringify({ responses: answers }),
       });
 
-      const json = await res.json().catch(() => null);
-
-      if (!res.ok || (json && json.ok === false)) {
-        throw new Error((json && json.error) || "Failed to submit pulse");
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || json?.ok === false) {
+        throw new Error(json?.error || "Failed to submit pulse.");
       }
 
-      alert("Pulse submitted ✅");
+      setSuccess("Submitted ✅ Thanks — pulse saved.");
     } catch (e) {
-      console.error(e);
-      setError(e?.message || "Failed to submit pulse");
+      setError(e?.message || "Unexpected error");
     } finally {
-      setSubmitting(false);
+      setSaving(false);
     }
   }
 
   return (
-    <main style={{ padding: 24 }}>
-      <h1 className="pageTitle">Employee Pulse</h1>
-      <p className="pageSub">
-        Answer 10 questions. This writes a submission into pulse_check_submissions.
+    <main style={{ maxWidth: 1120, margin: "0 auto", padding: "24px 16px 40px" }}>
+      <h1 style={{ fontSize: 22, fontWeight: 900, marginBottom: 6 }}>Employee Pulse</h1>
+
+      <p style={{ opacity: 0.75, marginBottom: 18 }}>
+        Quick pulse check (1–5). This saves anonymously at org level.
       </p>
 
-      {error && (
-        <div className="card" style={{ borderColor: "#ff6b6b" }}>
-          <p style={{ margin: 0, color: "#ff6b6b" }}>{error}</p>
+      {loading && <p style={{ opacity: 0.75 }}>Loading employee questions…</p>}
+      {!loading && error && <p style={{ color: "#F97316", marginBottom: 12 }}>{error}</p>}
+      {!loading && success && <p style={{ color: "#34D399", marginBottom: 12 }}>{success}</p>}
+
+      {!loading && (
+        <div style={{ marginBottom: 14, fontSize: 13, opacity: 0.8 }}>
+          {answeredCount} of {total} questions answered.
         </div>
       )}
 
-      <div style={{ marginTop: 12, display: "flex", gap: 10, alignItems: "center" }}>
-        <button className="pill" onClick={submitPulse} disabled={loading || submitting || !questionsCount}>
-          {submitting ? "Submitting…" : "Submit pulse"}
-        </button>
-        <span className="pageSub" style={{ margin: 0 }}>
-          {loading ? "Loading…" : `${questionsCount} questions`}
-        </span>
-      </div>
+      {!loading && total === 0 && <p style={{ opacity: 0.75 }}>No employee questions found.</p>}
 
-      <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 14 }}>
-        {questions.map((q, idx) => (
-          <div key={q.id} className="card">
-            <div className="pageSub" style={{ marginTop: 0 }}>
-              {q.pillar} • Q{q.position ?? idx + 1}
-            </div>
-            <div className="cardTitle" style={{ marginTop: 6 }}>
-              {q.question_text ?? q.text ?? q.question ?? "—"}
-            </div>
+      {!loading && total > 0 && (
+        <>
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {questions.map((q, idx) => {
+              const id = q.id || `q${idx + 1}`;
+              const current = Number(answers[id] || 0);
 
-            <div style={{ display: "flex", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
-              {[1, 2, 3, 4, 5].map((v) => (
-                <label key={v} className="pill" style={{ cursor: "pointer" }}>
-                  <input
-                    type="radio"
-                    name={`q_${q.id}`}
-                    value={v}
-                    checked={answers[q.id] === v}
-                    onChange={() => setAnswer(q.id, v)}
-                    style={{ marginRight: 8 }}
-                  />
-                  {v}
-                </label>
-              ))}
-            </div>
+              return (
+                <div
+                  key={id}
+                  style={{
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    borderRadius: 12,
+                    padding: 14,
+                    background: "rgba(0,0,0,0.25)",
+                  }}
+                >
+                  <div style={{ fontSize: 14, fontWeight: 650 }}>
+                    {idx + 1}. {q.question_text}
+                  </div>
+
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 10 }}>
+                    {SCALE.map((s) => {
+                      const active = current === s.v;
+                      return (
+                        <button
+                          key={s.v}
+                          type="button"
+                          onClick={() => setAnswer(id, s.v)}
+                          style={{
+                            cursor: "pointer",
+                            borderRadius: 10,
+                            border: "1px solid rgba(255,255,255,0.18)",
+                            padding: "8px 10px",
+                            fontWeight: 800,
+                            background: active ? "#FEE000" : "transparent",
+                            color: active ? "#111827" : "rgba(255,255,255,0.92)",
+                          }}
+                        >
+                          {s.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
           </div>
-        ))}
-      </div>
 
-      <div style={{ marginTop: 16 }}>
-        <details className="card">
-          <summary className="pill" style={{ cursor: "pointer", width: "fit-content" }}>
-            Debug panel
-          </summary>
-          <pre style={{ whiteSpace: "pre-wrap", marginTop: 12 }}>
-{JSON.stringify(
-  {
-    debug,
-    answers,
-    questionsCount,
-  },
-  null,
-  2
-)}
-          </pre>
-        </details>
-      </div>
+          <div style={{ marginTop: 18 }}>
+            <button
+              type="button"
+              onClick={submitPulse}
+              disabled={saving}
+              style={{
+                cursor: saving ? "not-allowed" : "pointer",
+                padding: "10px 14px",
+                borderRadius: 12,
+                border: "1px solid #FEE000",
+                background: "#FEE000",
+                color: "#111827",
+                fontWeight: 900,
+              }}
+            >
+              {saving ? "Submitting…" : "Submit pulse"}
+            </button>
+
+            {!allAnswered && (
+              <div style={{ marginTop: 10, fontSize: 12, opacity: 0.7 }}>
+                Tip: answer all questions to submit.
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </main>
   );
 }
