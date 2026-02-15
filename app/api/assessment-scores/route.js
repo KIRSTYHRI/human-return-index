@@ -51,7 +51,7 @@ export async function GET() {
 
 export async function POST(req) {
   try {
-    const supabase = supabaseServer();
+    const supabase = supabaseServer(req);
     const body = await req.json().catch(() => ({}));
 
     const assessment_id = body?.assessment_id || null;

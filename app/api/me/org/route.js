@@ -8,7 +8,7 @@ const VERSION = "ME_ORG__V2__FIX_IMPORT";
 
 export async function GET() {
   try {
-    const supabase = supabaseServer();
+    const supabase = supabaseServer(req);
 
     const { data: userData, error: userErr } = await supabase.auth.getUser();
     if (userErr || !userData?.user) {

@@ -11,7 +11,7 @@ function numOrNull(v) {
 
 export async function POST(req) {
   try {
-    const supabase = supabaseServer();
+    const supabase = supabaseServer(req);
     const body = await req.json().catch(() => ({}));
 
     const organisation_id = body?.organisation_id || body?.organization_id || null;

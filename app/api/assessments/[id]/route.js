@@ -37,7 +37,7 @@ function normalizeScores(pillar_scores) {
 
 export async function GET(_req, { params }) {
   try {
-    const supabase = supabaseServer();
+    const supabase = supabaseServer(req);
     const id = params?.id;
 
     if (!id) {
@@ -103,7 +103,7 @@ export async function GET(_req, { params }) {
 
 export async function POST(req, { params }) {
   try {
-    const supabase = supabaseServer();
+    const supabase = supabaseServer(req);
     const id = params?.id;
 
     if (!id) {
