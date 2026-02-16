@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { apiFetch } from "../../lib/apiFetch";
+import { apiFetch } from "../../src/lib/apiFetch";
 
 function formatDate(d) {
   if (!d) return "—";
