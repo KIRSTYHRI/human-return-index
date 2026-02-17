@@ -1,14 +1,31 @@
 import { supabaseBrowser } from "./supabaseBrowser";
 
-export async function apiFetch(path, options = {}) {
-  const supabase = supabaseBrowser();
+// Supports BOTH import styles:
+//   import apiFetch from "..."
+//   import { apiFetch } from "..."
+export default async function apiFetch(path, options = {}) {
+  const opts = { ...(options || {}) };
+  const headers = new Headers(opts.headers || {});
 
-  const { data } = await supabase.auth.getSession();
-  const accessToken = data?.session?.access_token || null;
+  try {
+    // Try to attach the user token if logged in
+    const supabase = supabaseBrowser();
+    const { data } = await supabase.auth.getSession();
+    const token = data?.session?.access_token;
 
-  const headers = new Headers(options.headers || {});
-  if (!headers.has("Content-Type") && options.body) headers.set("Content-Type", "application/json");
-  if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
+    if (token && !headers.has("Authorization")) {
+      headers.set("Authorization", `Bearer ${token}`);
+    }
+  } catch (e) {
+    // If anything fails, still allow the request to run
+  }
 
-  return fetch(path, { ...options, headers, cache: "no-store" });
+  if (!headers.has("Content-Type") && opts.body) {
+    headers.set("Content-Type", "application/json");
+  }
+
+  opts.headers = headers;
+  return fetch(path, opts);
 }
+
+export { apiFetch };
