@@ -1,1 +1,1 @@
-export { default, apiFetch } from "../src/lib/apiFetch";
+export { default, apiFetch } from "../src/lib/apiFetch.js";
