@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { apiFetch } from "../../../lib/apiFetch";
+import { apiFetch } from "../../../src/lib/apiFetch";
 
 const SCALE = [
   { value: 1, label: "Never (1)" },
