@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { apiFetch } from "../../../src/lib/apiFetch";
+import { apiFetch } from "@/lib/apiFetch";
 
 const VERSION = "INTERNAL_ASSESSMENT_V3__DB_EMPLOYER_QUESTIONS__25Q__MAP_Q1_25";
 

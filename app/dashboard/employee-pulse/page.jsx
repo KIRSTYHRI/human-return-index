@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { apiFetch } from "../../../src/lib/apiFetch";
+import { apiFetch } from "@/lib/apiFetch";
 
 export const dynamic = "force-dynamic";
 
