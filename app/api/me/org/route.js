@@ -1,33 +1,30 @@
 import { NextResponse } from "next/server";
-import { supabaseServer } from "../../../../src/lib/supabase/server";
-
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
-
-const VERSION = "ME_ORG__V5__NO_REQ_BUG";
+import { getAuthUser } from "@/lib/getAuthUser";
 
 export async function GET(req) {
-  try {
-    const supabase = supabaseServer(req);
+  const { user, error, method } = await getAuthUser(req);
 
-    const { data: userData, error: userErr } = await supabase.auth.getUser();
-    if (userErr || !userData?.user) {
-      return NextResponse.json({ ok: false, version: VERSION, error: "Auth session missing!" }, { status: 401 });
-    }
-
-    const { data: row, error } = await supabase
-      .from("organisation_users")
-      .select("organisation_id")
-      .eq("user_id", userData.user.id)
-      .maybeSingle();
-
-    if (error) return NextResponse.json({ ok: false, version: VERSION, error: error.message }, { status: 500 });
-    if (!row?.organisation_id) {
-      return NextResponse.json({ ok: false, version: VERSION, error: "No organisation linked to this user." }, { status: 400 });
-    }
-
-    return NextResponse.json({ ok: true, version: VERSION, organisation_id: row.organisation_id });
-  } catch (e) {
-    return NextResponse.json({ ok: false, version: VERSION, error: e?.message || "Unexpected error" }, { status: 500 });
+  if (!user) {
+    return NextResponse.json(
+      { ok: false, version: "ME_ORG__V7", error: error || "Auth session missing!", method },
+      { status: 401 }
+    );
   }
+
+  // DEMO fallback (so pulse + assessments always have an org)
+  const organisation_id = process.env.HRI_DEMO_ORG_ID || null;
+
+  if (!organisation_id) {
+    return NextResponse.json(
+      { ok: false, version: "ME_ORG__V7", error: "Missing organisation_id (set HRI_DEMO_ORG_ID)", method },
+      { status: 500 }
+    );
+  }
+
+  return NextResponse.json({
+    ok: true,
+    version: "ME_ORG__V7",
+    organisation_id,
+    user_id: user.id,
+  });
 }
