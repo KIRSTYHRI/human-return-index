@@ -1,53 +1,29 @@
-<<<<<<< HEAD
-import { supabaseServer } from "./supabaseServer";
-
-/**
- * Reads the logged-in user from Supabase server session (cookie-based).
- * Returns { user, error }
- */
-export async function getAuthUser() {
-  try {
-    const supabase = supabaseServer();
-    const { data, error } = await supabase.auth.getUser();
-    return { user: data?.user ?? null, error: error ?? null };
-  } catch (e) {
-    return { user: null, error: e };
-  }
-}
-
-export default getAuthUser;
-=======
 import { createClient } from "@supabase/supabase-js";
-import { supabaseServer } from "./supabaseServer";
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SUPABASE_ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
+// Route-handler helper that supports:
+// 1) Bearer token via Authorization header (apiFetch)
+// 2) Cookie session (optional) - but simplest reliable path is Bearer for local testing
 export async function getAuthUser(req) {
-  // 1) Prefer Bearer token (client-side apiFetch)
-  const auth = req.headers.get("authorization") || "";
-  if (auth.startsWith("Bearer ")) {
-    const token = auth.slice("Bearer ".length).trim();
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON, {
-      auth: { persistSession: false },
-    });
+  if (!supabaseUrl || !supabaseAnon) {
+    return { supabase: null, user: null, error: "Missing Supabase env vars" };
+  }
 
+  const supabase = createClient(supabaseUrl, supabaseAnon, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+
+  // Try Bearer first
+  const authHeader = req?.headers?.get?.("authorization") || req?.headers?.get?.("Authorization");
+  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+
+  if (token) {
     const { data, error } = await supabase.auth.getUser(token);
-    if (!error && data?.user) return { user: data.user, method: "bearer" };
-
-    return { user: null, method: "bearer", error: error?.message || "Invalid token" };
+    return { supabase, user: data?.user ?? null, error: error?.message ?? null };
   }
 
-  // 2) Fallback to cookie auth (server-side)
-  try {
-    const supabase = supabaseServer();
-    const { data, error } = await supabase.auth.getUser();
-    if (!error && data?.user) return { user: data.user, method: "cookie" };
-
-    return { user: null, method: "cookie", error: error?.message || "Auth session missing!" };
-  } catch {
-    return { user: null, method: "cookie", error: "Auth session missing!" };
-  }
+  // No Bearer token present
+  return { supabase, user: null, error: "Auth session missing!" };
 }
->>>>>>> b327506 (fix: dashboard auth via Bearer token (apiFetch) + routes accept bearer or cookie)
