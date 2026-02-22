@@ -6,16 +6,25 @@ export async function GET(req) {
 
   if (!user) {
     return NextResponse.json(
-      { ok: false, version: "ME_ORG__V6__BEARER_OR_COOKIE", error: error || "Auth session missing!", method },
+      { ok: false, version: "ME_ORG__V7", error: error || "Auth session missing!", method },
       { status: 401 }
     );
   }
 
-  // If you already have logic to map user -> org, keep it here.
-  // For now just prove auth is working:
+  // DEMO fallback (so pulse + assessments always have an org)
+  const organisation_id = process.env.HRI_DEMO_ORG_ID || null;
+
+  if (!organisation_id) {
+    return NextResponse.json(
+      { ok: false, version: "ME_ORG__V7", error: "Missing organisation_id (set HRI_DEMO_ORG_ID)", method },
+      { status: 500 }
+    );
+  }
+
   return NextResponse.json({
     ok: true,
-    version: "ME_ORG__V6__BEARER_OR_COOKIE",
+    version: "ME_ORG__V7",
+    organisation_id,
     user_id: user.id,
   });
 }
