@@ -2,20 +2,40 @@ import { NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/getAuthUser";
 
 export async function GET(req) {
-  const { user, error, method } = await getAuthUser(req);
+  const method = "GET";
 
+  const { user, error } = await getAuthUser(req);
+
+  const demoOrgId = process.env.HRI_DEMO_ORG_ID || null;
+
+  // ✅ DEMO FALLBACK: return 200 even if no user yet
   if (!user) {
+    if (demoOrgId) {
+      return NextResponse.json({
+        ok: true,
+        version: "OVERVIEW__V7__DEMO_OK",
+        user_id: null,
+        organisation_id: demoOrgId,
+        demo: true,
+      });
+    }
+
     return NextResponse.json(
-      { ok: false, version: "OVERVIEW__V6__BEARER_OK", error: error || "Auth session missing!", method },
+      {
+        ok: false,
+        version: "OVERVIEW__V7",
+        error: error || "Auth session missing!",
+        method,
+      },
       { status: 401 }
     );
   }
 
-  // Return whatever your dashboard expects. Keep it simple for now.
   return NextResponse.json({
     ok: true,
-    version: "OVERVIEW__V6__BEARER_OK",
+    version: "OVERVIEW__V7__AUTH_OK",
     user_id: user.id,
-    demo: true,
+    organisation_id: demoOrgId,
+    demo: false,
   });
 }
