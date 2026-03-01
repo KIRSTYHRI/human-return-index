@@ -19,24 +19,57 @@ function num(v) {
   return Number.isFinite(n) ? n : null;
 }
 
+// ✅ Treat this as "not an error" in demo mode / first render
+function isSessionMissing(res, data) {
+  if (res?.status !== 401) return false;
+  const msg = (data?.error || "").toLowerCase();
+  return msg.includes("auth session missing");
+}
+
 export default function CurrentAssessmentCard() {
   const [loading, setLoading] = useState(true);
   const [overview, setOverview] = useState(null);
   const [error, setError] = useState(null);
 
   useEffect(() => {
+    let cancelled = false;
+
     (async () => {
       try {
         const res = await apiFetch("/api/overview");
         const data = await res.json();
-        if (!res.ok) throw new Error(data?.error || "Failed to load overview");
+
+        if (cancelled) return;
+
+        // ✅ If we hit "Auth session missing" (401), do NOT poison the UI.
+        // Demo mode is allowed to have no session.
+        if (isSessionMissing(res, data)) {
+          setError(null);
+          setOverview(data?.overview || data || {}); // may be empty; UI shows placeholders
+          return;
+        }
+
+        // ✅ Only show error for genuine failures
+        if (!res.ok) {
+          setError(data?.error || "Failed to load overview");
+          setOverview(null);
+          return;
+        }
+
+        // ✅ Success path
         setOverview(data?.overview || data || null);
+        setError(null);
       } catch (e) {
-        setError(e.message);
+        if (cancelled) return;
+        setError(e?.message || "Failed to load overview");
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const overall = useMemo(() => {
@@ -48,7 +81,11 @@ export default function CurrentAssessmentCard() {
     );
   }, [overview]);
 
-  const latest = overview?.latest_assessment || overview?.latestAssessment || overview?.assessment || null;
+  const latest =
+    overview?.latest_assessment ||
+    overview?.latestAssessment ||
+    overview?.assessment ||
+    null;
 
   const title =
     latest?.title ||
@@ -70,10 +107,7 @@ export default function CurrentAssessmentCard() {
 
   const createdAt = latest?.created_at || latest?.createdAt || overview?.created_at;
 
-  const status =
-    latest?.status ||
-    overview?.status ||
-    "—";
+  const status = latest?.status || overview?.status || "—";
 
   const badge =
     overview?.badge ||
@@ -111,6 +145,7 @@ export default function CurrentAssessmentCard() {
         Real-time view of how your people are doing — and what that means for performance, risk and ROI.
       </p>
 
+      {/* ✅ Only show real errors (not session-missing demo noise) */}
       {error && <p className="errorText">{error}</p>}
 
       {!error && (
@@ -128,19 +163,18 @@ export default function CurrentAssessmentCard() {
                 <div className="mutedSmall">
                   Status: {status} · Period: {formatDate(periodStart)} → {formatDate(periodEnd)}
                 </div>
-                <div className="mutedSmall">
-                  Created: {formatDate(createdAt)}
-                </div>
+                <div className="mutedSmall">Created: {formatDate(createdAt)}</div>
               </div>
 
               <div className="scoreBox">
                 <div className="scoreLabel">OVERALL HRI SCORE</div>
-                <div className="scoreValue">{overall ?? "—"}<span className="scoreOutOf">/100</span></div>
+                <div className="scoreValue">
+                  {overall ?? "—"}
+                  <span className="scoreOutOf">/100</span>
+                </div>
 
                 <div className="scoreLabel" style={{ marginTop: 10 }}>BADGE</div>
-                <div className="badgePill">
-                  {badge ? badge : "No badge yet"}
-                </div>
+                <div className="badgePill">{badge ? badge : "No badge yet"}</div>
                 {badgeAwarded && (
                   <div className="mutedSmall" style={{ marginTop: 6 }}>
                     Awarded: {formatDate(badgeAwarded)}
@@ -151,7 +185,9 @@ export default function CurrentAssessmentCard() {
 
             {/* Pillar scores */}
             <div className="panelDivider" />
-            <div className="panelTitle" style={{ marginBottom: 10 }}>Pillar scores (internal assessment)</div>
+            <div className="panelTitle" style={{ marginBottom: 10 }}>
+              Pillar scores (internal assessment)
+            </div>
 
             <div className="pillarsGrid">
               {(pillarList.length ? pillarList : [
@@ -169,10 +205,10 @@ export default function CurrentAssessmentCard() {
             </div>
 
             <div className="linkRow">
-  <Link className="linkChip" href="/dashboard/hri-assessment">Internal Assessment</Link>
-  <Link className="linkChip" href="/dashboard/employee-pulse">Employee Pulse</Link>
-  <Link className="linkChip" href="/dashboard/scores">Scores</Link>
-</div>
+              <Link className="linkChip" href="/dashboard/hri-assessment">Internal Assessment</Link>
+              <Link className="linkChip" href="/dashboard/employee-pulse">Employee Pulse</Link>
+              <Link className="linkChip" href="/dashboard/scores">Scores</Link>
+            </div>
           </div>
 
           {/* Org metrics */}
@@ -189,18 +225,41 @@ function OrgMetricsCard() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
+    let cancelled = false;
+
     (async () => {
       try {
         const res = await apiFetch("/api/org-metrics");
         const data = await res.json();
-        if (!res.ok) throw new Error(data?.error || "Failed to load org metrics");
+
+        if (cancelled) return;
+
+        // ✅ Same rule here
+        if (isSessionMissing(res, data)) {
+          setError(null);
+          setMetrics(data?.metrics || data || {});
+          return;
+        }
+
+        if (!res.ok) {
+          setError(data?.error || "Failed to load org metrics");
+          setMetrics(null);
+          return;
+        }
+
         setMetrics(data?.metrics || data || null);
+        setError(null);
       } catch (e) {
-        setError(e.message);
+        if (cancelled) return;
+        setError(e?.message || "Failed to load org metrics");
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const items = [
