@@ -1,31 +1,29 @@
 import { NextResponse } from "next/server";
-import { supabaseServer } from "../../../src/lib/supabase/server";
-
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
-
-const VERSION = "DEBUG_TOKEN__V2__HEADER_PLUS_COOKIE";
+import { getAuthUser } from "@/lib/getAuthUser";
 
 export async function GET(req) {
-  try {
-    const auth = req.headers.get("authorization") || null;
+  const authHeader =
+    req.headers.get("authorization") || req.headers.get("Authorization");
 
-    const supabase = supabaseServer(req);
-    const { data, error } = await supabase.auth.getUser();
+  const hasAuthHeader = !!authHeader;
+  const authPreview = authHeader ? authHeader.slice(0, 18) + "…" : null;
 
-    return NextResponse.json({
-      ok: true,
-      version: VERSION,
-      hasAuthHeader: !!auth,
-      authPreview: auth ? `${auth.slice(0, 20)}…` : null,
-      hasCookieUser: !!data?.user,
-      userId: data?.user?.id || null,
-      userError: error?.message || null,
-    });
-  } catch (e) {
-    return NextResponse.json(
-      { ok: false, version: VERSION, error: e?.message || "Unexpected error" },
-      { status: 500 }
-    );
-  }
+  const hasCookie =
+    (req.cookies?.getAll?.() || []).length > 0;
+
+  const { user, error } = await getAuthUser(req);
+
+  return NextResponse.json({
+    ok: true,
+    version: "DEBUG_TOKEN__V3",
+    hasAuthHeader,
+    authPreview,
+    hasAnyCookies: hasCookie,
+    cookieNames: (req.cookies?.getAll?.() || []).map(c => c.name),
+    hasCookieUser: !!user,
+    userId: user?.id ?? null,
+    userEmail: user?.email ?? null,
+    userError: error ?? null,
+    demoOrg: process.env.HRI_DEMO_ORG_ID || null,
+  });
 }

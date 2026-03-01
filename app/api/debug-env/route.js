@@ -1,18 +1,13 @@
-export const dynamic = "force-dynamic";
+import { NextResponse } from "next/server";
 
 export async function GET() {
-  // NEVER return full keys. Only show whether they exist.
-  const pick = (name) => ({
-    exists: !!process.env[name],
-    preview: process.env[name] ? `${process.env[name].slice(0, 6)}…` : null,
-  });
-
-  return Response.json({
+  const val = process.env.HRI_DEMO_ORG_ID || "";
+  return NextResponse.json({
     ok: true,
     nodeEnv: process.env.NODE_ENV,
-    vercelEnv: process.env.VERCEL_ENV,
-    supabaseUrl: pick("NEXT_PUBLIC_SUPABASE_URL"),
-    supabaseAnon: pick("NEXT_PUBLIC_SUPABASE_ANON_KEY"),
-    serviceRole: pick("SUPABASE_SERVICE_ROLE_KEY"),
+    supabaseUrl: { exists: !!process.env.NEXT_PUBLIC_SUPABASE_URL, preview: (process.env.NEXT_PUBLIC_SUPABASE_URL || "").slice(0, 8) + "…" },
+    supabaseAnon: { exists: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY, preview: (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "").slice(0, 8) + "…" },
+    serviceRole: { exists: !!process.env.SUPABASE_SERVICE_ROLE_KEY, preview: (process.env.SUPABASE_SERVICE_ROLE_KEY || "").slice(0, 8) + "…" },
+    demoOrg: { exists: !!val, value: val || null },
   });
 }
