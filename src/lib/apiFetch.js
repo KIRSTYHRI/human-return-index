@@ -7,6 +7,9 @@ async function apiFetch(path, options = {}) {
   const opts = { ...(options || {}) };
   const headers = new Headers(opts.headers || {});
 
+  // ✅ always include cookies if available
+  if (!opts.credentials) opts.credentials = "include";
+
   try {
     const { data } = await supabaseBrowser?.auth?.getSession?.();
     const token = data?.session?.access_token;
