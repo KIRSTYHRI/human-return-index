@@ -1,34 +1,37 @@
 import { NextResponse } from "next/server";
+import { getAuthUser } from "@/lib/getAuthUser";
 
-/**
- * Employee Pulse Questions
- * Source of truth for the pulse form.
- * If these were changed, this is where it happened.
- *
- * NOTE: You can edit the text safely — keep IDs stable.
- */
-const questions = [
-  // WELLBEING & MENTAL HEALTH
-  { id: "p_wmh_1", pillar: "WELLBEING & MENTAL HEALTH", text: "My workload is manageable most of the time." },
-  { id: "p_wmh_2", pillar: "WELLBEING & MENTAL HEALTH", text: "I feel supported when I’m under pressure." },
+const VERSION = "PULSE_QUESTIONS__V2__DB";
 
-  // LEADERSHIP
-  { id: "p_lead_1", pillar: "LEADERSHIP", text: "My manager sets clear expectations and supports me to succeed." },
-  { id: "p_lead_2", pillar: "LEADERSHIP", text: "Leaders communicate decisions clearly and fairly." },
+export async function GET(req) {
+  const { supabase } = await getAuthUser(req);
 
-  // TRUST & COMMUNICATION
-  { id: "p_tc_1", pillar: "TRUST & COMMUNICATION", text: "I feel comfortable speaking up with ideas or concerns." },
-  { id: "p_tc_2", pillar: "TRUST & COMMUNICATION", text: "Information that affects my work is shared in a timely way." },
+  if (!supabase) {
+    return NextResponse.json(
+      { ok: false, version: VERSION, error: "Supabase client not available" },
+      { status: 500 }
+    );
+  }
 
-  // GROWTH & DEVELOPMENT
-  { id: "p_gd_1", pillar: "GROWTH & DEVELOPMENT", text: "I have opportunities to learn and develop in my role." },
-  { id: "p_gd_2", pillar: "GROWTH & DEVELOPMENT", text: "My strengths are recognised and used well." },
+  const { data, error } = await supabase
+    .from("hri_pulse_questions")
+    .select("id, pillar, question_text, position")
+    .order("position", { ascending: true });
 
-  // INCLUSION & BELONGING
-  { id: "p_ib_1", pillar: "INCLUSION & BELONGING", text: "I feel I belong and I’m respected at work." },
-  { id: "p_ib_2", pillar: "INCLUSION & BELONGING", text: "Different perspectives are valued in my team." },
-];
+  if (error) {
+    return NextResponse.json(
+      { ok: false, version: VERSION, error: error.message },
+      { status: 500 }
+    );
+  }
 
-export async function GET() {
-  return NextResponse.json({ ok: true, questions });
+  // Normalize to what your UI expects: { id, pillar, text }
+  const questions = (data || []).map((q) => ({
+    id: q.id,
+    pillar: q.pillar,
+    text: q.question_text,
+    position: q.position,
+  }));
+
+  return NextResponse.json({ ok: true, version: VERSION, questions });
 }
