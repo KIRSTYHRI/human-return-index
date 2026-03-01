@@ -1,17 +1,22 @@
 import { NextResponse } from "next/server";
-import { getAuthUser } from "@/lib/getAuthUser";
+import { createClient } from "@supabase/supabase-js";
 
-const VERSION = "PULSE_QUESTIONS__V2__DB";
+const VERSION = "PULSE_QUESTIONS__V3__DB_PUBLIC";
 
-export async function GET(req) {
-  const { supabase } = await getAuthUser(req);
+export async function GET() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  if (!supabase) {
+  if (!supabaseUrl || !supabaseAnon) {
     return NextResponse.json(
-      { ok: false, version: VERSION, error: "Supabase client not available" },
+      { ok: false, version: VERSION, error: "Missing Supabase env vars" },
       { status: 500 }
     );
   }
+
+  const supabase = createClient(supabaseUrl, supabaseAnon, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
 
   const { data, error } = await supabase
     .from("hri_pulse_questions")
@@ -25,7 +30,6 @@ export async function GET(req) {
     );
   }
 
-  // Normalize to what your UI expects: { id, pillar, text }
   const questions = (data || []).map((q) => ({
     id: q.id,
     pillar: q.pillar,
