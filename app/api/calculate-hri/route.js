@@ -4,183 +4,198 @@ import { createClient } from "@supabase/supabase-js";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const ORG_ID_FALLBACK = "9499b1b9-7fce-43a1-9590-d533f00dc71d"; // your org uuid
+const ORG_ID_FALLBACK = process.env.HRI_DEMO_ORG_ID || null;
 
-function getServiceSupabase() {
+function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) return null;
-  return createClient(url, key, { auth: { persistSession: false } });
+
+  if (!url || !key) {
+    throw new Error("Missing Supabase environment variables");
+  }
+
+  return createClient(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
 }
 
-// Employer assessment mapping: Never/Rarely/Sometimes/Often/Always -> 1..5
-const EMPLOYER_TEXT_TO_NUM = {
-  never: 1,
-  rarely: 2,
-  sometimes: 3,
-  often: 4,
-  always: 5,
-};
+function toNumber(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
 
-function toEmployerNumber(row) {
-  if (row?.response_value != null) return Number(row.response_value);
+function toPctFrom1to5(value) {
+  const n = toNumber(value);
+  if (n == null) return null;
+  return Math.round((n / 5) * 100);
+}
 
-  const t = String(row?.response_text || "").trim().toLowerCase();
-  if (!t) return null;
+function avg(values) {
+  const nums = values.map(toNumber).filter((v) => v != null);
+  if (!nums.length) return null;
+  return Math.round((nums.reduce((sum, v) => sum + v, 0) / nums.length) * 10) / 10;
+}
 
-  if (EMPLOYER_TEXT_TO_NUM[t] != null) return EMPLOYER_TEXT_TO_NUM[t];
+function avgWhole(values) {
+  const nums = values.map(toNumber).filter((v) => v != null);
+  if (!nums.length) return null;
+  return Math.round(nums.reduce((sum, v) => sum + v, 0) / nums.length);
+}
 
-  const asNum = Number(t);
-  if (asNum >= 1 && asNum <= 5) return asNum;
+function blendEqual(employeeValue, employerValue) {
+  const e = toNumber(employeeValue);
+  const m = toNumber(employerValue);
 
+  if (e != null && m != null) return Math.round(((e + m) / 2) * 10) / 10;
+  if (e != null) return e;
+  if (m != null) return m;
   return null;
 }
 
-function avg(nums) {
-  const clean = nums.filter((n) => typeof n === "number" && !Number.isNaN(n));
-  if (!clean.length) return null;
-  return clean.reduce((a, b) => a + b, 0) / clean.length;
+function badgeFromScore(score) {
+  const n = toNumber(score);
+  if (n == null) return null;
+  if (n >= 80) return "HRI Accredited Plus";
+  if (n >= 65) return "HRI Accredited";
+  return "No Badge Yet";
 }
 
-// Convert 1–5 to 0–100
-function toPctFrom1to5(score1to5) {
-  if (score1to5 == null) return null;
-  return Number(score1to5) * 20;
-}
-
-function badgeFromHri(hri) {
-  if (hri == null) return "No Badge Yet";
-  if (hri >= 75) return "HRI Accredited Plus";
-  if (hri >= 60) return "HRI Accredited";
-  return "HRI Certified";
-}
-
-// GET: calculate + upsert into hri_scores (easy to test in browser)
-export async function GET(req) {
-  const supabase = getServiceSupabase();
-  if (!supabase) {
-    return NextResponse.json(
-      { ok: false, error: "Missing env vars (check Vercel env + redeploy)" },
-      { status: 500 }
-    );
-  }
-
+export async function GET(request) {
   try {
-    const { searchParams } = new URL(req.url);
-    const organisation_id = searchParams.get("organisation_id") || ORG_ID_FALLBACK;
+    const supabase = getSupabase();
+
+    const { searchParams } = new URL(request.url);
+    const organisation_id =
+      searchParams.get("organisation_id") ||
+      searchParams.get("organization_id") ||
+      ORG_ID_FALLBACK;
+
+    if (!organisation_id) {
+      return NextResponse.json(
+        { ok: false, error: "Missing organisation_id" },
+        { status: 400 }
+      );
+    }
 
     // -------------------------
-    // 1) EMPLOYEE (Pulse) – latest row from pulse_check_submissions ✅
+    // 1) EMPLOYEE – latest pulse row
     // -------------------------
-   const { data: assessmentRows, error: aErr } = await supabase
-  .from("hri_assessments")
-  .select("id, org_id, created_at, overall_score, pillar_scores")
-  .eq("org_id", organisation_id)
-  .order("created_at", { ascending: false })
-  .limit(10);
+    const { data: latestPulse, error: pulseErr } = await supabase
+      .from("pulse_check_submissions")
+      .select(
+        "id, organization_id, organisation_id, average_score, pillar_1_score, pillar_2_score, pillar_3_score, pillar_4_score, pillar_5_score, submitted_at"
+      )
+      .or(
+        `organization_id.eq.${organisation_id},organisation_id.eq.${organisation_id}`
+      )
+      .order("submitted_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-if (aErr) {
-  return NextResponse.json({ ok: false, error: aErr.message }, { status: 500 });
-}
+    if (pulseErr) {
+      return NextResponse.json(
+        { ok: false, error: pulseErr.message },
+        { status: 500 }
+      );
+    }
 
-const latestAssessment =
-  (assessmentRows || []).find(
-    (row) =>
-      row?.overall_score != null &&
-      row?.pillar_scores &&
-      Object.keys(row.pillar_scores).length > 0
-  ) || null;
-    // Employee scores (0–100)
     const employee_pillar_1 = toPctFrom1to5(latestPulse?.pillar_1_score);
     const employee_pillar_2 = toPctFrom1to5(latestPulse?.pillar_2_score);
     const employee_pillar_3 = toPctFrom1to5(latestPulse?.pillar_3_score);
     const employee_pillar_4 = toPctFrom1to5(latestPulse?.pillar_4_score);
     const employee_pillar_5 = toPctFrom1to5(latestPulse?.pillar_5_score);
 
-    // Use average_score (1–5) → score out of 100
-    const employee_score = latestPulse?.average_score != null
-      ? toPctFrom1to5(latestPulse.average_score)
-      : avg([
-          employee_pillar_1,
-          employee_pillar_2,
-          employee_pillar_3,
-          employee_pillar_4,
-          employee_pillar_5,
-        ]);
+    const employee_score =
+      latestPulse?.average_score != null
+        ? toPctFrom1to5(latestPulse.average_score)
+        : avgWhole([
+            employee_pillar_1,
+            employee_pillar_2,
+            employee_pillar_3,
+            employee_pillar_4,
+            employee_pillar_5,
+          ]);
 
-        // -------------------------
-    // 2) EMPLOYER – latest HRI assessment -> pillar scores (0–100)
     // -------------------------
-    const { data: latestAssessment, error: aErr } = await supabase
+    // 2) EMPLOYER – latest valid HRI assessment
+    // -------------------------
+    const { data: employerRows, error: employerErr } = await supabase
       .from("hri_assessments")
       .select("id, org_id, created_at, overall_score, pillar_scores")
       .eq("org_id", organisation_id)
       .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .limit(10);
 
-    if (aErr) {
-      return NextResponse.json({ ok: false, error: aErr.message }, { status: 500 });
+    if (employerErr) {
+      return NextResponse.json(
+        { ok: false, error: employerErr.message },
+        { status: 500 }
+      );
     }
 
-    let employer_pillar_1 = null;
-    let employer_pillar_2 = null;
-    let employer_pillar_3 = null;
-    let employer_pillar_4 = null;
-    let employer_pillar_5 = null;
-    let employer_score = null;
+    const latestValidEmployer =
+      (employerRows || []).find(
+        (row) =>
+          row?.overall_score != null &&
+          row?.pillar_scores &&
+          typeof row.pillar_scores === "object" &&
+          Object.keys(row.pillar_scores).length > 0
+      ) || null;
 
-    if (latestAssessment) {
-      employer_score =
-        latestAssessment?.overall_score != null
-          ? Number(latestAssessment.overall_score)
-          : null;
+    const employer_score =
+      latestValidEmployer?.overall_score != null
+        ? toNumber(latestValidEmployer.overall_score)
+        : null;
 
-      employer_pillar_1 =
-        latestAssessment?.pillar_scores?.pillar_1 != null
-          ? Number(latestAssessment.pillar_scores.pillar_1)
-          : null;
+    const employer_pillar_1 =
+      latestValidEmployer?.pillar_scores?.pillar_1 != null
+        ? toNumber(latestValidEmployer.pillar_scores.pillar_1)
+        : null;
 
-      employer_pillar_2 =
-        latestAssessment?.pillar_scores?.pillar_2 != null
-          ? Number(latestAssessment.pillar_scores.pillar_2)
-          : null;
+    const employer_pillar_2 =
+      latestValidEmployer?.pillar_scores?.pillar_2 != null
+        ? toNumber(latestValidEmployer.pillar_scores.pillar_2)
+        : null;
 
-      employer_pillar_3 =
-        latestAssessment?.pillar_scores?.pillar_3 != null
-          ? Number(latestAssessment.pillar_scores.pillar_3)
-          : null;
+    const employer_pillar_3 =
+      latestValidEmployer?.pillar_scores?.pillar_3 != null
+        ? toNumber(latestValidEmployer.pillar_scores.pillar_3)
+        : null;
 
-      employer_pillar_4 =
-        latestAssessment?.pillar_scores?.pillar_4 != null
-          ? Number(latestAssessment.pillar_scores.pillar_4)
-          : null;
+    const employer_pillar_4 =
+      latestValidEmployer?.pillar_scores?.pillar_4 != null
+        ? toNumber(latestValidEmployer.pillar_scores.pillar_4)
+        : null;
 
-      employer_pillar_5 =
-        latestAssessment?.pillar_scores?.pillar_5 != null
-          ? Number(latestAssessment.pillar_scores.pillar_5)
-          : null;
-    }
-
-    // -------------------------
-    // 3) FINAL 50/50 HRI SCORE ✅
-    // -------------------------
-    const WEIGHT_EMPLOYER = 0.5;
-    const WEIGHT_EMPLOYEE = 0.5;
-
-    let hri_score = null;
-    if (employer_score != null && employee_score != null) {
-      hri_score = employer_score * WEIGHT_EMPLOYER + employee_score * WEIGHT_EMPLOYEE;
-    } else if (employer_score != null) {
-      hri_score = employer_score;
-    } else if (employee_score != null) {
-      hri_score = employee_score;
-    }
-
-    const badge = badgeFromHri(hri_score);
+    const employer_pillar_5 =
+      latestValidEmployer?.pillar_scores?.pillar_5 != null
+        ? toNumber(latestValidEmployer.pillar_scores.pillar_5)
+        : null;
 
     // -------------------------
-    // 4) UPSERT into hri_scores (your table uses organisation_id + updated_at)
+    // 3) BLEND 50/50
+    // -------------------------
+    const pillar_1_hri = blendEqual(employee_pillar_1, employer_pillar_1);
+    const pillar_2_hri = blendEqual(employee_pillar_2, employer_pillar_2);
+    const pillar_3_hri = blendEqual(employee_pillar_3, employer_pillar_3);
+    const pillar_4_hri = blendEqual(employee_pillar_4, employer_pillar_4);
+    const pillar_5_hri = blendEqual(employee_pillar_5, employer_pillar_5);
+
+    const hri_score =
+      employee_score != null && employer_score != null
+        ? Math.round(((employee_score + employer_score) / 2) * 10) / 10
+        : avgWhole([
+            pillar_1_hri,
+            pillar_2_hri,
+            pillar_3_hri,
+            pillar_4_hri,
+            pillar_5_hri,
+          ]);
+
+    const badge = badgeFromScore(hri_score);
+
+    // -------------------------
+    // 4) UPSERT INTO hri_scores
     // -------------------------
     const payload = {
       organisation_id,
@@ -201,55 +216,67 @@ const latestAssessment =
       updated_at: new Date().toISOString(),
     };
 
-    const { data: existing, error: exErr } = await supabase
+    const { data: existingRow, error: existingErr } = await supabase
       .from("hri_scores")
-      .select("id")
+      .select("id, organisation_id")
       .eq("organisation_id", organisation_id)
       .limit(1)
       .maybeSingle();
 
-    if (exErr) {
-      return NextResponse.json({ ok: false, error: exErr.message }, { status: 500 });
+    if (existingErr) {
+      return NextResponse.json(
+        { ok: false, error: existingErr.message },
+        { status: 500 }
+      );
     }
 
-    let saved = null;
+    let writeResult = null;
+    let writeErr = null;
 
-    if (existing?.id) {
+    if (existingRow?.id) {
       const { data, error } = await supabase
         .from("hri_scores")
         .update(payload)
-        .eq("id", existing.id)
-        .select("*")
+        .eq("id", existingRow.id)
+        .select()
         .single();
 
-      if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
-      saved = data;
+      writeResult = data;
+      writeErr = error;
     } else {
       const { data, error } = await supabase
         .from("hri_scores")
         .insert(payload)
-        .select("*")
+        .select()
         .single();
 
-      if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
-      saved = data;
+      writeResult = data;
+      writeErr = error;
+    }
+
+    if (writeErr) {
+      return NextResponse.json(
+        { ok: false, error: writeErr.message },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json(
       {
         ok: true,
         organisation_id,
-        calculated: {
-          employer_score,
-          employee_score,
-          hri_score,
-          badge,
-        },
-        saved,
+        employee_score,
+        employer_score,
+        hri_score,
+        badge,
+        score: writeResult,
       },
       { status: 200 }
     );
-  } catch (e) {
-    return NextResponse.json({ ok: false, error: e?.message || "Server error" }, { status: 500 });
+  } catch (err) {
+    return NextResponse.json(
+      { ok: false, error: err?.message || "Failed to calculate HRI" },
+      { status: 500 }
+    );
   }
 }
