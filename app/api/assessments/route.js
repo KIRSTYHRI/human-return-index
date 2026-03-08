@@ -8,7 +8,9 @@ function getServiceSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) return null;
-  return createClient(url, key, { auth: { persistSession: false } });
+  return createClient(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
 }
 
 export async function GET(request) {
@@ -51,8 +53,6 @@ export async function POST(request) {
     const title = body?.title || "HRI Assessment";
     const org_id = body?.org_id || body?.organisation_id || null;
 
-    // ✅ Expect responses like { q1:1..5, q2:1..5 ... q25:1..5 }
-    // Accept either body.responses or body.answersObject
     const responses =
       (body?.responses && typeof body.responses === "object" && body.responses) ||
       (body?.answersObject && typeof body.answersObject === "object" && body.answersObject) ||
@@ -63,14 +63,27 @@ export async function POST(request) {
       .insert({
         title,
         org_id,
-        responses,                 // ✅ store answers now
+        responses,
         pillar_scores: body?.pillar_scores || {},
         overall_score: body?.overall_score ?? null,
       })
       .select()
       .single();
 
-    if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    if (error) {
+      return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    }
+
+    if (org_id) {
+      const baseUrl =
+        process.env.NEXT_PUBLIC_SITE_URL ||
+        new URL(request.url).origin;
+
+      await fetch(
+        `${baseUrl}/api/calculate-hri?organisation_id=${org_id}`,
+        { method: "GET", cache: "no-store" }
+      );
+    }
 
     return NextResponse.json({ ok: true, assessment: data }, { status: 200 });
   } catch (err) {
