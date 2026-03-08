@@ -30,12 +30,6 @@ function toPctFrom1to5(value) {
   return Math.round((n / 5) * 100);
 }
 
-function avg(values) {
-  const nums = values.map(toNumber).filter((v) => v != null);
-  if (!nums.length) return null;
-  return Math.round((nums.reduce((sum, v) => sum + v, 0) / nums.length) * 10) / 10;
-}
-
 function avgWhole(values) {
   const nums = values.map(toNumber).filter((v) => v != null);
   if (!nums.length) return null;
@@ -77,26 +71,19 @@ export async function GET(request) {
       );
     }
 
-    // -------------------------
-    // 1) EMPLOYEE – latest pulse row
-    // -------------------------
+    // EMPLOYEE
     const { data: latestPulse, error: pulseErr } = await supabase
       .from("pulse_check_submissions")
       .select(
         "id, organization_id, organisation_id, average_score, pillar_1_score, pillar_2_score, pillar_3_score, pillar_4_score, pillar_5_score, submitted_at"
       )
-      .or(
-        `organization_id.eq.${organisation_id},organisation_id.eq.${organisation_id}`
-      )
+      .or(`organization_id.eq.${organisation_id},organisation_id.eq.${organisation_id}`)
       .order("submitted_at", { ascending: false })
       .limit(1)
       .maybeSingle();
 
     if (pulseErr) {
-      return NextResponse.json(
-        { ok: false, error: pulseErr.message },
-        { status: 500 }
-      );
+      return NextResponse.json({ ok: false, error: pulseErr.message }, { status: 500 });
     }
 
     const employee_pillar_1 = toPctFrom1to5(latestPulse?.pillar_1_score);
@@ -116,9 +103,7 @@ export async function GET(request) {
             employee_pillar_5,
           ]);
 
-    // -------------------------
-    // 2) EMPLOYER – latest valid HRI assessment
-    // -------------------------
+    // EMPLOYER - latest VALID assessment
     const { data: employerRows, error: employerErr } = await supabase
       .from("hri_assessments")
       .select("id, org_id, created_at, overall_score, pillar_scores")
@@ -127,10 +112,7 @@ export async function GET(request) {
       .limit(10);
 
     if (employerErr) {
-      return NextResponse.json(
-        { ok: false, error: employerErr.message },
-        { status: 500 }
-      );
+      return NextResponse.json({ ok: false, error: employerErr.message }, { status: 500 });
     }
 
     const latestValidEmployer =
@@ -172,31 +154,20 @@ export async function GET(request) {
         ? toNumber(latestValidEmployer.pillar_scores.pillar_5)
         : null;
 
-    // -------------------------
-    // 3) BLEND 50/50
-    // -------------------------
-    const pillar_1_hri = blendEqual(employee_pillar_1, employer_pillar_1);
-    const pillar_2_hri = blendEqual(employee_pillar_2, employer_pillar_2);
-    const pillar_3_hri = blendEqual(employee_pillar_3, employer_pillar_3);
-    const pillar_4_hri = blendEqual(employee_pillar_4, employer_pillar_4);
-    const pillar_5_hri = blendEqual(employee_pillar_5, employer_pillar_5);
-
+    // BLEND 50/50
     const hri_score =
       employee_score != null && employer_score != null
         ? Math.round(((employee_score + employer_score) / 2) * 10) / 10
         : avgWhole([
-            pillar_1_hri,
-            pillar_2_hri,
-            pillar_3_hri,
-            pillar_4_hri,
-            pillar_5_hri,
+            blendEqual(employee_pillar_1, employer_pillar_1),
+            blendEqual(employee_pillar_2, employer_pillar_2),
+            blendEqual(employee_pillar_3, employer_pillar_3),
+            blendEqual(employee_pillar_4, employer_pillar_4),
+            blendEqual(employee_pillar_5, employer_pillar_5),
           ]);
 
     const badge = badgeFromScore(hri_score);
 
-    // -------------------------
-    // 4) UPSERT INTO hri_scores
-    // -------------------------
     const payload = {
       organisation_id,
       employer_score,
@@ -224,14 +195,11 @@ export async function GET(request) {
       .maybeSingle();
 
     if (existingErr) {
-      return NextResponse.json(
-        { ok: false, error: existingErr.message },
-        { status: 500 }
-      );
+      return NextResponse.json({ ok: false, error: existingErr.message }, { status: 500 });
     }
 
-    let writeResult = null;
-    let writeErr = null;
+    let saved = null;
+    let saveErr = null;
 
     if (existingRow?.id) {
       const { data, error } = await supabase
@@ -240,36 +208,31 @@ export async function GET(request) {
         .eq("id", existingRow.id)
         .select()
         .single();
-
-      writeResult = data;
-      writeErr = error;
+      saved = data;
+      saveErr = error;
     } else {
       const { data, error } = await supabase
         .from("hri_scores")
         .insert(payload)
         .select()
         .single();
-
-      writeResult = data;
-      writeErr = error;
+      saved = data;
+      saveErr = error;
     }
 
-    if (writeErr) {
-      return NextResponse.json(
-        { ok: false, error: writeErr.message },
-        { status: 500 }
-      );
+    if (saveErr) {
+      return NextResponse.json({ ok: false, error: saveErr.message }, { status: 500 });
     }
 
     return NextResponse.json(
       {
         ok: true,
         organisation_id,
-        employee_score,
         employer_score,
+        employee_score,
         hri_score,
         badge,
-        score: writeResult,
+        saved,
       },
       { status: 200 }
     );
