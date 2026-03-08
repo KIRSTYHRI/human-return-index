@@ -104,13 +104,13 @@ export async function GET(req) {
           employee_pillar_5,
         ]);
 
-    // -------------------------
-    // 2) EMPLOYER – latest assessment responses -> pillar scores (0–100)
+        // -------------------------
+    // 2) EMPLOYER – latest HRI assessment -> pillar scores (0–100)
     // -------------------------
     const { data: latestAssessment, error: aErr } = await supabase
-      .from("assessments")
-      .select("id, organisation_id, created_at")
-      .eq("organisation_id", organisation_id)
+      .from("hri_assessments")
+      .select("id, org_id, created_at, overall_score, pillar_scores")
+      .eq("org_id", organisation_id)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -126,61 +126,36 @@ export async function GET(req) {
     let employer_pillar_5 = null;
     let employer_score = null;
 
-    if (latestAssessment?.id) {
-      const assessment_id = latestAssessment.id;
+    if (latestAssessment) {
+      employer_score =
+        latestAssessment?.overall_score != null
+          ? Number(latestAssessment.overall_score)
+          : null;
 
-      const { data: respRows, error: rErr } = await supabase
-        .from("employer_assessment_responses")
-        .select("response_text, response_value, question_id")
-        .eq("assessment_id", assessment_id);
+      employer_pillar_1 =
+        latestAssessment?.pillar_scores?.pillar_1 != null
+          ? Number(latestAssessment.pillar_scores.pillar_1)
+          : null;
 
-      if (rErr) {
-        return NextResponse.json({ ok: false, error: rErr.message }, { status: 500 });
-      }
+      employer_pillar_2 =
+        latestAssessment?.pillar_scores?.pillar_2 != null
+          ? Number(latestAssessment.pillar_scores.pillar_2)
+          : null;
 
-      const qIds = (respRows || []).map((r) => r.question_id).filter(Boolean);
+      employer_pillar_3 =
+        latestAssessment?.pillar_scores?.pillar_3 != null
+          ? Number(latestAssessment.pillar_scores.pillar_3)
+          : null;
 
-      const { data: qRows, error: qErr } = await supabase
-        .from("employer_questions")
-        .select("id, pillar")
-        .in("id", qIds);
+      employer_pillar_4 =
+        latestAssessment?.pillar_scores?.pillar_4 != null
+          ? Number(latestAssessment.pillar_scores.pillar_4)
+          : null;
 
-      if (qErr) {
-        return NextResponse.json({ ok: false, error: qErr.message }, { status: 500 });
-      }
-
-      const pillarByQid = Object.fromEntries((qRows || []).map((q) => [q.id, q.pillar]));
-
-      const buckets = { p1: [], p2: [], p3: [], p4: [], p5: [] };
-
-      for (const r of respRows || []) {
-        const pillar = String(pillarByQid[r.question_id] || "").toLowerCase();
-        const n = toEmployerNumber(r);
-        if (n == null) continue;
-
-        if (pillar.includes("leadership")) buckets.p1.push(n);
-        else if (pillar.includes("wellbeing")) buckets.p2.push(n);
-        else if (pillar.includes("inclusion") || pillar.includes("belonging") || pillar.includes("safety"))
-          buckets.p3.push(n);
-        else if (pillar.includes("growth") || pillar.includes("learning") || pillar.includes("performance"))
-          buckets.p4.push(n);
-        else if (pillar.includes("trust") || pillar.includes("communication") || pillar.includes("clarity"))
-          buckets.p5.push(n);
-      }
-
-      employer_pillar_1 = toPctFrom1to5(avg(buckets.p1));
-      employer_pillar_2 = toPctFrom1to5(avg(buckets.p2));
-      employer_pillar_3 = toPctFrom1to5(avg(buckets.p3));
-      employer_pillar_4 = toPctFrom1to5(avg(buckets.p4));
-      employer_pillar_5 = toPctFrom1to5(avg(buckets.p5));
-
-      employer_score = avg([
-        employer_pillar_1,
-        employer_pillar_2,
-        employer_pillar_3,
-        employer_pillar_4,
-        employer_pillar_5,
-      ]);
+      employer_pillar_5 =
+        latestAssessment?.pillar_scores?.pillar_5 != null
+          ? Number(latestAssessment.pillar_scores.pillar_5)
+          : null;
     }
 
     // -------------------------
