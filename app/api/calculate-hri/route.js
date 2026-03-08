@@ -72,20 +72,24 @@ export async function GET(req) {
     // -------------------------
     // 1) EMPLOYEE (Pulse) – latest row from pulse_check_submissions ✅
     // -------------------------
-    const { data: latestPulse, error: pulseErr } = await supabase
-      .from("pulse_check_submissions")
-      .select(
-        "id, organization_id, average_score, pillar_1_score, pillar_2_score, pillar_3_score, pillar_4_score, pillar_5_score, submitted_at"
-      )
-      .eq("organization_id", String(organisation_id))
-      .order("submitted_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+   const { data: assessmentRows, error: aErr } = await supabase
+  .from("hri_assessments")
+  .select("id, org_id, created_at, overall_score, pillar_scores")
+  .eq("org_id", organisation_id)
+  .order("created_at", { ascending: false })
+  .limit(10);
 
-    if (pulseErr) {
-      return NextResponse.json({ ok: false, error: pulseErr.message }, { status: 500 });
-    }
+if (aErr) {
+  return NextResponse.json({ ok: false, error: aErr.message }, { status: 500 });
+}
 
+const latestAssessment =
+  (assessmentRows || []).find(
+    (row) =>
+      row?.overall_score != null &&
+      row?.pillar_scores &&
+      Object.keys(row.pillar_scores).length > 0
+  ) || null;
     // Employee scores (0–100)
     const employee_pillar_1 = toPctFrom1to5(latestPulse?.pillar_1_score);
     const employee_pillar_2 = toPctFrom1to5(latestPulse?.pillar_2_score);
