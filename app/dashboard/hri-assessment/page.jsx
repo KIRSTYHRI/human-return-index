@@ -122,90 +122,83 @@ export default function InternalAssessmentPage() {
   }
 
   async function saveInternalAssessment() {
-    try {
-      setSaving(true);
-      setError("");
-      setSuccess("");
-      setDebug(null);
+  try {
+    setSaving(true);
+    setError("");
+    setSuccess("");
+    setDebug(null);
 
-      if (!total) throw new Error("No questions loaded.");
-      if (!allAnswered) throw new Error(`Please answer all questions (${answeredCount}/${total}).`);
+    if (!total) throw new Error("No questions loaded.");
+    if (!allAnswered) throw new Error(`Please answer all questions (${answeredCount}/${total}).`);
 
-      // 1) Get org context (PROTECTED => apiFetch)
-      const orgRes = await apiFetch("/api/me/org");
-      const orgJson = await orgRes.json().catch(() => ({}));
+    // 1) Get org context
+    const orgRes = await apiFetch("/api/me/org");
+    const orgJson = await orgRes.json().catch(() => ({}));
 
-      const organisation_id =
-        orgJson?.organisation_id ||
-        orgJson?.organization_id ||
-        orgJson?.org_id ||
-        orgJson?.organisation?.organisation_id ||
-        orgJson?.organization?.organization_id ||
-        null;
+    const organisation_id =
+      orgJson?.organisation_id ||
+      orgJson?.organization_id ||
+      orgJson?.org_id ||
+      orgJson?.organisation?.organisation_id ||
+      orgJson?.organization?.organization_id ||
+      null;
 
-      if (!orgRes.ok || orgJson?.ok === false || !organisation_id) {
-        setDebug({ where: "me-org", status: orgRes.status, orgJson });
-        throw new Error(orgJson?.error || "Could not load organisation context.");
-      }
-
-      // 2) Create assessment row (PROTECTED => apiFetch)
-      const createRes = await apiFetch("/api/assessments", {
-        method: "POST",
-        body: JSON.stringify({
-          title: "Pilot Baseline Assessment",
-          org_id: organisation_id,
-        }),
-      });
-
-      const createJson = await createRes.json().catch(() => ({}));
-      if (!createRes.ok || createJson?.ok === false) {
-        setDebug({ where: "create-assessment", status: createRes.status, createJson });
-        throw new Error(createJson?.error || "Failed to create assessment.");
-      }
-
-      const assessment_id = createJson?.assessment?.id || null;
-      if (!assessment_id) {
-        setDebug({ where: "create-assessment-missing-id", createJson });
-        throw new Error("Assessment created but no id returned.");
-      }
-
-      // 3) Save pillar scores + responses (PROTECTED => apiFetch)
-      const scores = buildPillarScoresFromAnswers();
-
-      const saveRes = await apiFetch(`/api/assessments/${assessment_id}`, {
-        method: "POST",
-        body: JSON.stringify({ scores, responses: answers }),
-      });
-
-      const saveJson = await saveRes.json().catch(() => ({}));
-      if (!saveRes.ok || saveJson?.ok === false) {
-        setDebug({ where: "save-assessment", status: saveRes.status, saveJson });
-        throw new Error(saveJson?.error || "Failed to save assessment data.");
-      }
-
-      // 4) Trigger scoring engine (PROTECTED => apiFetch)
-      const scoreRes = await apiFetch(`/api/assessment-scores`, {
-        method: "POST",
-        body: JSON.stringify({ assessment_id }),
-      });
-
-      const scoreJson = await scoreRes.json().catch(() => ({}));
-      if (!scoreRes.ok || scoreJson?.ok === false) {
-        setDebug({ where: "score", status: scoreRes.status, scoreJson });
-        throw new Error(scoreJson?.error || "Saved, but failed to calculate scores.");
-      }
-
-      setSuccess(`Saved ✅ Internal assessment created + HRI calculated (Assessment ID: ${assessment_id})`);
-      setDebug({ version: VERSION, assessment_id, scoreJson });
-
-      router.push(`/dashboard/assessments/${assessment_id}`);
-
-    } catch (e) {
-      setError(e?.message || "Unexpected error");
-    } finally {
-      setSaving(false);
+    if (!orgRes.ok || orgJson?.ok === false || !organisation_id) {
+      setDebug({ where: "me-org", status: orgRes.status, orgJson });
+      throw new Error(orgJson?.error || "Could not load organisation context.");
     }
+
+    // 2) Build pillar scores from answers
+    const scores = buildPillarScoresFromAnswers();
+
+    const numericScores = Object.values(scores || {})
+      .map((v) => Number(v))
+      .filter((v) => Number.isFinite(v));
+
+    const overall_score = numericScores.length
+      ? Math.round(numericScores.reduce((sum, v) => sum + v, 0) / numericScores.length)
+      : null;
+
+    // 3) Save straight into hri_assessments via /api/assessments
+    const createRes = await apiFetch("/api/assessments", {
+      method: "POST",
+      body: JSON.stringify({
+        title: "Pilot Baseline Assessment",
+        org_id: organisation_id,
+        responses: answers,
+        pillar_scores: scores,
+        overall_score,
+      }),
+    });
+
+    const createJson = await createRes.json().catch(() => ({}));
+
+    if (!createRes.ok || createJson?.ok === false) {
+      setDebug({ where: "create-assessment", status: createRes.status, createJson });
+      throw new Error(createJson?.error || "Failed to save assessment.");
+    }
+
+    // 4) Trigger HRI calculation
+    const calcRes = await apiFetch(
+      `/api/calculate-hri?organisation_id=${organisation_id}`,
+      { method: "GET" }
+    );
+
+    const calcJson = await calcRes.json().catch(() => ({}));
+
+    if (!calcRes.ok || calcJson?.ok === false) {
+      setDebug({ where: "calculate-hri", status: calcRes.status, calcJson });
+      throw new Error(calcJson?.error || "Assessment saved, but HRI calculation failed.");
+    }
+
+    setSuccess("Internal assessment saved and HRI score updated.");
+  } catch (err) {
+    console.error("saveInternalAssessment error:", err);
+    setError(err?.message || "Failed to save internal assessment.");
+  } finally {
+    setSaving(false);
   }
+}
 
   return (
     <main style={{ maxWidth: 1120, margin: "0 auto", padding: "24px 16px 40px" }}>
