@@ -236,38 +236,53 @@ setMetrics(metricsData?.metrics || metricsData || null);
               </div>
             </div>
 
-            <div className="panelTitle" style={{ marginBottom: 10 }}>
-              Blended pillar scores
-            </div>
+         <div className="panelTitle" style={{ marginBottom: 10 }}>
+  Estimated financial impact
+</div>
 
-            <div className="pillarsGrid">
-              {pillarList.map((p, idx) => (
-                <div className="pillBox" key={idx}>
-                  <div className="pillLabel">{p.label}</div>
-                  <div className="pillValue">{num(p.value) ?? "—"}</div>
-                </div>
-              ))}
-            </div>
+<div
+  style={{
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+    gap: 12,
+  }}
+>
+  <div className="pillBox">
+    <div className="pillLabel">Productivity opportunity</div>
+    <div className="pillValue">
+      {productivityOpportunity != null
+        ? `£${productivityOpportunity.toLocaleString()}`
+        : "—"}
+    </div>
+    <div className="mutedSmall" style={{ marginTop: 6 }}>
+      Estimated value linked to performance uplift potential.
+    </div>
+  </div>
 
-            <div className="panelDivider" />
+  <div className="pillBox">
+    <div className="pillLabel">Turnover cost exposure</div>
+    <div className="pillValue">
+      {turnoverReplacementCost != null
+        ? `£${turnoverReplacementCost.toLocaleString()}`
+        : "—"}
+    </div>
+    <div className="mutedSmall" style={{ marginTop: 6 }}>
+      Based on current turnover rate and replacement cost assumptions.
+    </div>
+  </div>
 
-            <div className="panelTitle" style={{ marginBottom: 10 }}>
-              Estimated financial impact
-            </div>
-
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-                gap: 12,
-              }}
-            >
-              <div className="pillBox">
-                <div className="pillLabel">Retention risk</div>
-                <div className="pillValue">
-                  {hriScore == null ? "—" : hriScore >= 80 ? "Low" : hriScore >= 65 ? "Moderate" : "High"}
-                </div>
-              </div>
+  <div className="pillBox">
+    <div className="pillLabel">Absence cost exposure</div>
+    <div className="pillValue">
+      {absenceCost != null
+        ? `£${absenceCost.toLocaleString()}`
+        : "—"}
+    </div>
+    <div className="mutedSmall" style={{ marginTop: 6 }}>
+      Estimated annual salary cost of absence days.
+    </div>
+  </div>
+</div>
 
               <div className="pillBox">
                 <div className="pillLabel">Productivity opportunity</div>
