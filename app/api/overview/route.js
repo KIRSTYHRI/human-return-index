@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getAuthUser } from "@/lib/getAuthUser";
 
-const VERSION = "OVERVIEW__V11__LIVE";
+const VERSION = "OVERVIEW__V12__LIVE";
 
 function getServiceSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -54,13 +54,12 @@ export async function GET(req) {
       );
     }
 
-    const { data: hriRow, error: hriErr } = await supabase
+    const { data: hriRows, error: hriErr } = await supabase
       .from("hri_scores")
       .select("*")
       .eq("organisation_id", organisation_id)
       .order("updated_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .limit(2);
 
     if (hriErr) {
       return NextResponse.json(
@@ -68,6 +67,9 @@ export async function GET(req) {
         { status: 500 }
       );
     }
+
+    const hriRow = hriRows?.[0] || null;
+    const prevHriRow = hriRows?.[1] || null;
 
     const { data: assessmentRows, error: assessErr } = await supabase
       .from("hri_assessments")
@@ -124,23 +126,28 @@ export async function GET(req) {
       organisation_id,
       user_id: user?.id || null,
       overview: {
-  overall_score: hriRow?.hri_score != null ? Number(hriRow.hri_score) : null,
-  employer_score: hriRow?.employer_score != null ? Number(hriRow.employer_score) : null,
-  employee_score: hriRow?.employee_score != null ? Number(hriRow.employee_score) : null,
-  badge: hriRow?.badge || null,
-  pillar_scores,
-  latest_assessment: latestAssessment
-    ? {
-        id: latestAssessment.id,
-        title: latestAssessment.title || "HRI Assessment",
-        created_at: latestAssessment.created_at,
-        overall_score:
-          latestAssessment.overall_score != null
-            ? Number(latestAssessment.overall_score)
+        overall_score: hriRow?.hri_score != null ? Number(hriRow.hri_score) : null,
+        previous_score: prevHriRow?.hri_score != null ? Number(prevHriRow.hri_score) : null,
+        score_change:
+          hriRow?.hri_score != null && prevHriRow?.hri_score != null
+            ? Math.round((Number(hriRow.hri_score) - Number(prevHriRow.hri_score)) * 10) / 10
             : null,
-      }
-    : null,
-}
+        employer_score: hriRow?.employer_score != null ? Number(hriRow.employer_score) : null,
+        employee_score: hriRow?.employee_score != null ? Number(hriRow.employee_score) : null,
+        badge: hriRow?.badge || null,
+        pillar_scores,
+        latest_assessment: latestAssessment
+          ? {
+              id: latestAssessment.id,
+              title: latestAssessment.title || "HRI Assessment",
+              created_at: latestAssessment.created_at,
+              overall_score:
+                latestAssessment.overall_score != null
+                  ? Number(latestAssessment.overall_score)
+                  : null,
+            }
+          : null,
+      },
     });
   } catch (err) {
     return NextResponse.json(
