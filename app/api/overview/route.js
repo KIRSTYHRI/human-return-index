@@ -124,21 +124,23 @@ export async function GET(req) {
       organisation_id,
       user_id: user?.id || null,
       overview: {
-        overall_score: hriRow?.hri_score != null ? Number(hriRow.hri_score) : null,
-        badge: hriRow?.badge || null,
-        pillar_scores,
-        latest_assessment: latestAssessment
-          ? {
-              id: latestAssessment.id,
-              title: latestAssessment.title || "HRI Assessment",
-              created_at: latestAssessment.created_at,
-              overall_score:
-                latestAssessment.overall_score != null
-                  ? Number(latestAssessment.overall_score)
-                  : null,
-            }
-          : null,
-      },
+  overall_score: hriRow?.hri_score != null ? Number(hriRow.hri_score) : null,
+  employer_score: hriRow?.employer_score != null ? Number(hriRow.employer_score) : null,
+  employee_score: hriRow?.employee_score != null ? Number(hriRow.employee_score) : null,
+  badge: hriRow?.badge || null,
+  pillar_scores,
+  latest_assessment: latestAssessment
+    ? {
+        id: latestAssessment.id,
+        title: latestAssessment.title || "HRI Assessment",
+        created_at: latestAssessment.created_at,
+        overall_score:
+          latestAssessment.overall_score != null
+            ? Number(latestAssessment.overall_score)
+            : null,
+      }
+    : null,
+}
     });
   } catch (err) {
     return NextResponse.json(
