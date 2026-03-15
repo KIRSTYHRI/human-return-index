@@ -80,9 +80,31 @@ setMetrics(metricsData?.metrics || metricsData || null);
   const previousScore = num(overview?.previous_score);
   const scoreChange = num(overview?.score_change);
 
-  const scoreGap =
-    employerScore != null && employeeScore != null
-      ? Math.round((employerScore - employeeScore) * 10) / 10
+  const employees = num(metrics?.employees) ?? 0;
+  const avgSalary = num(metrics?.avg_salary) ?? 0;
+  const absenceDays = num(metrics?.absence_days) ?? 0;
+  const turnoverRate = num(metrics?.turnover_rate) ?? 0;
+
+  const revenuePerEmployee = avgSalary > 0 ? avgSalary * 3 : 120000;
+
+  const productivityOpportunity =
+    hriScore != null && employees > 0
+      ? Math.round(((100 - hriScore) / 100) * employees * revenuePerEmployee * 0.08)
+      : null;
+
+  const estimatedLeavers =
+    employees > 0 && turnoverRate > 0
+      ? Math.round((employees * turnoverRate) / 100)
+      : null;
+
+  const turnoverReplacementCost =
+    estimatedLeavers != null && avgSalary > 0
+      ? Math.round(estimatedLeavers * (avgSalary * 0.3))
+      : null;
+
+  const absenceCost =
+    employees > 0 && avgSalary > 0 && absenceDays > 0
+      ? Math.round(employees * absenceDays * (avgSalary / 260))
       : null;
 
   const latest = overview?.latest_assessment || null;
