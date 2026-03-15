@@ -268,9 +268,10 @@ export default function CurrentAssessmentCard() {
 }
 
 function OrgMetricsCard() {
-  const [loading, setLoading] = useState(true);
-  const [metrics, setMetrics] = useState(null);
-  const [error, setError] = useState(null);
+const [loading, setLoading] = useState(true);
+const [overview, setOverview] = useState(null);
+const [metrics, setMetrics] = useState(null);
+const [error, setError] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
