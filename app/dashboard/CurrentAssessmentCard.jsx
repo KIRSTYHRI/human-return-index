@@ -19,7 +19,6 @@ function num(v) {
   return Number.isFinite(n) ? n : null;
 }
 
-// ✅ Treat this as "not an error" in demo mode / first render
 function isSessionMissing(res, data) {
   if (res?.status !== 401) return false;
   const msg = (data?.error || "").toLowerCase();
@@ -41,22 +40,18 @@ export default function CurrentAssessmentCard() {
 
         if (cancelled) return;
 
-        // ✅ If we hit "Auth session missing" (401), do NOT poison the UI.
-        // Demo mode is allowed to have no session.
         if (isSessionMissing(res, data)) {
           setError(null);
-          setOverview(data?.overview || data || {}); // may be empty; UI shows placeholders
+          setOverview(data?.overview || data || {});
           return;
         }
 
-        // ✅ Only show error for genuine failures
         if (!res.ok) {
           setError(data?.error || "Failed to load overview");
           setOverview(null);
           return;
         }
 
-        // ✅ Success path
         setOverview(data?.overview || data || null);
         setError(null);
       } catch (e) {
@@ -72,14 +67,21 @@ export default function CurrentAssessmentCard() {
     };
   }, []);
 
-  const overall = useMemo(() => {
-    return (
-      num(overview?.overall_score) ??
-      num(overview?.overallScore) ??
-      num(overview?.hri_score) ??
-      null
-    );
-  }, [overview]);
+  const hriScore =
+    num(overview?.overall_score) ??
+    num(overview?.overallScore) ??
+    num(overview?.hri_score) ??
+    null;
+
+  const employerScore =
+    num(overview?.employer_score) ??
+    num(overview?.employerScore) ??
+    null;
+
+  const employeeScore =
+    num(overview?.employee_score) ??
+    num(overview?.employeeScore) ??
+    null;
 
   const latest =
     overview?.latest_assessment ||
@@ -106,7 +108,6 @@ export default function CurrentAssessmentCard() {
     overview?.period_end;
 
   const createdAt = latest?.created_at || latest?.createdAt || overview?.created_at;
-
   const status = latest?.status || overview?.status || "—";
 
   const badge =
@@ -145,12 +146,10 @@ export default function CurrentAssessmentCard() {
         Real-time view of how your people are doing — and what that means for performance, risk and ROI.
       </p>
 
-      {/* ✅ Only show real errors (not session-missing demo noise) */}
       {error && <p className="errorText">{error}</p>}
 
       {!error && (
         <div className="dashGrid">
-          {/* Latest assessment */}
           <div className="panel">
             <div className="panelHeader">
               <div className="panelTitle">LATEST ASSESSMENT</div>
@@ -169,7 +168,7 @@ export default function CurrentAssessmentCard() {
               <div className="scoreBox">
                 <div className="scoreLabel">OVERALL HRI SCORE</div>
                 <div className="scoreValue">
-                  {overall ?? "—"}
+                  {hriScore ?? "—"}
                   <span className="scoreOutOf">/100</span>
                 </div>
 
@@ -183,20 +182,54 @@ export default function CurrentAssessmentCard() {
               </div>
             </div>
 
-            {/* Pillar scores */}
             <div className="panelDivider" />
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+                gap: 12,
+                marginBottom: 16,
+              }}
+            >
+              <div className="pillBox">
+                <div className="pillLabel">Employer Score</div>
+                <div className="pillValue">{employerScore ?? "—"}</div>
+              </div>
+
+              <div className="pillBox">
+                <div className="pillLabel">Employee Score</div>
+                <div className="pillValue">{employeeScore ?? "—"}</div>
+              </div>
+
+              <div className="pillBox">
+                <div className="pillLabel">HRI Score</div>
+                <div className="pillValue">{hriScore ?? "—"}</div>
+              </div>
+
+              <div className="pillBox">
+                <div className="pillLabel">Badge</div>
+                <div className="pillValue" style={{ fontSize: 16 }}>
+                  {badge ?? "—"}
+                </div>
+              </div>
+            </div>
+
             <div className="panelTitle" style={{ marginBottom: 10 }}>
-              Pillar scores (internal assessment)
+              Blended pillar scores
             </div>
 
             <div className="pillarsGrid">
-              {(pillarList.length ? pillarList : [
-                { label: "Growth & Development", value: overview?.pillar_1_score ?? overview?.growth ?? null },
-                { label: "Leadership", value: overview?.pillar_2_score ?? overview?.leadership ?? null },
-                { label: "Trust & Communication", value: overview?.pillar_3_score ?? overview?.trust ?? null },
-                { label: "Wellbeing & Mental Health", value: overview?.pillar_4_score ?? overview?.wellbeing ?? null },
-                { label: "Inclusion & Belonging", value: overview?.pillar_5_score ?? overview?.inclusion ?? null },
-              ]).map((p, idx) => (
+              {(pillarList.length
+                ? pillarList
+                : [
+                    { label: "Human-Centred Leadership", value: overview?.pillar_1_score ?? null },
+                    { label: "Wellbeing & Mental Health", value: overview?.pillar_2_score ?? null },
+                    { label: "Inclusion, Safety & Belonging", value: overview?.pillar_3_score ?? null },
+                    { label: "Growth, Learning & Performance", value: overview?.pillar_4_score ?? null },
+                    { label: "Trust, Communication & Clarity", value: overview?.pillar_5_score ?? null },
+                  ]
+              ).map((p, idx) => (
                 <div className="pillBox" key={idx}>
                   <div className="pillLabel">{p.label}</div>
                   <div className="pillValue">{num(p.value) ?? "—"}</div>
@@ -211,7 +244,6 @@ export default function CurrentAssessmentCard() {
             </div>
           </div>
 
-          {/* Org metrics */}
           <OrgMetricsCard />
         </div>
       )}
@@ -234,7 +266,6 @@ function OrgMetricsCard() {
 
         if (cancelled) return;
 
-        // ✅ Same rule here
         if (isSessionMissing(res, data)) {
           setError(null);
           setMetrics(data?.metrics || data || {});
@@ -263,13 +294,46 @@ function OrgMetricsCard() {
   }, []);
 
   const items = [
-    { k: "Organisation", v: metrics?.organisation_name || metrics?.organisation || metrics?.org_name || "Your organisation" },
-    { k: "Employees", v: metrics?.employees ?? metrics?.headcount ?? "—" },
-    { k: "Average salary", v: metrics?.avg_salary ? `£${Number(metrics.avg_salary).toLocaleString()}` : (metrics?.average_salary ? `£${Number(metrics.average_salary).toLocaleString()}` : "—") },
-    { k: "Turnover rate", v: metrics?.turnover_rate ? `${metrics.turnover_rate}%` : (metrics?.turnover ? `${metrics.turnover}%` : "—") },
-    { k: "Absence days / employee", v: metrics?.absence_days ?? metrics?.absence_days_per_employee ?? "—" },
-    { k: "Annual wellbeing spend", v: metrics?.wellbeing_spend ? `£${Number(metrics.wellbeing_spend).toLocaleString()}` : (metrics?.annual_wellbeing_spend ? `£${Number(metrics.annual_wellbeing_spend).toLocaleString()}` : "—") },
-    { k: "Engagement score", v: metrics?.engagement_score ? `${metrics.engagement_score}/100` : "—" },
+    {
+      k: "Organisation",
+      v: metrics?.organisation_name || metrics?.organisation || metrics?.org_name || "Your organisation",
+    },
+    {
+      k: "Employees",
+      v: metrics?.employees ?? metrics?.headcount ?? "—",
+    },
+    {
+      k: "Average salary",
+      v: metrics?.avg_salary
+        ? `£${Number(metrics.avg_salary).toLocaleString()}`
+        : metrics?.average_salary
+          ? `£${Number(metrics.average_salary).toLocaleString()}`
+          : "—",
+    },
+    {
+      k: "Turnover rate",
+      v: metrics?.turnover_rate
+        ? `${metrics.turnover_rate}%`
+        : metrics?.turnover
+          ? `${metrics.turnover}%`
+          : "—",
+    },
+    {
+      k: "Absence days / employee",
+      v: metrics?.absence_days ?? metrics?.absence_days_per_employee ?? "—",
+    },
+    {
+      k: "Annual wellbeing spend",
+      v: metrics?.wellbeing_spend
+        ? `£${Number(metrics.wellbeing_spend).toLocaleString()}`
+        : metrics?.annual_wellbeing_spend
+          ? `£${Number(metrics.annual_wellbeing_spend).toLocaleString()}`
+          : "—",
+    },
+    {
+      k: "Engagement score",
+      v: metrics?.engagement_score ? `${metrics.engagement_score}/100` : "—",
+    },
   ];
 
   return (
