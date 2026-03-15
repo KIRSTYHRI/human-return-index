@@ -1,14 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { apiFetch } from "@/lib/apiFetch";
 
 function formatDate(d) {
   if (!d) return "—";
   try {
-    const dt = new Date(d);
-    return dt.toLocaleDateString();
+    return new Date(d).toLocaleDateString();
   } catch {
     return "—";
   }
@@ -55,8 +54,7 @@ export default function CurrentAssessmentCard() {
         setOverview(data?.overview || data || null);
         setError(null);
       } catch (e) {
-        if (cancelled) return;
-        setError(e?.message || "Failed to load overview");
+        if (!cancelled) setError(e?.message || "Failed to load overview");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -67,71 +65,24 @@ export default function CurrentAssessmentCard() {
     };
   }, []);
 
-  const hriScore =
-    num(overview?.overall_score) ??
-    num(overview?.overallScore) ??
-    num(overview?.hri_score) ??
-    null;
+  const hriScore = num(overview?.overall_score);
+  const employerScore = num(overview?.employer_score);
+  const employeeScore = num(overview?.employee_score);
+  const previousScore = num(overview?.previous_score);
+  const scoreChange = num(overview?.score_change);
 
-  const employerScore =
-    num(overview?.employer_score) ??
-    num(overview?.employerScore) ??
-    null;
+  const scoreGap =
+    employerScore != null && employeeScore != null
+      ? Math.round((employerScore - employeeScore) * 10) / 10
+      : null;
 
-  const employeeScore =
-    num(overview?.employee_score) ??
-    num(overview?.employeeScore) ??
-    null;
+  const latest = overview?.latest_assessment || null;
+  const badge = overview?.badge || null;
+  const pillars = overview?.pillar_scores || null;
 
-  const latest =
-    overview?.latest_assessment ||
-    overview?.latestAssessment ||
-    overview?.assessment ||
-    null;
-
-  const title =
-    latest?.title ||
-    latest?.name ||
-    overview?.assessment_title ||
-    "HRI Assessment";
-
-  const periodStart =
-    latest?.period_start ||
-    latest?.periodStart ||
-    latest?.start_date ||
-    overview?.period_start;
-
-  const periodEnd =
-    latest?.period_end ||
-    latest?.periodEnd ||
-    latest?.end_date ||
-    overview?.period_end;
-
-  const createdAt = latest?.created_at || latest?.createdAt || overview?.created_at;
-  const status = latest?.status || overview?.status || "—";
-
-  const badge =
-    overview?.badge ||
-    overview?.badge_name ||
-    overview?.badgeName ||
-    null;
-
-  const badgeAwarded =
-    overview?.badge_awarded_at ||
-    overview?.badgeAwardedAt ||
-    null;
-
-  const pillars =
-    overview?.pillar_scores ||
-    overview?.pillarScores ||
-    overview?.pillars ||
-    null;
-
-  const pillarList = Array.isArray(pillars)
-    ? pillars
-    : pillars && typeof pillars === "object"
-      ? Object.entries(pillars).map(([k, v]) => ({ label: k, value: v }))
-      : [];
+  const pillarList = pillars && typeof pillars === "object"
+    ? Object.entries(pillars).map(([label, value]) => ({ label, value }))
+    : [];
 
   return (
     <div className="card">
@@ -153,16 +104,15 @@ export default function CurrentAssessmentCard() {
           <div className="panel">
             <div className="panelHeader">
               <div className="panelTitle">LATEST ASSESSMENT</div>
-              <div className="panelMeta">{loading ? "—" : status}</div>
+              <div className="panelMeta">{loading ? "—" : "Live"}</div>
             </div>
 
             <div className="bigRow">
               <div>
-                <div className="bigTitle">{title}</div>
+                <div className="bigTitle">{latest?.title || "HRI Assessment"}</div>
                 <div className="mutedSmall">
-                  Status: {status} · Period: {formatDate(periodStart)} → {formatDate(periodEnd)}
+                  Created: {formatDate(latest?.created_at)}
                 </div>
-                <div className="mutedSmall">Created: {formatDate(createdAt)}</div>
               </div>
 
               <div className="scoreBox">
@@ -173,12 +123,7 @@ export default function CurrentAssessmentCard() {
                 </div>
 
                 <div className="scoreLabel" style={{ marginTop: 10 }}>BADGE</div>
-                <div className="badgePill">{badge ? badge : "No badge yet"}</div>
-                {badgeAwarded && (
-                  <div className="mutedSmall" style={{ marginTop: 6 }}>
-                    Awarded: {formatDate(badgeAwarded)}
-                  </div>
-                )}
+                <div className="badgePill">{badge || "No badge yet"}</div>
               </div>
             </div>
 
@@ -215,26 +160,97 @@ export default function CurrentAssessmentCard() {
               </div>
             </div>
 
+            <div
+              style={{
+                marginBottom: 16,
+                padding: 14,
+                borderRadius: 12,
+                border: "1px solid rgba(255,255,255,.08)",
+                background: "rgba(255,255,255,.03)",
+              }}
+            >
+              <div className="pillLabel" style={{ marginBottom: 6 }}>HRI Insight</div>
+              <div style={{ fontSize: 16, fontWeight: 700 }}>
+                {scoreGap == null
+                  ? "Not enough data yet to compare employer and employee scores."
+                  : scoreGap === 0
+                    ? "Employer and employee scores are aligned."
+                    : scoreGap > 0
+                      ? `Employer score is ${scoreGap} points higher than employee score.`
+                      : `Employee score is ${Math.abs(scoreGap)} points higher than employer score.`}
+              </div>
+              <div className="mutedSmall" style={{ marginTop: 6 }}>
+                This shows whether leadership perception and employee experience are aligned.
+              </div>
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+                gap: 12,
+                marginBottom: 16,
+              }}
+            >
+              <div className="pillBox">
+                <div className="pillLabel">Previous HRI</div>
+                <div className="pillValue">{previousScore ?? "—"}</div>
+              </div>
+
+              <div className="pillBox">
+                <div className="pillLabel">Change</div>
+                <div className="pillValue">
+                  {scoreChange == null ? "—" : scoreChange > 0 ? `+${scoreChange}` : scoreChange}
+                </div>
+              </div>
+            </div>
+
             <div className="panelTitle" style={{ marginBottom: 10 }}>
               Blended pillar scores
             </div>
 
             <div className="pillarsGrid">
-              {(pillarList.length
-                ? pillarList
-                : [
-                    { label: "Human-Centred Leadership", value: overview?.pillar_1_score ?? null },
-                    { label: "Wellbeing & Mental Health", value: overview?.pillar_2_score ?? null },
-                    { label: "Inclusion, Safety & Belonging", value: overview?.pillar_3_score ?? null },
-                    { label: "Growth, Learning & Performance", value: overview?.pillar_4_score ?? null },
-                    { label: "Trust, Communication & Clarity", value: overview?.pillar_5_score ?? null },
-                  ]
-              ).map((p, idx) => (
+              {pillarList.map((p, idx) => (
                 <div className="pillBox" key={idx}>
                   <div className="pillLabel">{p.label}</div>
                   <div className="pillValue">{num(p.value) ?? "—"}</div>
                 </div>
               ))}
+            </div>
+
+            <div className="panelDivider" />
+
+            <div className="panelTitle" style={{ marginBottom: 10 }}>
+              Estimated financial impact
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                gap: 12,
+              }}
+            >
+              <div className="pillBox">
+                <div className="pillLabel">Retention risk</div>
+                <div className="pillValue">
+                  {hriScore == null ? "—" : hriScore >= 80 ? "Low" : hriScore >= 65 ? "Moderate" : "High"}
+                </div>
+              </div>
+
+              <div className="pillBox">
+                <div className="pillLabel">Productivity opportunity</div>
+                <div className="pillValue">
+                  {hriScore == null ? "—" : hriScore >= 80 ? "Strong" : hriScore >= 65 ? "Medium" : "High urgency"}
+                </div>
+              </div>
+
+              <div className="pillBox">
+                <div className="pillLabel">Estimated ROI signal</div>
+                <div className="pillValue">
+                  {hriScore == null ? "—" : hriScore >= 80 ? "Positive" : hriScore >= 65 ? "Recoverable" : "At risk"}
+                </div>
+              </div>
             </div>
 
             <div className="linkRow">
@@ -281,7 +297,7 @@ function OrgMetricsCard() {
         setMetrics(data?.metrics || data || null);
         setError(null);
       } catch (e) {
-        if (cancelled) return;
+        if (!cancelled) return;
         setError(e?.message || "Failed to load org metrics");
       } finally {
         if (!cancelled) setLoading(false);
@@ -294,41 +310,23 @@ function OrgMetricsCard() {
   }, []);
 
   const items = [
-    {
-      k: "Organisation",
-      v: metrics?.organisation_name || metrics?.organisation || metrics?.org_name || "Your organisation",
-    },
-    {
-      k: "Employees",
-      v: metrics?.employees ?? metrics?.headcount ?? "—",
-    },
+    { k: "Organisation", v: metrics?.organisation_name || "Your organisation" },
+    { k: "Employees", v: metrics?.employees ?? "—" },
     {
       k: "Average salary",
-      v: metrics?.avg_salary
-        ? `£${Number(metrics.avg_salary).toLocaleString()}`
-        : metrics?.average_salary
-          ? `£${Number(metrics.average_salary).toLocaleString()}`
-          : "—",
+      v: metrics?.avg_salary ? `£${Number(metrics.avg_salary).toLocaleString()}` : "—",
     },
     {
       k: "Turnover rate",
-      v: metrics?.turnover_rate
-        ? `${metrics.turnover_rate}%`
-        : metrics?.turnover
-          ? `${metrics.turnover}%`
-          : "—",
+      v: metrics?.turnover_rate ? `${metrics.turnover_rate}%` : "—",
     },
     {
       k: "Absence days / employee",
-      v: metrics?.absence_days ?? metrics?.absence_days_per_employee ?? "—",
+      v: metrics?.absence_days ?? "—",
     },
     {
       k: "Annual wellbeing spend",
-      v: metrics?.wellbeing_spend
-        ? `£${Number(metrics.wellbeing_spend).toLocaleString()}`
-        : metrics?.annual_wellbeing_spend
-          ? `£${Number(metrics.annual_wellbeing_spend).toLocaleString()}`
-          : "—",
+      v: metrics?.wellbeing_spend ? `£${Number(metrics.wellbeing_spend).toLocaleString()}` : "—",
     },
     {
       k: "Engagement score",
