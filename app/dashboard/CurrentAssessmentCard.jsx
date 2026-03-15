@@ -52,7 +52,16 @@ export default function CurrentAssessmentCard() {
         }
 
         setOverview(data?.overview || data || null);
-        setError(null);
+setError(null);
+
+const metricsRes = await apiFetch("/api/org-metrics");
+const metricsData = await metricsRes.json();
+
+if (!metricsRes.ok) {
+  throw new Error(metricsData?.error || "Failed to load org metrics");
+}
+
+setMetrics(metricsData?.metrics || metricsData || null);
       } catch (e) {
         if (!cancelled) setError(e?.message || "Failed to load overview");
       } finally {
