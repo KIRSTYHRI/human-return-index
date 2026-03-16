@@ -27,6 +27,7 @@ function isSessionMissing(res, data) {
 export default function CurrentAssessmentCard() {
   const [loading, setLoading] = useState(true);
   const [overview, setOverview] = useState(null);
+  const [metrics, setMetrics] = useState(null);
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -42,28 +43,28 @@ export default function CurrentAssessmentCard() {
         if (isSessionMissing(res, data)) {
           setError(null);
           setOverview(data?.overview || data || {});
-          return;
-        }
-
-        if (!res.ok) {
+        } else if (!res.ok) {
           setError(data?.error || "Failed to load overview");
           setOverview(null);
-          return;
+        } else {
+          setOverview(data?.overview || data || null);
+          setError(null);
         }
 
-        setOverview(data?.overview || data || null);
-setError(null);
+        const metricsRes = await apiFetch("/api/org-metrics");
+        const metricsData = await metricsRes.json();
 
-const metricsRes = await apiFetch("/api/org-metrics");
-const metricsData = await metricsRes.json();
+        if (cancelled) return;
 
-if (!metricsRes.ok) {
-  throw new Error(metricsData?.error || "Failed to load org metrics");
-}
-
-setMetrics(metricsData?.metrics || metricsData || null);
+        if (isSessionMissing(metricsRes, metricsData)) {
+          setMetrics(metricsData?.metrics || metricsData || {});
+        } else if (!metricsRes.ok) {
+          throw new Error(metricsData?.error || "Failed to load org metrics");
+        } else {
+          setMetrics(metricsData?.metrics || metricsData || null);
+        }
       } catch (e) {
-        if (!cancelled) setError(e?.message || "Failed to load overview");
+        if (!cancelled) setError(e?.message || "Failed to load dashboard");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -79,6 +80,20 @@ setMetrics(metricsData?.metrics || metricsData || null);
   const employeeScore = num(overview?.employee_score);
   const previousScore = num(overview?.previous_score);
   const scoreChange = num(overview?.score_change);
+
+  const scoreGap =
+    employerScore != null && employeeScore != null
+      ? Math.round((employerScore - employeeScore) * 10) / 10
+      : null;
+
+  const latest = overview?.latest_assessment || null;
+  const badge = overview?.badge || null;
+  const pillars = overview?.pillar_scores || null;
+
+  const pillarList =
+    pillars && typeof pillars === "object"
+      ? Object.entries(pillars).map(([label, value]) => ({ label, value }))
+      : [];
 
   const employees = num(metrics?.employees) ?? 0;
   const avgSalary = num(metrics?.avg_salary) ?? 0;
@@ -106,14 +121,6 @@ setMetrics(metricsData?.metrics || metricsData || null);
     employees > 0 && avgSalary > 0 && absenceDays > 0
       ? Math.round(employees * absenceDays * (avgSalary / 260))
       : null;
-
-  const latest = overview?.latest_assessment || null;
-  const badge = overview?.badge || null;
-  const pillars = overview?.pillar_scores || null;
-
-  const pillarList = pillars && typeof pillars === "object"
-    ? Object.entries(pillars).map(([label, value]) => ({ label, value }))
-    : [];
 
   return (
     <div className="card">
@@ -153,7 +160,9 @@ setMetrics(metricsData?.metrics || metricsData || null);
                   <span className="scoreOutOf">/100</span>
                 </div>
 
-                <div className="scoreLabel" style={{ marginTop: 10 }}>BADGE</div>
+                <div className="scoreLabel" style={{ marginTop: 10 }}>
+                  BADGE
+                </div>
                 <div className="badgePill">{badge || "No badge yet"}</div>
               </div>
             </div>
@@ -200,7 +209,9 @@ setMetrics(metricsData?.metrics || metricsData || null);
                 background: "rgba(255,255,255,.03)",
               }}
             >
-              <div className="pillLabel" style={{ marginBottom: 6 }}>HRI Insight</div>
+              <div className="pillLabel" style={{ marginBottom: 6 }}>
+                HRI Insight
+              </div>
               <div style={{ fontSize: 16, fontWeight: 700 }}>
                 {scoreGap == null
                   ? "Not enough data yet to compare employer and employee scores."
@@ -236,126 +247,88 @@ setMetrics(metricsData?.metrics || metricsData || null);
               </div>
             </div>
 
-         <div className="panelTitle" style={{ marginBottom: 10 }}>
-  Estimated financial impact
-</div>
+            <div className="panelTitle" style={{ marginBottom: 10 }}>
+              Blended pillar scores
+            </div>
 
-<div
-  style={{
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-    gap: 12,
-  }}
->
-  <div className="pillBox">
-    <div className="pillLabel">Productivity opportunity</div>
-    <div className="pillValue">
-      {productivityOpportunity != null
-        ? `£${productivityOpportunity.toLocaleString()}`
-        : "—"}
-    </div>
-    <div className="mutedSmall" style={{ marginTop: 6 }}>
-      Estimated value linked to performance uplift potential.
-    </div>
-  </div>
+            <div className="pillarsGrid">
+              {pillarList.map((p, idx) => (
+                <div className="pillBox" key={idx}>
+                  <div className="pillLabel">{p.label}</div>
+                  <div className="pillValue">{num(p.value) ?? "—"}</div>
+                </div>
+              ))}
+            </div>
 
-  <div className="pillBox">
-    <div className="pillLabel">Turnover cost exposure</div>
-    <div className="pillValue">
-      {turnoverReplacementCost != null
-        ? `£${turnoverReplacementCost.toLocaleString()}`
-        : "—"}
-    </div>
-    <div className="mutedSmall" style={{ marginTop: 6 }}>
-      Based on current turnover rate and replacement cost assumptions.
-    </div>
-  </div>
+            <div className="panelDivider" />
 
-  <div className="pillBox">
-    <div className="pillLabel">Absence cost exposure</div>
-    <div className="pillValue">
-      {absenceCost != null
-        ? `£${absenceCost.toLocaleString()}`
-        : "—"}
-    </div>
-    <div className="mutedSmall" style={{ marginTop: 6 }}>
-      Estimated annual salary cost of absence days.
-    </div>
-  </div>
-</div>
+            <div className="panelTitle" style={{ marginBottom: 10 }}>
+              Estimated financial impact
+            </div>
 
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                gap: 12,
+              }}
+            >
               <div className="pillBox">
                 <div className="pillLabel">Productivity opportunity</div>
                 <div className="pillValue">
-                  {hriScore == null ? "—" : hriScore >= 80 ? "Strong" : hriScore >= 65 ? "Medium" : "High urgency"}
+                  {productivityOpportunity != null
+                    ? `£${productivityOpportunity.toLocaleString()}`
+                    : "—"}
+                </div>
+                <div className="mutedSmall" style={{ marginTop: 6 }}>
+                  Estimated value linked to performance uplift potential.
                 </div>
               </div>
 
               <div className="pillBox">
-                <div className="pillLabel">Estimated ROI signal</div>
+                <div className="pillLabel">Turnover cost exposure</div>
                 <div className="pillValue">
-                  {hriScore == null ? "—" : hriScore >= 80 ? "Positive" : hriScore >= 65 ? "Recoverable" : "At risk"}
+                  {turnoverReplacementCost != null
+                    ? `£${turnoverReplacementCost.toLocaleString()}`
+                    : "—"}
+                </div>
+                <div className="mutedSmall" style={{ marginTop: 6 }}>
+                  Based on current turnover rate and replacement cost assumptions.
+                </div>
+              </div>
+
+              <div className="pillBox">
+                <div className="pillLabel">Absence cost exposure</div>
+                <div className="pillValue">
+                  {absenceCost != null ? `£${absenceCost.toLocaleString()}` : "—"}
+                </div>
+                <div className="mutedSmall" style={{ marginTop: 6 }}>
+                  Estimated annual salary cost of absence days.
                 </div>
               </div>
             </div>
 
             <div className="linkRow">
-              <Link className="linkChip" href="/dashboard/hri-assessment">Internal Assessment</Link>
-              <Link className="linkChip" href="/dashboard/employee-pulse">Employee Pulse</Link>
-              <Link className="linkChip" href="/dashboard/scores">Scores</Link>
+              <Link className="linkChip" href="/dashboard/hri-assessment">
+                Internal Assessment
+              </Link>
+              <Link className="linkChip" href="/dashboard/employee-pulse">
+                Employee Pulse
+              </Link>
+              <Link className="linkChip" href="/dashboard/scores">
+                Scores
+              </Link>
             </div>
           </div>
 
-          <OrgMetricsCard />
+          <OrgMetricsCard metrics={metrics} loading={loading} />
         </div>
       )}
     </div>
   );
 }
 
-function OrgMetricsCard() {
-const [loading, setLoading] = useState(true);
-const [overview, setOverview] = useState(null);
-const [metrics, setMetrics] = useState(null);
-const [error, setError] = useState(null);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    (async () => {
-      try {
-        const res = await apiFetch("/api/org-metrics");
-        const data = await res.json();
-
-        if (cancelled) return;
-
-        if (isSessionMissing(res, data)) {
-          setError(null);
-          setMetrics(data?.metrics || data || {});
-          return;
-        }
-
-        if (!res.ok) {
-          setError(data?.error || "Failed to load org metrics");
-          setMetrics(null);
-          return;
-        }
-
-        setMetrics(data?.metrics || data || null);
-        setError(null);
-      } catch (e) {
-        if (!cancelled) return;
-        setError(e?.message || "Failed to load org metrics");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
+function OrgMetricsCard({ metrics, loading }) {
   const items = [
     { k: "Organisation", v: metrics?.organisation_name || "Your organisation" },
     { k: "Employees", v: metrics?.employees ?? "—" },
@@ -391,8 +364,6 @@ const [error, setError] = useState(null);
       <p className="mutedSmall" style={{ marginTop: 8 }}>
         Core people and cost inputs used to model your HRI score and people risk.
       </p>
-
-      {error && <p className="errorText">{error}</p>}
 
       <div className="metricsGrid">
         {items.map((it, i) => (
