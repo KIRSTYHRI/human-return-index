@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getAuthUser } from "@/lib/getAuthUser";
 
-const VERSION = "OVERVIEW__V12__LIVE";
+const VERSION = "OVERVIEW__V13__LIVE";
 
 function getServiceSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -71,6 +71,17 @@ export async function GET(req) {
     const hriRow = hriRows?.[0] || null;
     const prevHriRow = hriRows?.[1] || null;
 
+    const currentScore =
+      hriRow?.hri_score != null ? Number(hriRow.hri_score) : null;
+
+    const previousScore =
+      prevHriRow?.hri_score != null ? Number(prevHriRow.hri_score) : null;
+
+    const scoreChange =
+      currentScore != null && previousScore != null
+        ? Math.round((currentScore - previousScore) * 10) / 10
+        : null;
+
     const { data: assessmentRows, error: assessErr } = await supabase
       .from("hri_assessments")
       .select("id, org_id, title, overall_score, pillar_scores, created_at")
@@ -126,12 +137,9 @@ export async function GET(req) {
       organisation_id,
       user_id: user?.id || null,
       overview: {
-        overall_score: hriRow?.hri_score != null ? Number(hriRow.hri_score) : null,
-        previous_score: prevHriRow?.hri_score != null ? Number(prevHriRow.hri_score) : null,
-        score_change:
-          hriRow?.hri_score != null && prevHriRow?.hri_score != null
-            ? Math.round((Number(hriRow.hri_score) - Number(prevHriRow.hri_score)) * 10) / 10
-            : null,
+        overall_score: currentScore,
+        previous_score: previousScore,
+        score_change: scoreChange,
         employer_score: hriRow?.employer_score != null ? Number(hriRow.employer_score) : null,
         employee_score: hriRow?.employee_score != null ? Number(hriRow.employee_score) : null,
         badge: hriRow?.badge || null,
