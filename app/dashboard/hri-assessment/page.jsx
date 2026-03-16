@@ -159,7 +159,7 @@ export default function InternalAssessmentPage() {
       ? Math.round(numericScores.reduce((sum, v) => sum + v, 0) / numericScores.length)
       : null;
 
-    // 3) Save straight into hri_assessments via /api/assessments
+    // 3) Save directly into hri_assessments
     const createRes = await apiFetch("/api/assessments", {
       method: "POST",
       body: JSON.stringify({
