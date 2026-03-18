@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { apiFetch } from "@/lib/apiFetch";
 
@@ -8,6 +8,15 @@ function formatDate(d) {
   if (!d) return "—";
   try {
     return new Date(d).toLocaleDateString();
+  } catch {
+    return "—";
+  }
+}
+
+function formatDateTime(d) {
+  if (!d) return "—";
+  try {
+    return new Date(d).toLocaleString();
   } catch {
     return "—";
   }
@@ -24,6 +33,44 @@ function isSessionMissing(res, data) {
   return msg.includes("auth session missing");
 }
 
+function formatCurrency(value) {
+  const n = num(value);
+  if (n == null) return "—";
+  return `£${Math.round(n).toLocaleString()}`;
+}
+
+function getTrendLabel(scoreChange) {
+  const n = num(scoreChange);
+  if (n == null) return "No trend yet";
+  if (n > 0) return "Improving";
+  if (n < 0) return "Declining";
+  return "Unchanged";
+}
+
+function getTrendTone(scoreChange) {
+  const n = num(scoreChange);
+  if (n == null) return {
+    bg: "rgba(255,255,255,.05)",
+    border: "rgba(255,255,255,.10)",
+    text: "#fff",
+  };
+  if (n > 0) return {
+    bg: "rgba(34,197,94,.12)",
+    border: "rgba(34,197,94,.35)",
+    text: "#86efac",
+  };
+  if (n < 0) return {
+    bg: "rgba(239,68,68,.12)",
+    border: "rgba(239,68,68,.35)",
+    text: "#fca5a5",
+  };
+  return {
+    bg: "rgba(255,255,255,.05)",
+    border: "rgba(255,255,255,.10)",
+    text: "#fff",
+  };
+}
+
 export default function CurrentAssessmentCard() {
   const [loading, setLoading] = useState(true);
   const [overview, setOverview] = useState(null);
@@ -33,9 +80,9 @@ export default function CurrentAssessmentCard() {
   useEffect(() => {
     let cancelled = false;
 
-    (async () => {
+    async function loadDashboard() {
       try {
-        const res = await apiFetch("/api/overview");
+        const res = await apiFetch("/api/overview", { cache: "no-store" });
         const data = await res.json();
 
         if (cancelled) return;
@@ -51,7 +98,7 @@ export default function CurrentAssessmentCard() {
           setError(null);
         }
 
-        const metricsRes = await apiFetch("/api/org-metrics");
+        const metricsRes = await apiFetch("/api/org-metrics", { cache: "no-store" });
         const metricsData = await metricsRes.json();
 
         if (cancelled) return;
@@ -68,7 +115,9 @@ export default function CurrentAssessmentCard() {
       } finally {
         if (!cancelled) setLoading(false);
       }
-    })();
+    }
+
+    loadDashboard();
 
     return () => {
       cancelled = true;
@@ -80,6 +129,7 @@ export default function CurrentAssessmentCard() {
   const employeeScore = num(overview?.employee_score);
   const previousScore = num(overview?.previous_score);
   const scoreChange = num(overview?.score_change);
+  const updatedAt = overview?.updated_at || null;
 
   const scoreGap =
     employerScore != null && employeeScore != null
@@ -92,8 +142,22 @@ export default function CurrentAssessmentCard() {
 
   const pillarList =
     pillars && typeof pillars === "object"
-      ? Object.entries(pillars).map(([label, value]) => ({ label, value }))
+      ? Object.entries(pillars).map(([label, value]) => ({ label, value: num(value) }))
       : [];
+
+  const weakestPillar = useMemo(() => {
+    if (!pillarList.length) return null;
+    return [...pillarList]
+      .filter((p) => p.value != null)
+      .sort((a, b) => a.value - b.value)[0] || null;
+  }, [pillarList]);
+
+  const strongestPillar = useMemo(() => {
+    if (!pillarList.length) return null;
+    return [...pillarList]
+      .filter((p) => p.value != null)
+      .sort((a, b) => b.value - a.value)[0] || null;
+  }, [pillarList]);
 
   const employees = num(metrics?.employees) ?? 0;
   const avgSalary = num(metrics?.avg_salary) ?? 0;
@@ -122,6 +186,23 @@ export default function CurrentAssessmentCard() {
       ? Math.round(employees * absenceDays * (avgSalary / 260))
       : null;
 
+  const trendLabel = getTrendLabel(scoreChange);
+  const trendTone = getTrendTone(scoreChange);
+
+  const hriInsightText =
+    scoreGap == null
+      ? "Not enough data yet to compare employer and employee scores."
+      : scoreGap === 0
+        ? "Employer and employee scores are aligned, which suggests leadership perception and employee experience are currently in step."
+        : scoreGap > 0
+          ? `Employer score is ${scoreGap} points higher than employee score, which suggests leadership perception is stronger than lived employee experience.`
+          : `Employee score is ${Math.abs(scoreGap)} points higher than employer score, which suggests employees may be experiencing the organisation more positively than leadership assumes.`;
+
+  const boardSummary =
+    weakestPillar?.label && strongestPillar?.label
+      ? `Your biggest pressure point currently sits in ${weakestPillar.label}, while your strongest area is ${strongestPillar.label}.`
+      : "Complete both assessments to unlock a clearer board-level picture of people performance.";
+
   return (
     <div className="card">
       <div className="cardTop">
@@ -148,9 +229,8 @@ export default function CurrentAssessmentCard() {
             <div className="bigRow">
               <div>
                 <div className="bigTitle">{latest?.title || "HRI Assessment"}</div>
-                <div className="mutedSmall">
-                  Created: {formatDate(latest?.created_at)}
-                </div>
+                <div className="mutedSmall">Created: {formatDate(latest?.created_at)}</div>
+                <div className="mutedSmall">Last updated: {formatDateTime(updatedAt)}</div>
               </div>
 
               <div className="scoreBox">
@@ -188,15 +268,41 @@ export default function CurrentAssessmentCard() {
               </div>
 
               <div className="pillBox">
-                <div className="pillLabel">HRI Score</div>
-                <div className="pillValue">{hriScore ?? "—"}</div>
+                <div className="pillLabel">Previous HRI</div>
+                <div className="pillValue">{previousScore ?? "—"}</div>
               </div>
 
               <div className="pillBox">
-                <div className="pillLabel">Badge</div>
-                <div className="pillValue" style={{ fontSize: 16 }}>
-                  {badge ?? "—"}
+                <div className="pillLabel">Change</div>
+                <div className="pillValue">
+                  {scoreChange == null ? "—" : scoreChange > 0 ? `+${scoreChange}` : scoreChange}
                 </div>
+              </div>
+            </div>
+
+            <div
+              style={{
+                marginBottom: 16,
+                padding: 14,
+                borderRadius: 12,
+                border: `1px solid ${trendTone.border}`,
+                background: trendTone.bg,
+              }}
+            >
+              <div className="pillLabel" style={{ marginBottom: 6 }}>
+                HRI Trend
+              </div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: trendTone.text }}>
+                {trendLabel}
+              </div>
+              <div className="mutedSmall" style={{ marginTop: 6 }}>
+                {scoreChange == null
+                  ? "A second score point is needed before movement can be measured."
+                  : scoreChange > 0
+                    ? `Your HRI score has increased by ${scoreChange} points since the previous score.`
+                    : scoreChange < 0
+                      ? `Your HRI score has decreased by ${Math.abs(scoreChange)} points since the previous score.`
+                      : "Your HRI score is unchanged since the previous score."}
               </div>
             </div>
 
@@ -212,39 +318,8 @@ export default function CurrentAssessmentCard() {
               <div className="pillLabel" style={{ marginBottom: 6 }}>
                 HRI Insight
               </div>
-              <div style={{ fontSize: 16, fontWeight: 700 }}>
-                {scoreGap == null
-                  ? "Not enough data yet to compare employer and employee scores."
-                  : scoreGap === 0
-                    ? "Employer and employee scores are aligned."
-                    : scoreGap > 0
-                      ? `Employer score is ${scoreGap} points higher than employee score.`
-                      : `Employee score is ${Math.abs(scoreGap)} points higher than employer score.`}
-              </div>
-              <div className="mutedSmall" style={{ marginTop: 6 }}>
-                This shows whether leadership perception and employee experience are aligned.
-              </div>
-            </div>
-
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-                gap: 12,
-                marginBottom: 16,
-              }}
-            >
-              <div className="pillBox">
-                <div className="pillLabel">Previous HRI</div>
-                <div className="pillValue">{previousScore ?? "—"}</div>
-              </div>
-
-              <div className="pillBox">
-                <div className="pillLabel">Change</div>
-                <div className="pillValue">
-                  {scoreChange == null ? "—" : scoreChange > 0 ? `+${scoreChange}` : scoreChange}
-                </div>
-              </div>
+              <div style={{ fontSize: 16, fontWeight: 700 }}>{hriInsightText}</div>
+              <div className="mutedSmall" style={{ marginTop: 6 }}>{boardSummary}</div>
             </div>
 
             <div className="panelTitle" style={{ marginBottom: 10 }}>
@@ -255,7 +330,7 @@ export default function CurrentAssessmentCard() {
               {pillarList.map((p, idx) => (
                 <div className="pillBox" key={idx}>
                   <div className="pillLabel">{p.label}</div>
-                  <div className="pillValue">{num(p.value) ?? "—"}</div>
+                  <div className="pillValue">{p.value ?? "—"}</div>
                 </div>
               ))}
             </div>
@@ -275,23 +350,15 @@ export default function CurrentAssessmentCard() {
             >
               <div className="pillBox">
                 <div className="pillLabel">Productivity opportunity</div>
-                <div className="pillValue">
-                  {productivityOpportunity != null
-                    ? `£${productivityOpportunity.toLocaleString()}`
-                    : "—"}
-                </div>
+                <div className="pillValue">{formatCurrency(productivityOpportunity)}</div>
                 <div className="mutedSmall" style={{ marginTop: 6 }}>
-                  Estimated value linked to performance uplift potential.
+                  Estimated recoverable value linked to performance uplift potential.
                 </div>
               </div>
 
               <div className="pillBox">
                 <div className="pillLabel">Turnover cost exposure</div>
-                <div className="pillValue">
-                  {turnoverReplacementCost != null
-                    ? `£${turnoverReplacementCost.toLocaleString()}`
-                    : "—"}
-                </div>
+                <div className="pillValue">{formatCurrency(turnoverReplacementCost)}</div>
                 <div className="mutedSmall" style={{ marginTop: 6 }}>
                   Based on current turnover rate and replacement cost assumptions.
                 </div>
@@ -299,11 +366,9 @@ export default function CurrentAssessmentCard() {
 
               <div className="pillBox">
                 <div className="pillLabel">Absence cost exposure</div>
-                <div className="pillValue">
-                  {absenceCost != null ? `£${absenceCost.toLocaleString()}` : "—"}
-                </div>
+                <div className="pillValue">{formatCurrency(absenceCost)}</div>
                 <div className="mutedSmall" style={{ marginTop: 6 }}>
-                  Estimated annual salary cost of absence days.
+                  Estimated annual salary cost linked to current absence levels.
                 </div>
               </div>
             </div>
