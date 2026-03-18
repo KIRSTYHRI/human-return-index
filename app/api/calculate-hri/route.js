@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+const VERSION = "CALCULATE_HRI__V2__WITH_HISTORY";
 const ORG_ID_FALLBACK = process.env.HRI_DEMO_ORG_ID || null;
 
 function getSupabase() {
@@ -66,12 +67,12 @@ export async function GET(request) {
 
     if (!organisation_id) {
       return NextResponse.json(
-        { ok: false, error: "Missing organisation_id" },
+        { ok: false, version: VERSION, error: "Missing organisation_id" },
         { status: 400 }
       );
     }
 
-    // EMPLOYEE
+    // EMPLOYEE - latest pulse
     const { data: latestPulse, error: pulseErr } = await supabase
       .from("pulse_check_submissions")
       .select(
@@ -83,7 +84,10 @@ export async function GET(request) {
       .maybeSingle();
 
     if (pulseErr) {
-      return NextResponse.json({ ok: false, error: pulseErr.message }, { status: 500 });
+      return NextResponse.json(
+        { ok: false, version: VERSION, error: pulseErr.message },
+        { status: 500 }
+      );
     }
 
     const employee_pillar_1 = toPctFrom1to5(latestPulse?.pillar_1_score);
@@ -103,7 +107,7 @@ export async function GET(request) {
             employee_pillar_5,
           ]);
 
-    // EMPLOYER - latest VALID assessment
+    // EMPLOYER - latest valid assessment
     const { data: employerRows, error: employerErr } = await supabase
       .from("hri_assessments")
       .select("id, org_id, created_at, overall_score, pillar_scores")
@@ -112,7 +116,10 @@ export async function GET(request) {
       .limit(10);
 
     if (employerErr) {
-      return NextResponse.json({ ok: false, error: employerErr.message }, { status: 500 });
+      return NextResponse.json(
+        { ok: false, version: VERSION, error: employerErr.message },
+        { status: 500 }
+      );
     }
 
     const latestValidEmployer =
@@ -167,8 +174,9 @@ export async function GET(request) {
           ]);
 
     const badge = badgeFromScore(hri_score);
+    const nowIso = new Date().toISOString();
 
-    const payload = {
+    const snapshotPayload = {
       organisation_id,
       employer_score,
       employee_score,
@@ -184,9 +192,10 @@ export async function GET(request) {
       employee_pillar_4,
       employee_pillar_5,
       badge,
-      updated_at: new Date().toISOString(),
+      updated_at: nowIso,
     };
 
+    // 1) UPDATE CURRENT SNAPSHOT TABLE
     const { data: existingRow, error: existingErr } = await supabase
       .from("hri_scores")
       .select("id, organisation_id")
@@ -195,7 +204,10 @@ export async function GET(request) {
       .maybeSingle();
 
     if (existingErr) {
-      return NextResponse.json({ ok: false, error: existingErr.message }, { status: 500 });
+      return NextResponse.json(
+        { ok: false, version: VERSION, error: existingErr.message },
+        { status: 500 }
+      );
     }
 
     let saved = null;
@@ -204,41 +216,90 @@ export async function GET(request) {
     if (existingRow?.id) {
       const { data, error } = await supabase
         .from("hri_scores")
-        .update(payload)
+        .update(snapshotPayload)
         .eq("id", existingRow.id)
         .select()
         .single();
+
       saved = data;
       saveErr = error;
     } else {
       const { data, error } = await supabase
         .from("hri_scores")
-        .insert(payload)
+        .insert(snapshotPayload)
         .select()
         .single();
+
       saved = data;
       saveErr = error;
     }
 
     if (saveErr) {
-      return NextResponse.json({ ok: false, error: saveErr.message }, { status: 500 });
+      return NextResponse.json(
+        { ok: false, version: VERSION, error: saveErr.message },
+        { status: 500 }
+      );
+    }
+
+    // 2) INSERT HISTORY ROW EVERY TIME
+    const historyPayload = {
+      organisation_id,
+      employer_score,
+      employee_score,
+      hri_score,
+      employer_pillar_1,
+      employer_pillar_2,
+      employer_pillar_3,
+      employer_pillar_4,
+      employer_pillar_5,
+      employee_pillar_1,
+      employee_pillar_2,
+      employee_pillar_3,
+      employee_pillar_4,
+      employee_pillar_5,
+      badge,
+      source: "calculate-hri",
+    };
+
+    const { data: historySaved, error: historyErr } = await supabase
+      .from("hri_score_history")
+      .insert(historyPayload)
+      .select()
+      .single();
+
+    if (historyErr) {
+      return NextResponse.json(
+        {
+          ok: false,
+          version: VERSION,
+          error: historyErr.message,
+          note: "Current score snapshot updated, but failed to write score history.",
+        },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json(
       {
         ok: true,
+        version: VERSION,
         organisation_id,
         employer_score,
         employee_score,
         hri_score,
         badge,
         saved,
+        history_saved: historySaved,
       },
       { status: 200 }
     );
   } catch (err) {
     return NextResponse.json(
-      { ok: false, error: err?.message || "Failed to calculate HRI" },
+      {
+        ok: false,
+        version: VERSION,
+        error: err?.message || "Failed to calculate HRI",
+      },
       { status: 500 }
     );
   }
