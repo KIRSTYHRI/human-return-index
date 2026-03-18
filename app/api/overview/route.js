@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getAuthUser } from "@/lib/getAuthUser";
 
-const VERSION = "OVERVIEW__V13__LIVE";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+const VERSION = "OVERVIEW__V14__ORG_FIX__NO_CACHE";
 
 function getServiceSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -32,55 +35,66 @@ function blendEqual(employeeValue, employerValue) {
   return null;
 }
 
+function noStoreJson(body, status = 200) {
+  return new NextResponse(JSON.stringify(body), {
+    status,
+    headers: {
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+      Pragma: "no-cache",
+      Expires: "0",
+      "Surrogate-Control": "no-store",
+    },
+  });
+}
+
 export async function GET(req) {
   try {
     const demoOrgId = process.env.HRI_DEMO_ORG_ID || null;
     const { user, error } = await getAuthUser(req);
     const supabase = getServiceSupabase();
 
-    const organisation_id = demoOrgId || null;
+    const { searchParams } = new URL(req.url);
+    const queryOrgId =
+      searchParams.get("organisation_id") ||
+      searchParams.get("organization_id") ||
+      null;
+
+    const organisation_id = demoOrgId || queryOrgId || null;
 
     if (!user && !organisation_id) {
-      return NextResponse.json(
+      return noStoreJson(
         { ok: false, version: VERSION, error: error || "Auth session missing!" },
-        { status: 401 }
+        401
       );
     }
 
     if (!organisation_id) {
-      return NextResponse.json(
-        { ok: false, version: VERSION, error: "Missing organisation_id" },
-        { status: 400 }
+      return noStoreJson(
+        {
+          ok: false,
+          version: VERSION,
+          error:
+            "Missing organisation_id. Pass organisation_id in querystring or set HRI_DEMO_ORG_ID.",
+        },
+        400
       );
     }
 
-    const { data: hriRows, error: hriErr } = await supabase
+    const { data: hriRow, error: hriErr } = await supabase
       .from("hri_scores")
       .select("*")
       .eq("organisation_id", organisation_id)
       .order("updated_at", { ascending: false })
-      .limit(2);
+      .limit(1)
+      .maybeSingle();
 
     if (hriErr) {
-      return NextResponse.json(
+      return noStoreJson(
         { ok: false, version: VERSION, error: hriErr.message },
-        { status: 500 }
+        500
       );
     }
-
-    const hriRow = hriRows?.[0] || null;
-    const prevHriRow = hriRows?.[1] || null;
-
-    const currentScore =
-      hriRow?.hri_score != null ? Number(hriRow.hri_score) : null;
-
-    const previousScore =
-      prevHriRow?.hri_score != null ? Number(prevHriRow.hri_score) : null;
-
-    const scoreChange =
-      currentScore != null && previousScore != null
-        ? Math.round((currentScore - previousScore) * 10) / 10
-        : null;
 
     const { data: assessmentRows, error: assessErr } = await supabase
       .from("hri_assessments")
@@ -90,20 +104,30 @@ export async function GET(req) {
       .limit(10);
 
     if (assessErr) {
-      return NextResponse.json(
+      return noStoreJson(
         { ok: false, version: VERSION, error: assessErr.message },
-        { status: 500 }
+        500
       );
     }
 
-    const latestAssessment =
-      (assessmentRows || []).find(
-        (row) =>
-          row?.overall_score != null &&
-          row?.pillar_scores &&
-          typeof row.pillar_scores === "object" &&
-          Object.keys(row.pillar_scores).length > 0
-      ) || null;
+    const validAssessments = (assessmentRows || []).filter(
+      (row) =>
+        row?.overall_score != null &&
+        row?.pillar_scores &&
+        typeof row.pillar_scores === "object" &&
+        Object.keys(row.pillar_scores).length > 0
+    );
+
+    const latestAssessment = validAssessments[0] || null;
+    const previousAssessment = validAssessments[1] || null;
+
+    const currentScore =
+      hriRow?.hri_score != null ? Number(hriRow.hri_score) : null;
+
+    // For now, score history is not stored separately,
+    // so previous score from hri_scores is unreliable.
+    const previousScore = null;
+    const scoreChange = null;
 
     const pillar_scores = hriRow
       ? {
@@ -130,7 +154,7 @@ export async function GET(req) {
         }
       : null;
 
-    return NextResponse.json({
+    return noStoreJson({
       ok: true,
       version: VERSION,
       demo: !user,
@@ -140,9 +164,12 @@ export async function GET(req) {
         overall_score: currentScore,
         previous_score: previousScore,
         score_change: scoreChange,
-        employer_score: hriRow?.employer_score != null ? Number(hriRow.employer_score) : null,
-        employee_score: hriRow?.employee_score != null ? Number(hriRow.employee_score) : null,
+        employer_score:
+          hriRow?.employer_score != null ? Number(hriRow.employer_score) : null,
+        employee_score:
+          hriRow?.employee_score != null ? Number(hriRow.employee_score) : null,
         badge: hriRow?.badge || null,
+        updated_at: hriRow?.updated_at || null,
         pillar_scores,
         latest_assessment: latestAssessment
           ? {
@@ -155,12 +182,27 @@ export async function GET(req) {
                   : null,
             }
           : null,
+        previous_assessment: previousAssessment
+          ? {
+              id: previousAssessment.id,
+              title: previousAssessment.title || "HRI Assessment",
+              created_at: previousAssessment.created_at,
+              overall_score:
+                previousAssessment.overall_score != null
+                  ? Number(previousAssessment.overall_score)
+                  : null,
+            }
+          : null,
       },
     });
   } catch (err) {
-    return NextResponse.json(
-      { ok: false, version: VERSION, error: err?.message || "Failed to load overview" },
-      { status: 500 }
+    return noStoreJson(
+      {
+        ok: false,
+        version: VERSION,
+        error: err?.message || "Failed to load overview",
+      },
+      500
     );
   }
 }
