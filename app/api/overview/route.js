@@ -5,7 +5,7 @@ import { getAuthUser } from "@/lib/getAuthUser";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const VERSION = "OVERVIEW__V14__ORG_FIX__NO_CACHE";
+const VERSION = "OVERVIEW__V15__WITH_HISTORY";
 
 function getServiceSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -81,6 +81,7 @@ export async function GET(req) {
       );
     }
 
+    // CURRENT LIVE SCORE
     const { data: hriRow, error: hriErr } = await supabase
       .from("hri_scores")
       .select("*")
@@ -96,6 +97,42 @@ export async function GET(req) {
       );
     }
 
+    // SCORE HISTORY - latest two records
+    const { data: historyRows, error: historyErr } = await supabase
+      .from("hri_score_history")
+      .select("id, hri_score, created_at")
+      .eq("organisation_id", organisation_id)
+      .order("created_at", { ascending: false })
+      .limit(2);
+
+    if (historyErr) {
+      return noStoreJson(
+        { ok: false, version: VERSION, error: historyErr.message },
+        500
+      );
+    }
+
+    const currentHistoryRow = historyRows?.[0] || null;
+    const previousHistoryRow = historyRows?.[1] || null;
+
+    const currentScore =
+      hriRow?.hri_score != null
+        ? Number(hriRow.hri_score)
+        : currentHistoryRow?.hri_score != null
+        ? Number(currentHistoryRow.hri_score)
+        : null;
+
+    const previousScore =
+      previousHistoryRow?.hri_score != null
+        ? Number(previousHistoryRow.hri_score)
+        : null;
+
+    const scoreChange =
+      currentScore != null && previousScore != null
+        ? Math.round((currentScore - previousScore) * 10) / 10
+        : null;
+
+    // LATEST VALID EMPLOYER ASSESSMENTS
     const { data: assessmentRows, error: assessErr } = await supabase
       .from("hri_assessments")
       .select("id, org_id, title, overall_score, pillar_scores, created_at")
@@ -120,14 +157,6 @@ export async function GET(req) {
 
     const latestAssessment = validAssessments[0] || null;
     const previousAssessment = validAssessments[1] || null;
-
-    const currentScore =
-      hriRow?.hri_score != null ? Number(hriRow.hri_score) : null;
-
-    // For now, score history is not stored separately,
-    // so previous score from hri_scores is unreliable.
-    const previousScore = null;
-    const scoreChange = null;
 
     const pillar_scores = hriRow
       ? {
@@ -169,7 +198,7 @@ export async function GET(req) {
         employee_score:
           hriRow?.employee_score != null ? Number(hriRow.employee_score) : null,
         badge: hriRow?.badge || null,
-        updated_at: hriRow?.updated_at || null,
+        updated_at: hriRow?.updated_at || currentHistoryRow?.created_at || null,
         pillar_scores,
         latest_assessment: latestAssessment
           ? {
