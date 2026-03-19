@@ -110,7 +110,7 @@ export async function POST(req) {
     return NextResponse.json({
       ok: true,
       version: VERSION,
-      demo: !user,
+     demo: !user && !!process.env.HRI_DEMO_ORG_ID,
       message: "Pulse submitted successfully.",
     });
   } catch (err) {
