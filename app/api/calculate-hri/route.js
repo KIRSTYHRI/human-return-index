@@ -4,7 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const VERSION = "CALCULATE_HRI__V2__WITH_HISTORY";
+const VERSION = "CALCULATE_HRI__V3__SUPPORT_ARRAY_PILLARS";
 const ORG_ID_FALLBACK = process.env.HRI_DEMO_ORG_ID || null;
 
 function getSupabase() {
@@ -53,6 +53,107 @@ function badgeFromScore(score) {
   if (n >= 80) return "HRI Accredited Plus";
   if (n >= 65) return "HRI Accredited";
   return "No Badge Yet";
+}
+
+function normalizeEmployerAssessment(row) {
+  if (!row) return null;
+
+  const raw = row.pillar_scores;
+
+  // OLD FORMAT: object with pillar_1..pillar_5
+  if (raw && !Array.isArray(raw) && typeof raw === "object") {
+    const pillar_1 = toNumber(raw.pillar_1);
+    const pillar_2 = toNumber(raw.pillar_2);
+    const pillar_3 = toNumber(raw.pillar_3);
+    const pillar_4 = toNumber(raw.pillar_4);
+    const pillar_5 = toNumber(raw.pillar_5);
+
+    const overall_score =
+      toNumber(row.overall_score) ??
+      avgWhole([pillar_1, pillar_2, pillar_3, pillar_4, pillar_5]);
+
+    if (
+      pillar_1 == null &&
+      pillar_2 == null &&
+      pillar_3 == null &&
+      pillar_4 == null &&
+      pillar_5 == null
+    ) {
+      return null;
+    }
+
+    return {
+      overall_score,
+      employer_pillar_1: pillar_1,
+      employer_pillar_2: pillar_2,
+      employer_pillar_3: pillar_3,
+      employer_pillar_4: pillar_4,
+      employer_pillar_5: pillar_5,
+    };
+  }
+
+  // NEW FORMAT: array of { pillar, score }
+  if (Array.isArray(raw)) {
+    const byName = Object.fromEntries(
+      raw.map((item) => [String(item?.pillar || "").trim().toLowerCase(), toNumber(item?.score)])
+    );
+
+    const pillar_1 =
+      byName["leadership"] ??
+      byName["human-centred leadership"] ??
+      null;
+
+    const pillar_2 =
+      byName["wellbeing & mental health"] ??
+      byName["wellbeing and mental health"] ??
+      null;
+
+    const pillar_3 =
+      byName["inclusion & belonging"] ??
+      byName["inclusion and belonging"] ??
+      byName["inclusion, safety & belonging"] ??
+      byName["inclusion, safety and belonging"] ??
+      null;
+
+    const pillar_4 =
+      byName["growth & development"] ??
+      byName["growth and development"] ??
+      byName["growth, learning & performance"] ??
+      byName["growth, learning and performance"] ??
+      null;
+
+    const pillar_5 =
+      byName["trust & communication"] ??
+      byName["trust and communication"] ??
+      byName["trust, communication & clarity"] ??
+      byName["trust, communication and clarity"] ??
+      null;
+
+    const overall_score =
+      toNumber(row.overall_score) ??
+      avgWhole([pillar_1, pillar_2, pillar_3, pillar_4, pillar_5]);
+
+    if (
+      pillar_1 == null &&
+      pillar_2 == null &&
+      pillar_3 == null &&
+      pillar_4 == null &&
+      pillar_5 == null
+    ) {
+      return null;
+    }
+
+    return {
+      overall_score,
+      employer_pillar_1: pillar_1,
+      employer_pillar_2: pillar_2,
+      employer_pillar_3: pillar_3,
+      employer_pillar_4: pillar_4,
+      employer_pillar_5: pillar_5,
+    };
+  }
+
+  return null;
 }
 
 export async function GET(request) {
@@ -113,7 +214,7 @@ export async function GET(request) {
       .select("id, org_id, created_at, overall_score, pillar_scores")
       .eq("org_id", organisation_id)
       .order("created_at", { ascending: false })
-      .limit(10);
+      .limit(20);
 
     if (employerErr) {
       return NextResponse.json(
@@ -122,44 +223,17 @@ export async function GET(request) {
       );
     }
 
-    const latestValidEmployer =
-      (employerRows || []).find(
-        (row) =>
-          row?.overall_score != null &&
-          row?.pillar_scores &&
-          typeof row.pillar_scores === "object" &&
-          Object.keys(row.pillar_scores).length > 0
-      ) || null;
+    const latestValidEmployerRow =
+      (employerRows || []).find((row) => normalizeEmployerAssessment(row)) || null;
 
-    const employer_score =
-      latestValidEmployer?.overall_score != null
-        ? toNumber(latestValidEmployer.overall_score)
-        : null;
+    const normalizedEmployer = normalizeEmployerAssessment(latestValidEmployerRow);
 
-    const employer_pillar_1 =
-      latestValidEmployer?.pillar_scores?.pillar_1 != null
-        ? toNumber(latestValidEmployer.pillar_scores.pillar_1)
-        : null;
-
-    const employer_pillar_2 =
-      latestValidEmployer?.pillar_scores?.pillar_2 != null
-        ? toNumber(latestValidEmployer.pillar_scores.pillar_2)
-        : null;
-
-    const employer_pillar_3 =
-      latestValidEmployer?.pillar_scores?.pillar_3 != null
-        ? toNumber(latestValidEmployer.pillar_scores.pillar_3)
-        : null;
-
-    const employer_pillar_4 =
-      latestValidEmployer?.pillar_scores?.pillar_4 != null
-        ? toNumber(latestValidEmployer.pillar_scores.pillar_4)
-        : null;
-
-    const employer_pillar_5 =
-      latestValidEmployer?.pillar_scores?.pillar_5 != null
-        ? toNumber(latestValidEmployer.pillar_scores.pillar_5)
-        : null;
+    const employer_score = normalizedEmployer?.overall_score ?? null;
+    const employer_pillar_1 = normalizedEmployer?.employer_pillar_1 ?? null;
+    const employer_pillar_2 = normalizedEmployer?.employer_pillar_2 ?? null;
+    const employer_pillar_3 = normalizedEmployer?.employer_pillar_3 ?? null;
+    const employer_pillar_4 = normalizedEmployer?.employer_pillar_4 ?? null;
+    const employer_pillar_5 = normalizedEmployer?.employer_pillar_5 ?? null;
 
     // BLEND 50/50
     const hri_score =
@@ -195,7 +269,6 @@ export async function GET(request) {
       updated_at: nowIso,
     };
 
-    // 1) UPDATE CURRENT SNAPSHOT TABLE
     const { data: existingRow, error: existingErr } = await supabase
       .from("hri_scores")
       .select("id, organisation_id")
@@ -241,7 +314,6 @@ export async function GET(request) {
       );
     }
 
-    // 2) INSERT HISTORY ROW EVERY TIME
     const historyPayload = {
       organisation_id,
       employer_score,
