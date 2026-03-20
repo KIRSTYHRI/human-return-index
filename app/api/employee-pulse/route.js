@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getAuthUser } from "@/lib/getAuthUser";
 
-const VERSION = "EMPLOYEE_PULSE__AUTO_HRI_V1";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+const VERSION = "EMPLOYEE_PULSE__AUTO_HRI_V2__ORG_FIX";
 
 function getServiceSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -87,13 +90,13 @@ export async function POST(req) {
       submitted_at: new Date().toISOString(),
     };
 
-    const { error } = await supabase
+    const { error: insertErr } = await supabase
       .from("pulse_check_submissions")
       .insert(submission);
 
-    if (error) {
+    if (insertErr) {
       return NextResponse.json(
-        { ok: false, version: VERSION, error: error.message },
+        { ok: false, version: VERSION, error: insertErr.message },
         { status: 500 }
       );
     }
@@ -102,16 +105,31 @@ export async function POST(req) {
       process.env.NEXT_PUBLIC_SITE_URL ||
       new URL(req.url).origin;
 
-    await fetch(
+    const calcRes = await fetch(
       `${baseUrl}/api/calculate-hri?organisation_id=${organisation_id}`,
       { method: "GET", cache: "no-store" }
     );
 
+    const calcJson = await calcRes.json();
+
+    if (!calcRes.ok) {
+      return NextResponse.json(
+        {
+          ok: false,
+          version: VERSION,
+          error: calcJson?.error || "Pulse saved, but HRI recalculation failed.",
+        },
+        { status: 500 }
+      );
+    }
+
     return NextResponse.json({
       ok: true,
       version: VERSION,
-     demo: !user && !!process.env.HRI_DEMO_ORG_ID,
+      demo: !user && !!demoOrgId,
+      organisation_id,
       message: "Pulse submitted successfully.",
+      calculate_hri: calcJson,
     });
   } catch (err) {
     return NextResponse.json(
