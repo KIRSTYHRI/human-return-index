@@ -1,4 +1,4 @@
- "use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/lib/apiFetch";
@@ -6,19 +6,34 @@ import { apiFetch } from "@/lib/apiFetch";
 export default function EmployeePulsePage() {
   const [loading, setLoading] = useState(true);
   const [questions, setQuestions] = useState([]);
-  const [answers, setAnswers] = useState({}); // { [id]: 1..5 }
+  const [answers, setAnswers] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
+  const [organisationId, setOrganisationId] = useState(null);
 
-  // Load questions
   useEffect(() => {
     let cancelled = false;
 
     (async () => {
       try {
         setLoading(true);
-        const res = await apiFetch("/api/pulse-questions");
+
+        // Load overview first so we get the real org id
+        const overviewRes = await apiFetch("/api/overview", { cache: "no-store" });
+        const overviewJson = await overviewRes.json();
+
+        if (cancelled) return;
+
+        if (overviewRes.ok) {
+          setOrganisationId(
+            overviewJson?.organisation_id ||
+              overviewJson?.overview?.organisation_id ||
+              null
+          );
+        }
+
+        const res = await apiFetch("/api/pulse-questions", { cache: "no-store" });
         const json = await res.json();
 
         if (cancelled) return;
@@ -28,7 +43,9 @@ export default function EmployeePulsePage() {
         }
 
         const qs = json?.questions || json || [];
-        if (!Array.isArray(qs)) throw new Error("Questions response not in expected format");
+        if (!Array.isArray(qs)) {
+          throw new Error("Questions response not in expected format");
+        }
 
         setQuestions(qs);
         setError(null);
@@ -60,6 +77,7 @@ export default function EmployeePulsePage() {
 
       if (!totalQuestions) throw new Error("No questions loaded.");
       if (!allAnswered) throw new Error("Please answer all questions before submitting.");
+      if (!organisationId) throw new Error("Missing organisation_id for this pulse submission.");
 
       setSubmitting(true);
 
@@ -71,19 +89,25 @@ export default function EmployeePulsePage() {
 
       const res = await apiFetch("/api/employee-pulse", {
         method: "POST",
-        body: JSON.stringify({ answers: payloadAnswers }),
+        body: JSON.stringify({
+          organisation_id: organisationId,
+          answers: payloadAnswers,
+        }),
       });
 
       const json = await res.json();
 
-      // ✅ If demo mode exists, we should NOT show auth missing as a scary error
       if (res.status === 401 && (json?.error || "").toLowerCase().includes("auth session missing")) {
-        throw new Error("Demo mode is not enabled. Add HRI_DEMO_ORG_ID to this environment.");
+        throw new Error("Your session has expired. Please sign in again.");
       }
 
       if (!res.ok) throw new Error(json?.error || "Pulse submission failed");
 
-      setSuccess(json?.demo ? "Pulse submitted (demo mode)." : "Pulse submitted successfully.");
+      setSuccess(
+        json?.demo
+          ? "Pulse submitted to demo org."
+          : "Pulse submitted and HRI score updated."
+      );
       setError(null);
     } catch (e) {
       setError(e?.message || "Submission failed.");
@@ -99,6 +123,12 @@ export default function EmployeePulsePage() {
       <p style={{ opacity: 0.85, marginTop: 0 }}>
         Quick pulse check to understand how your people are doing right now.
       </p>
+
+      {!loading && organisationId && (
+        <p style={{ opacity: 0.7, fontSize: 12, marginTop: 0 }}>
+          Organisation ID: {organisationId}
+        </p>
+      )}
 
       {loading && <p style={{ opacity: 0.75 }}>Loading pulse questions…</p>}
 
@@ -151,8 +181,6 @@ export default function EmployeePulsePage() {
                           borderRadius: 12,
                           border: "1px solid rgba(255,255,255,.15)",
                           opacity: active ? 1 : 0.75,
-
-                          // ✅ restore yellow highlight
                           background: active ? "var(--yellow)" : "transparent",
                           color: active ? "var(--yellowText)" : "inherit",
                           borderColor: active ? "var(--yellow)" : "rgba(255,255,255,.15)",
@@ -176,7 +204,7 @@ export default function EmployeePulsePage() {
             <button
               className="btnPrimary"
               onClick={handleSubmit}
-              disabled={submitting || !allAnswered}
+              disabled={submitting || !allAnswered || !organisationId}
             >
               {submitting ? "Submitting…" : "Submit employee pulse"}
             </button>
