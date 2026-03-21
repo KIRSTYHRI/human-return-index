@@ -4,7 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const VERSION = "CALCULATE_HRI__V4__FIX_EMPLOYER_SCORE";
+const VERSION = "CALCULATE_HRI__V5__RECALC_EMPLOYER_OVERALL";
 const ORG_ID_FALLBACK = process.env.HRI_DEMO_ORG_ID || null;
 
 function getSupabase() {
@@ -60,88 +60,79 @@ function normalizeEmployerAssessment(row) {
 
   const raw = row.pillar_scores;
 
-  // Old format: object
+  let pillar_1 = null;
+  let pillar_2 = null;
+  let pillar_3 = null;
+  let pillar_4 = null;
+  let pillar_5 = null;
+
+  // OLD FORMAT: object { pillar_1, pillar_2, ... }
   if (raw && !Array.isArray(raw) && typeof raw === "object") {
-    const pillar_1 = toNumber(raw.pillar_1);
-    const pillar_2 = toNumber(raw.pillar_2);
-    const pillar_3 = toNumber(raw.pillar_3);
-    const pillar_4 = toNumber(raw.pillar_4);
-    const pillar_5 = toNumber(raw.pillar_5);
-
-    const overall_score =
-      toNumber(row.overall_score) ??
-      avgWhole([pillar_1, pillar_2, pillar_3, pillar_4, pillar_5]);
-
-    if ([pillar_1, pillar_2, pillar_3, pillar_4, pillar_5].every((v) => v == null)) {
-      return null;
-    }
-
-    return {
-      overall_score,
-      employer_pillar_1: pillar_1,
-      employer_pillar_2: pillar_2,
-      employer_pillar_3: pillar_3,
-      employer_pillar_4: pillar_4,
-      employer_pillar_5: pillar_5,
-    };
+    pillar_1 = toNumber(raw.pillar_1);
+    pillar_2 = toNumber(raw.pillar_2);
+    pillar_3 = toNumber(raw.pillar_3);
+    pillar_4 = toNumber(raw.pillar_4);
+    pillar_5 = toNumber(raw.pillar_5);
   }
 
-  // New format: array
+  // NEW FORMAT: array [{ pillar, score }]
   if (Array.isArray(raw)) {
-    const map = Object.fromEntries(
+    const byName = Object.fromEntries(
       raw.map((item) => [String(item?.pillar || "").trim().toLowerCase(), toNumber(item?.score)])
     );
 
-    const pillar_1 =
-      map["leadership"] ??
-      map["human-centred leadership"] ??
-      null;
+    pillar_1 =
+      byName["leadership"] ??
+      byName["human-centred leadership"] ??
+      pillar_1;
 
-    const pillar_2 =
-      map["wellbeing & mental health"] ??
-      map["wellbeing and mental health"] ??
-      null;
+    pillar_2 =
+      byName["wellbeing & mental health"] ??
+      byName["wellbeing and mental health"] ??
+      pillar_2;
 
-    const pillar_3 =
-      map["inclusion & belonging"] ??
-      map["inclusion and belonging"] ??
-      map["inclusion, safety & belonging"] ??
-      map["inclusion, safety and belonging"] ??
-      null;
+    pillar_3 =
+      byName["inclusion & belonging"] ??
+      byName["inclusion and belonging"] ??
+      byName["inclusion, safety & belonging"] ??
+      byName["inclusion, safety and belonging"] ??
+      pillar_3;
 
-    const pillar_4 =
-      map["growth & development"] ??
-      map["growth and development"] ??
-      map["growth, learning & performance"] ??
-      map["growth, learning and performance"] ??
-      null;
+    pillar_4 =
+      byName["growth & development"] ??
+      byName["growth and development"] ??
+      byName["growth, learning & performance"] ??
+      byName["growth, learning and performance"] ??
+      pillar_4;
 
-    const pillar_5 =
-      map["trust & communication"] ??
-      map["trust and communication"] ??
-      map["trust, communication & clarity"] ??
-      map["trust, communication and clarity"] ??
-      null;
-
-    const overall_score =
-      toNumber(row.overall_score) ??
-      avgWhole([pillar_1, pillar_2, pillar_3, pillar_4, pillar_5]);
-
-    if ([pillar_1, pillar_2, pillar_3, pillar_4, pillar_5].every((v) => v == null)) {
-      return null;
-    }
-
-    return {
-      overall_score,
-      employer_pillar_1: pillar_1,
-      employer_pillar_2: pillar_2,
-      employer_pillar_3: pillar_3,
-      employer_pillar_4: pillar_4,
-      employer_pillar_5: pillar_5,
-    };
+    pillar_5 =
+      byName["trust & communication"] ??
+      byName["trust and communication"] ??
+      byName["trust, communication & clarity"] ??
+      byName["trust, communication and clarity"] ??
+      pillar_5;
   }
 
-  return null;
+  if ([pillar_1, pillar_2, pillar_3, pillar_4, pillar_5].every((v) => v == null)) {
+    return null;
+  }
+
+  const calculatedOverall = avgWhole([pillar_1, pillar_2, pillar_3, pillar_4, pillar_5]);
+  const rawOverall = toNumber(row.overall_score);
+
+  // IMPORTANT:
+  // If raw overall is null, 0, or invalid, trust the pillar average instead.
+  const overall_score =
+    rawOverall != null && rawOverall > 0 ? rawOverall : calculatedOverall;
+
+  return {
+    overall_score,
+    employer_pillar_1: pillar_1,
+    employer_pillar_2: pillar_2,
+    employer_pillar_3: pillar_3,
+    employer_pillar_4: pillar_4,
+    employer_pillar_5: pillar_5,
+  };
 }
 
 export async function GET(request) {
@@ -297,7 +288,7 @@ export async function GET(request) {
       );
     }
 
-    const historyPayload = {
+    await supabase.from("hri_score_history").insert({
       organisation_id,
       employer_score,
       employee_score,
@@ -314,9 +305,7 @@ export async function GET(request) {
       employee_pillar_5,
       badge,
       source: "calculate-hri",
-    };
-
-    await supabase.from("hri_score_history").insert(historyPayload);
+    });
 
     return NextResponse.json(
       {
