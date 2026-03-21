@@ -5,7 +5,7 @@ import { getAuthUser } from "@/lib/getAuthUser";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const VERSION = "EMPLOYEE_PULSE__AUTO_HRI_V3__SAFE_CALC";
+const VERSION = "EMPLOYEE_PULSE__SAVE_ONLY_V4";
 
 function getServiceSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -18,15 +18,6 @@ function getServiceSupabase() {
   return createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
-}
-
-async function readJsonSafe(res) {
-  const text = await res.text();
-  try {
-    return JSON.parse(text);
-  } catch {
-    throw new Error(`calculate-hri returned non-JSON: ${text.slice(0, 120)}`);
-  }
 }
 
 export async function POST(req) {
@@ -110,36 +101,12 @@ export async function POST(req) {
       );
     }
 
-    const origin = new URL(req.url).origin;
-    const calcUrl = new URL("/api/calculate-hri", origin);
-    calcUrl.searchParams.set("organisation_id", organisation_id);
-
-    const calcRes = await fetch(calcUrl.toString(), {
-      method: "GET",
-      cache: "no-store",
-    });
-
-    const calcJson = await readJsonSafe(calcRes);
-
-    if (!calcRes.ok) {
-      return NextResponse.json(
-        {
-          ok: false,
-          version: VERSION,
-          error: calcJson?.error || "Pulse saved, but HRI recalculation failed.",
-          calculate_hri: calcJson,
-        },
-        { status: 500 }
-      );
-    }
-
     return NextResponse.json({
       ok: true,
       version: VERSION,
       demo: !user && !!demoOrgId,
       organisation_id,
       message: "Pulse submitted successfully.",
-      calculate_hri: calcJson,
     });
   } catch (err) {
     return NextResponse.json(
