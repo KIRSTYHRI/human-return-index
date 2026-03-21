@@ -4,7 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const VERSION = "CALCULATE_HRI__V3__SUPPORT_ARRAY_PILLARS";
+const VERSION = "CALCULATE_HRI__V4__FIX_EMPLOYER_SCORE";
 const ORG_ID_FALLBACK = process.env.HRI_DEMO_ORG_ID || null;
 
 function getSupabase() {
@@ -60,7 +60,7 @@ function normalizeEmployerAssessment(row) {
 
   const raw = row.pillar_scores;
 
-  // OLD FORMAT: object with pillar_1..pillar_5
+  // Old format: object
   if (raw && !Array.isArray(raw) && typeof raw === "object") {
     const pillar_1 = toNumber(raw.pillar_1);
     const pillar_2 = toNumber(raw.pillar_2);
@@ -72,13 +72,7 @@ function normalizeEmployerAssessment(row) {
       toNumber(row.overall_score) ??
       avgWhole([pillar_1, pillar_2, pillar_3, pillar_4, pillar_5]);
 
-    if (
-      pillar_1 == null &&
-      pillar_2 == null &&
-      pillar_3 == null &&
-      pillar_4 == null &&
-      pillar_5 == null
-    ) {
+    if ([pillar_1, pillar_2, pillar_3, pillar_4, pillar_5].every((v) => v == null)) {
       return null;
     }
 
@@ -92,54 +86,48 @@ function normalizeEmployerAssessment(row) {
     };
   }
 
-  // NEW FORMAT: array of { pillar, score }
+  // New format: array
   if (Array.isArray(raw)) {
-    const byName = Object.fromEntries(
+    const map = Object.fromEntries(
       raw.map((item) => [String(item?.pillar || "").trim().toLowerCase(), toNumber(item?.score)])
     );
 
     const pillar_1 =
-      byName["leadership"] ??
-      byName["human-centred leadership"] ??
+      map["leadership"] ??
+      map["human-centred leadership"] ??
       null;
 
     const pillar_2 =
-      byName["wellbeing & mental health"] ??
-      byName["wellbeing and mental health"] ??
+      map["wellbeing & mental health"] ??
+      map["wellbeing and mental health"] ??
       null;
 
     const pillar_3 =
-      byName["inclusion & belonging"] ??
-      byName["inclusion and belonging"] ??
-      byName["inclusion, safety & belonging"] ??
-      byName["inclusion, safety and belonging"] ??
+      map["inclusion & belonging"] ??
+      map["inclusion and belonging"] ??
+      map["inclusion, safety & belonging"] ??
+      map["inclusion, safety and belonging"] ??
       null;
 
     const pillar_4 =
-      byName["growth & development"] ??
-      byName["growth and development"] ??
-      byName["growth, learning & performance"] ??
-      byName["growth, learning and performance"] ??
+      map["growth & development"] ??
+      map["growth and development"] ??
+      map["growth, learning & performance"] ??
+      map["growth, learning and performance"] ??
       null;
 
     const pillar_5 =
-      byName["trust & communication"] ??
-      byName["trust and communication"] ??
-      byName["trust, communication & clarity"] ??
-      byName["trust, communication and clarity"] ??
+      map["trust & communication"] ??
+      map["trust and communication"] ??
+      map["trust, communication & clarity"] ??
+      map["trust, communication and clarity"] ??
       null;
 
     const overall_score =
       toNumber(row.overall_score) ??
       avgWhole([pillar_1, pillar_2, pillar_3, pillar_4, pillar_5]);
 
-    if (
-      pillar_1 == null &&
-      pillar_2 == null &&
-      pillar_3 == null &&
-      pillar_4 == null &&
-      pillar_5 == null
-    ) {
+    if ([pillar_1, pillar_2, pillar_3, pillar_4, pillar_5].every((v) => v == null)) {
       return null;
     }
 
@@ -173,7 +161,6 @@ export async function GET(request) {
       );
     }
 
-    // EMPLOYEE - latest pulse
     const { data: latestPulse, error: pulseErr } = await supabase
       .from("pulse_check_submissions")
       .select(
@@ -208,7 +195,6 @@ export async function GET(request) {
             employee_pillar_5,
           ]);
 
-    // EMPLOYER - latest valid assessment
     const { data: employerRows, error: employerErr } = await supabase
       .from("hri_assessments")
       .select("id, org_id, created_at, overall_score, pillar_scores")
@@ -235,7 +221,6 @@ export async function GET(request) {
     const employer_pillar_4 = normalizedEmployer?.employer_pillar_4 ?? null;
     const employer_pillar_5 = normalizedEmployer?.employer_pillar_5 ?? null;
 
-    // BLEND 50/50
     const hri_score =
       employee_score != null && employer_score != null
         ? Math.round(((employee_score + employer_score) / 2) * 10) / 10
@@ -293,7 +278,6 @@ export async function GET(request) {
         .eq("id", existingRow.id)
         .select()
         .single();
-
       saved = data;
       saveErr = error;
     } else {
@@ -302,7 +286,6 @@ export async function GET(request) {
         .insert(snapshotPayload)
         .select()
         .single();
-
       saved = data;
       saveErr = error;
     }
@@ -333,23 +316,7 @@ export async function GET(request) {
       source: "calculate-hri",
     };
 
-    const { data: historySaved, error: historyErr } = await supabase
-      .from("hri_score_history")
-      .insert(historyPayload)
-      .select()
-      .single();
-
-    if (historyErr) {
-      return NextResponse.json(
-        {
-          ok: false,
-          version: VERSION,
-          error: historyErr.message,
-          note: "Current score snapshot updated, but failed to write score history.",
-        },
-        { status: 500 }
-      );
-    }
+    await supabase.from("hri_score_history").insert(historyPayload);
 
     return NextResponse.json(
       {
@@ -361,7 +328,6 @@ export async function GET(request) {
         hri_score,
         badge,
         saved,
-        history_saved: historySaved,
       },
       { status: 200 }
     );
