@@ -3,6 +3,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/lib/apiFetch";
 
+async function readJsonSafe(res, label) {
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`${label} did not return JSON. Got: ${text.slice(0, 120)}`);
+  }
+}
+
 export default function EmployeePulsePage() {
   const [loading, setLoading] = useState(true);
   const [questions, setQuestions] = useState([]);
@@ -19,22 +28,25 @@ export default function EmployeePulsePage() {
       try {
         setLoading(true);
 
-        // Load overview first so we get the real org id
         const overviewRes = await apiFetch("/api/overview", { cache: "no-store" });
-        const overviewJson = await overviewRes.json();
+        const overviewJson = await readJsonSafe(overviewRes, "/api/overview");
 
         if (cancelled) return;
 
-        if (overviewRes.ok) {
-          setOrganisationId(
-            overviewJson?.organisation_id ||
-              overviewJson?.overview?.organisation_id ||
-              null
-          );
+        if (!overviewRes.ok) {
+          throw new Error(overviewJson?.error || "Failed to load organisation from overview");
         }
 
+        const orgId = overviewJson?.organisation_id || null;
+
+        if (!orgId) {
+          throw new Error("No organisation_id returned from /api/overview");
+        }
+
+        setOrganisationId(orgId);
+
         const res = await apiFetch("/api/pulse-questions", { cache: "no-store" });
-        const json = await res.json();
+        const json = await readJsonSafe(res, "/api/pulse-questions");
 
         if (cancelled) return;
 
@@ -50,7 +62,7 @@ export default function EmployeePulsePage() {
         setQuestions(qs);
         setError(null);
       } catch (e) {
-        setError(e?.message || "Failed to load questions.");
+        if (!cancelled) setError(e?.message || "Failed to load questions.");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -87,7 +99,8 @@ export default function EmployeePulsePage() {
         value: Number(answers[q.id]),
       }));
 
-      const res = await apiFetch("/api/employee-pulse", {
+      // 1) save pulse
+      const pulseRes = await apiFetch("/api/employee-pulse", {
         method: "POST",
         body: JSON.stringify({
           organisation_id: organisationId,
@@ -95,19 +108,28 @@ export default function EmployeePulsePage() {
         }),
       });
 
-      const json = await res.json();
+      const pulseJson = await readJsonSafe(pulseRes, "/api/employee-pulse");
 
-      if (res.status === 401 && (json?.error || "").toLowerCase().includes("auth session missing")) {
-        throw new Error("Your session has expired. Please sign in again.");
+      if (!pulseRes.ok) {
+        throw new Error(pulseJson?.error || "Pulse submission failed");
       }
 
-      if (!res.ok) throw new Error(json?.error || "Pulse submission failed");
-
-      setSuccess(
-        json?.demo
-          ? "Pulse submitted to demo org."
-          : "Pulse submitted and HRI score updated."
+      // 2) trigger HRI recalculation from browser
+      const calcRes = await apiFetch(
+        `/api/calculate-hri?organisation_id=${encodeURIComponent(organisationId)}`,
+        {
+          method: "GET",
+          cache: "no-store",
+        }
       );
+
+      const calcJson = await readJsonSafe(calcRes, "/api/calculate-hri");
+
+      if (!calcRes.ok) {
+        throw new Error(calcJson?.error || "Pulse saved, but HRI recalculation failed.");
+      }
+
+      setSuccess("Pulse submitted and HRI score updated.");
       setError(null);
     } catch (e) {
       setError(e?.message || "Submission failed.");
