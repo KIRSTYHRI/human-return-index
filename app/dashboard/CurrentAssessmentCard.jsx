@@ -35,7 +35,7 @@ function isSessionMissing(res, data) {
 
 function formatCurrency(value) {
   const n = num(value);
-  if (n == null) return "Awaiting organisation inputs";
+  if (n == null) return "—";
   return `£${Math.round(n).toLocaleString()}`;
 }
 
@@ -99,32 +99,11 @@ function getWhatThisMeans(hriScore) {
   return "Higher people risk zone — likely impact on productivity, retention, trust and absence-related cost.";
 }
 
-function displayMetricValue(value, type = "text") {
-  const n = num(value);
-
-  if (n == null || n <= 0) {
-    return "Not set";
-  }
-
-  if (type === "currency") {
-    return `£${n.toLocaleString()}`;
-  }
-
-  if (type === "percent") {
-    return `${n}%`;
-  }
-
-  if (type === "score100") {
-    return `${n}/100`;
-  }
-
-  return String(n);
-}
-
 export default function CurrentAssessmentCard() {
   const [loading, setLoading] = useState(true);
   const [overview, setOverview] = useState(null);
   const [metrics, setMetrics] = useState(null);
+  const [isDemoMetrics, setIsDemoMetrics] = useState(false);
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -155,10 +134,12 @@ export default function CurrentAssessmentCard() {
 
         if (isSessionMissing(metricsRes, metricsData)) {
           setMetrics(metricsData?.metrics || metricsData || {});
+          setIsDemoMetrics(metricsData?.demo === true);
         } else if (!metricsRes.ok) {
           throw new Error(metricsData?.error || "Failed to load org metrics");
         } else {
           setMetrics(metricsData?.metrics || metricsData || null);
+          setIsDemoMetrics(metricsData?.demo === true);
         }
       } catch (e) {
         if (!cancelled) setError(e?.message || "Failed to load dashboard");
@@ -213,7 +194,7 @@ export default function CurrentAssessmentCard() {
   }, [pillarList]);
 
   // ==========================
-  // ORG INPUTS
+  // STANDARDISED HRI FINANCIAL MODEL
   // ==========================
   const employees = num(metrics?.employees);
   const avgSalary = num(metrics?.avg_salary);
@@ -221,36 +202,26 @@ export default function CurrentAssessmentCard() {
   const turnoverRatePercent = num(metrics?.turnover_rate);
   const hriScoreInput = hriScore;
 
-  // Only calculate financials when real inputs exist
-  const hasFinancialInputs =
-    employees != null &&
-    employees > 0 &&
-    avgSalary != null &&
-    avgSalary > 0 &&
-    absenceDaysPerEmployee != null &&
-    absenceDaysPerEmployee > 0 &&
-    turnoverRatePercent != null &&
-    turnoverRatePercent > 0 &&
-    hriScoreInput != null;
-
-  // Fixed assumptions
   const REPLACEMENT_COST_RATE = 0.3;
   const WORKING_DAYS = 260;
   const RECOVERY_FACTOR = 0.5;
 
-  // Standardised financial model
   const turnoverRateDecimal =
-    turnoverRatePercent != null && turnoverRatePercent > 0
-      ? turnoverRatePercent / 100
-      : null;
+    turnoverRatePercent != null ? turnoverRatePercent / 100 : null;
 
   const turnoverCost =
-    hasFinancialInputs && turnoverRateDecimal != null
+    employees != null &&
+    avgSalary != null &&
+    turnoverRateDecimal != null &&
+    hriScoreInput != null
       ? Math.round(employees * turnoverRateDecimal * avgSalary * REPLACEMENT_COST_RATE)
       : null;
 
   const absenceCost =
-    hasFinancialInputs
+    employees != null &&
+    avgSalary != null &&
+    absenceDaysPerEmployee != null &&
+    hriScoreInput != null
       ? Math.round(employees * absenceDaysPerEmployee * (avgSalary / WORKING_DAYS))
       : null;
 
@@ -263,17 +234,17 @@ export default function CurrentAssessmentCard() {
       : null;
 
   const productivityOpportunity =
-    hasFinancialInputs && recoverableGapPercent != null
+    employees != null &&
+    avgSalary != null &&
+    recoverableGapPercent != null
       ? Math.round(employees * avgSalary * recoverableGapPercent)
       : null;
 
   const totalValueAtStake =
-    hasFinancialInputs
-      ? Math.round(
-          (turnoverCost || 0) +
-            (absenceCost || 0) +
-            (productivityOpportunity || 0)
-        )
+    turnoverCost != null &&
+    absenceCost != null &&
+    productivityOpportunity != null
+      ? Math.round(turnoverCost + absenceCost + productivityOpportunity)
       : null;
 
   const trendLabel = getTrendLabel(scoreChange);
@@ -467,9 +438,9 @@ export default function CurrentAssessmentCard() {
                 {formatCurrency(totalValueAtStake)}
               </div>
               <div className="mutedSmall" style={{ marginTop: 6 }}>
-                {hasFinancialInputs
-                  ? "Based on your current HRI score, this is the estimated financial exposure across your workforce."
-                  : "Complete organisation metrics to unlock financial exposure and opportunity calculations."}
+                {isDemoMetrics
+                  ? "Based on example organisation inputs for pilot demonstration. Replace with your own data to calculate your real financial exposure."
+                  : "Based on your current HRI score and organisation inputs, this is the estimated financial exposure across your workforce."}
               </div>
             </div>
 
@@ -515,75 +486,95 @@ export default function CurrentAssessmentCard() {
               <Link className="linkChip" href="/dashboard/scores">
                 Scores
               </Link>
+              <Link className="linkChip" href="/dashboard/org-metrics">
+                Update organisation data
+              </Link>
             </div>
           </div>
 
-          <OrgMetricsCard metrics={metrics} loading={loading} />
+          <OrgMetricsCard
+            metrics={metrics}
+            loading={loading}
+            isDemoMetrics={isDemoMetrics}
+          />
         </div>
       )}
     </div>
   );
 }
 
-function OrgMetricsCard({ metrics, loading }) {
+function OrgMetricsCard({ metrics, loading, isDemoMetrics }) {
+  const items = [
+    { k: "Organisation", v: metrics?.organisation_name || "Your organisation" },
+    {
+      k: "Employees",
+      v: metrics?.employees != null ? metrics.employees : "—",
+    },
+    {
+      k: "Average salary",
+      v: metrics?.avg_salary != null ? `£${Number(metrics.avg_salary).toLocaleString()}` : "—",
+    },
+    {
+      k: "Turnover rate",
+      v: metrics?.turnover_rate != null ? `${metrics.turnover_rate}%` : "—",
+    },
+    {
+      k: "Absence days / employee",
+      v: metrics?.absence_days != null ? metrics.absence_days : "—",
+    },
+    {
+      k: "Annual wellbeing spend",
+      v: metrics?.wellbeing_spend != null ? `£${Number(metrics.wellbeing_spend).toLocaleString()}` : "—",
+    },
+    {
+      k: "Engagement score",
+      v: metrics?.engagement_score != null ? `${metrics.engagement_score}/100` : "—",
+    },
+  ];
+
   return (
     <div className="panel">
       <div className="panelHeader">
-        <div className="panelTitle">Organisation metrics</div>
+        <div className="panelTitle">
+          {isDemoMetrics ? "Example organisation metrics" : "Organisation metrics"}
+        </div>
         <div className="panelMeta">{loading ? "Loading…" : "Core inputs"}</div>
       </div>
+
+      {isDemoMetrics && (
+        <div
+          style={{
+            marginTop: 10,
+            marginBottom: 12,
+            padding: 12,
+            borderRadius: 10,
+            background: "rgba(254,224,0,0.08)",
+            border: "1px solid rgba(254,224,0,0.25)",
+            fontSize: 13,
+            fontWeight: 600,
+          }}
+        >
+          Example data shown for illustration. Replace with your organisation inputs to calculate your real financial impact.
+        </div>
+      )}
 
       <p className="mutedSmall" style={{ marginTop: 8 }}>
         Core people and cost inputs used to model your HRI score and people risk.
       </p>
 
       <div className="metricsGrid">
-        <div className="metric">
-          <div className="metricK">Organisation</div>
-          <div className="metricV">
-            {metrics?.organisation_name || "Your organisation"}
+        {items.map((it, i) => (
+          <div className="metric" key={i}>
+            <div className="metricK">{it.k}</div>
+            <div className="metricV">{it.v}</div>
           </div>
-        </div>
+        ))}
+      </div>
 
-        <div className="metric">
-          <div className="metricK">Employees</div>
-          <div className="metricV">{displayMetricValue(metrics?.employees)}</div>
-        </div>
-
-        <div className="metric">
-          <div className="metricK">Average salary</div>
-          <div className="metricV">
-            {displayMetricValue(metrics?.avg_salary, "currency")}
-          </div>
-        </div>
-
-        <div className="metric">
-          <div className="metricK">Turnover rate</div>
-          <div className="metricV">
-            {displayMetricValue(metrics?.turnover_rate, "percent")}
-          </div>
-        </div>
-
-        <div className="metric">
-          <div className="metricK">Absence days / employee</div>
-          <div className="metricV">
-            {displayMetricValue(metrics?.absence_days)}
-          </div>
-        </div>
-
-        <div className="metric">
-          <div className="metricK">Annual wellbeing spend</div>
-          <div className="metricV">
-            {displayMetricValue(metrics?.wellbeing_spend, "currency")}
-          </div>
-        </div>
-
-        <div className="metric">
-          <div className="metricK">Engagement score</div>
-          <div className="metricV">
-            {displayMetricValue(metrics?.engagement_score, "score100")}
-          </div>
-        </div>
+      <div style={{ marginTop: 16 }}>
+        <Link href="/dashboard/org-metrics" className="linkChip">
+          Update your organisation data
+        </Link>
       </div>
     </div>
   );
