@@ -49,26 +49,54 @@ function getTrendLabel(scoreChange) {
 
 function getTrendTone(scoreChange) {
   const n = num(scoreChange);
-  if (n == null) return {
-    bg: "rgba(255,255,255,.05)",
-    border: "rgba(255,255,255,.10)",
-    text: "#fff",
-  };
-  if (n > 0) return {
-    bg: "rgba(34,197,94,.12)",
-    border: "rgba(34,197,94,.35)",
-    text: "#86efac",
-  };
-  if (n < 0) return {
-    bg: "rgba(239,68,68,.12)",
-    border: "rgba(239,68,68,.35)",
-    text: "#fca5a5",
-  };
+
+  if (n == null) {
+    return {
+      bg: "rgba(255,255,255,.05)",
+      border: "rgba(255,255,255,.10)",
+      text: "#fff",
+    };
+  }
+
+  if (n > 0) {
+    return {
+      bg: "rgba(34,197,94,.12)",
+      border: "rgba(34,197,94,.35)",
+      text: "#86efac",
+    };
+  }
+
+  if (n < 0) {
+    return {
+      bg: "rgba(239,68,68,.12)",
+      border: "rgba(239,68,68,.35)",
+      text: "#fca5a5",
+    };
+  }
+
   return {
     bg: "rgba(255,255,255,.05)",
     border: "rgba(255,255,255,.10)",
     text: "#fff",
   };
+}
+
+function getWhatThisMeans(hriScore) {
+  const score = num(hriScore);
+
+  if (score == null) {
+    return "Your HRI score will appear once both employer and employee data are available.";
+  }
+
+  if (score >= 80) {
+    return "Strong performing organisation with lower people risk and stronger potential for sustainable performance.";
+  }
+
+  if (score >= 65) {
+    return "Moderate performance with clear opportunities to improve productivity, retention and workforce experience.";
+  }
+
+  return "Higher people risk zone — likely impact on productivity, retention, trust and absence-related cost.";
 }
 
 export default function CurrentAssessmentCard() {
@@ -142,7 +170,10 @@ export default function CurrentAssessmentCard() {
 
   const pillarList =
     pillars && typeof pillars === "object"
-      ? Object.entries(pillars).map(([label, value]) => ({ label, value: num(value) }))
+      ? Object.entries(pillars).map(([label, value]) => ({
+          label,
+          value: num(value),
+        }))
       : [];
 
   const weakestPillar = useMemo(() => {
@@ -185,6 +216,11 @@ export default function CurrentAssessmentCard() {
     employees > 0 && avgSalary > 0 && absenceDays > 0
       ? Math.round(employees * absenceDays * (avgSalary / 260))
       : null;
+
+  const totalOpportunity =
+    (productivityOpportunity || 0) +
+    (turnoverReplacementCost || 0) +
+    (absenceCost || 0);
 
   const trendLabel = getTrendLabel(scoreChange);
   const trendTone = getTrendTone(scoreChange);
@@ -316,6 +352,26 @@ export default function CurrentAssessmentCard() {
               }}
             >
               <div className="pillLabel" style={{ marginBottom: 6 }}>
+                What this means
+              </div>
+              <div style={{ fontSize: 16, fontWeight: 700 }}>
+                {getWhatThisMeans(hriScore)}
+              </div>
+              <div className="mutedSmall" style={{ marginTop: 6 }}>
+                HRI measures the gap between employee experience and leadership perception — and its impact on performance.
+              </div>
+            </div>
+
+            <div
+              style={{
+                marginBottom: 16,
+                padding: 14,
+                borderRadius: 12,
+                border: "1px solid rgba(255,255,255,.08)",
+                background: "rgba(255,255,255,.03)",
+              }}
+            >
+              <div className="pillLabel" style={{ marginBottom: 6 }}>
                 HRI Insight
               </div>
               <div style={{ fontSize: 16, fontWeight: 700 }}>{hriInsightText}</div>
@@ -338,7 +394,27 @@ export default function CurrentAssessmentCard() {
             <div className="panelDivider" />
 
             <div className="panelTitle" style={{ marginBottom: 10 }}>
-              Estimated financial impact
+              Financial risk & opportunity
+            </div>
+
+            <div
+              style={{
+                marginBottom: 16,
+                padding: 14,
+                borderRadius: 12,
+                border: "1px solid rgba(255,255,255,.08)",
+                background: "rgba(255,255,255,.03)",
+              }}
+            >
+              <div className="pillLabel" style={{ marginBottom: 6 }}>
+                Estimated annual value at stake
+              </div>
+              <div style={{ fontSize: 24, fontWeight: 800 }}>
+                {formatCurrency(totalOpportunity)}
+              </div>
+              <div className="mutedSmall" style={{ marginTop: 6 }}>
+                Based on current productivity opportunity, turnover exposure and absence cost.
+              </div>
             </div>
 
             <div
