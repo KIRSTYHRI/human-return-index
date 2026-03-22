@@ -4,12 +4,15 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+const VERSION = "ORG_METRICS__V3__DEMO_READY";
+
 export async function GET() {
-  // Demo payload so dashboard shows the same "pretty" numbers consistently
   return NextResponse.json({
     ok: true,
+    version: VERSION,
+    demo: true, // 👈 tells frontend this is example data
     metrics: {
-      organisation_name: "Your organisation",
+      organisation_name: "Example organisation",
       employees: 260,
       avg_salary: 40000,
       turnover_rate: 15,
