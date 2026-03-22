@@ -190,37 +190,51 @@ export default function CurrentAssessmentCard() {
       .sort((a, b) => b.value - a.value)[0] || null;
   }, [pillarList]);
 
+  // ==========================
+  // STANDARDISED HRI FINANCIAL MODEL
+  // ==========================
+  // Inputs
   const employees = num(metrics?.employees) ?? 0;
   const avgSalary = num(metrics?.avg_salary) ?? 0;
-  const absenceDays = num(metrics?.absence_days) ?? 0;
-  const turnoverRate = num(metrics?.turnover_rate) ?? 0;
+  const absenceDaysPerEmployee = num(metrics?.absence_days) ?? 0;
+  const turnoverRatePercent = num(metrics?.turnover_rate) ?? 0;
+  const hriScoreInput = hriScore;
 
-  const revenuePerEmployee = avgSalary > 0 ? avgSalary * 3 : 120000;
+  // Fixed assumptions
+  const REPLACEMENT_COST_RATE = 0.3;
+  const WORKING_DAYS = 260;
+  const RECOVERY_FACTOR = 0.5;
 
-  const productivityOpportunity =
-    hriScore != null && employees > 0
-      ? Math.round(((100 - hriScore) / 100) * employees * revenuePerEmployee * 0.08)
-      : null;
+  // Core calculations
+  const turnoverRateDecimal =
+    turnoverRatePercent > 0 ? turnoverRatePercent / 100 : 0;
 
-  const estimatedLeavers =
-    employees > 0 && turnoverRate > 0
-      ? Math.round((employees * turnoverRate) / 100)
-      : null;
-
-  const turnoverReplacementCost =
-    estimatedLeavers != null && avgSalary > 0
-      ? Math.round(estimatedLeavers * (avgSalary * 0.3))
+  const turnoverCost =
+    employees > 0 && turnoverRateDecimal > 0 && avgSalary > 0
+      ? Math.round(employees * turnoverRateDecimal * avgSalary * REPLACEMENT_COST_RATE)
       : null;
 
   const absenceCost =
-    employees > 0 && avgSalary > 0 && absenceDays > 0
-      ? Math.round(employees * absenceDays * (avgSalary / 260))
+    employees > 0 && absenceDaysPerEmployee > 0 && avgSalary > 0
+      ? Math.round(employees * absenceDaysPerEmployee * (avgSalary / WORKING_DAYS))
       : null;
 
-  const totalOpportunity =
-    (productivityOpportunity || 0) +
-    (turnoverReplacementCost || 0) +
-    (absenceCost || 0);
+  const performanceGapPercent =
+    hriScoreInput != null ? 100 - hriScoreInput : null;
+
+  const recoverableGapPercent =
+    performanceGapPercent != null
+      ? (performanceGapPercent / 100) * RECOVERY_FACTOR
+      : null;
+
+  const productivityOpportunity =
+    employees > 0 && avgSalary > 0 && recoverableGapPercent != null
+      ? Math.round(employees * avgSalary * recoverableGapPercent)
+      : null;
+
+  const totalValueAtStake = Math.round(
+    (turnoverCost || 0) + (absenceCost || 0) + (productivityOpportunity || 0)
+  );
 
   const trendLabel = getTrendLabel(scoreChange);
   const trendTone = getTrendTone(scoreChange);
@@ -410,10 +424,10 @@ export default function CurrentAssessmentCard() {
                 Estimated annual value at stake
               </div>
               <div style={{ fontSize: 24, fontWeight: 800 }}>
-                {formatCurrency(totalOpportunity)}
+                {formatCurrency(totalValueAtStake)}
               </div>
               <div className="mutedSmall" style={{ marginTop: 6 }}>
-                Based on current productivity opportunity, turnover exposure and absence cost.
+                Based on your current HRI score, this is the estimated financial exposure across your workforce.
               </div>
             </div>
 
@@ -425,26 +439,26 @@ export default function CurrentAssessmentCard() {
               }}
             >
               <div className="pillBox">
+                <div className="pillLabel">Turnover cost</div>
+                <div className="pillValue">{formatCurrency(turnoverCost)}</div>
+                <div className="mutedSmall" style={{ marginTop: 6 }}>
+                  Employees × Turnover Rate × Average Salary × 30%
+                </div>
+              </div>
+
+              <div className="pillBox">
+                <div className="pillLabel">Absence cost</div>
+                <div className="pillValue">{formatCurrency(absenceCost)}</div>
+                <div className="mutedSmall" style={{ marginTop: 6 }}>
+                  Employees × Absence Days × (Average Salary ÷ 260)
+                </div>
+              </div>
+
+              <div className="pillBox">
                 <div className="pillLabel">Productivity opportunity</div>
                 <div className="pillValue">{formatCurrency(productivityOpportunity)}</div>
                 <div className="mutedSmall" style={{ marginTop: 6 }}>
-                  Estimated recoverable value linked to performance uplift potential.
-                </div>
-              </div>
-
-              <div className="pillBox">
-                <div className="pillLabel">Turnover cost exposure</div>
-                <div className="pillValue">{formatCurrency(turnoverReplacementCost)}</div>
-                <div className="mutedSmall" style={{ marginTop: 6 }}>
-                  Based on current turnover rate and replacement cost assumptions.
-                </div>
-              </div>
-
-              <div className="pillBox">
-                <div className="pillLabel">Absence cost exposure</div>
-                <div className="pillValue">{formatCurrency(absenceCost)}</div>
-                <div className="mutedSmall" style={{ marginTop: 6 }}>
-                  Estimated annual salary cost linked to current absence levels.
+                  Employees × Average Salary × Recoverable Gap %
                 </div>
               </div>
             </div>
