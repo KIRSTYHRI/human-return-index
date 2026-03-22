@@ -35,7 +35,7 @@ function isSessionMissing(res, data) {
 
 function formatCurrency(value) {
   const n = num(value);
-  if (n == null) return "—";
+  if (n == null) return "Awaiting organisation inputs";
   return `£${Math.round(n).toLocaleString()}`;
 }
 
@@ -97,6 +97,28 @@ function getWhatThisMeans(hriScore) {
   }
 
   return "Higher people risk zone — likely impact on productivity, retention, trust and absence-related cost.";
+}
+
+function displayMetricValue(value, type = "text") {
+  const n = num(value);
+
+  if (n == null || n <= 0) {
+    return "Not set";
+  }
+
+  if (type === "currency") {
+    return `£${n.toLocaleString()}`;
+  }
+
+  if (type === "percent") {
+    return `${n}%`;
+  }
+
+  if (type === "score100") {
+    return `${n}/100`;
+  }
+
+  return String(n);
 }
 
 export default function CurrentAssessmentCard() {
@@ -191,31 +213,44 @@ export default function CurrentAssessmentCard() {
   }, [pillarList]);
 
   // ==========================
-  // STANDARDISED HRI FINANCIAL MODEL
+  // ORG INPUTS
   // ==========================
-  // Inputs
-  const employees = num(metrics?.employees) ?? 0;
-  const avgSalary = num(metrics?.avg_salary) ?? 0;
-  const absenceDaysPerEmployee = num(metrics?.absence_days) ?? 0;
-  const turnoverRatePercent = num(metrics?.turnover_rate) ?? 0;
+  const employees = num(metrics?.employees);
+  const avgSalary = num(metrics?.avg_salary);
+  const absenceDaysPerEmployee = num(metrics?.absence_days);
+  const turnoverRatePercent = num(metrics?.turnover_rate);
   const hriScoreInput = hriScore;
+
+  // Only calculate financials when real inputs exist
+  const hasFinancialInputs =
+    employees != null &&
+    employees > 0 &&
+    avgSalary != null &&
+    avgSalary > 0 &&
+    absenceDaysPerEmployee != null &&
+    absenceDaysPerEmployee > 0 &&
+    turnoverRatePercent != null &&
+    turnoverRatePercent > 0 &&
+    hriScoreInput != null;
 
   // Fixed assumptions
   const REPLACEMENT_COST_RATE = 0.3;
   const WORKING_DAYS = 260;
   const RECOVERY_FACTOR = 0.5;
 
-  // Core calculations
+  // Standardised financial model
   const turnoverRateDecimal =
-    turnoverRatePercent > 0 ? turnoverRatePercent / 100 : 0;
+    turnoverRatePercent != null && turnoverRatePercent > 0
+      ? turnoverRatePercent / 100
+      : null;
 
   const turnoverCost =
-    employees > 0 && turnoverRateDecimal > 0 && avgSalary > 0
+    hasFinancialInputs && turnoverRateDecimal != null
       ? Math.round(employees * turnoverRateDecimal * avgSalary * REPLACEMENT_COST_RATE)
       : null;
 
   const absenceCost =
-    employees > 0 && absenceDaysPerEmployee > 0 && avgSalary > 0
+    hasFinancialInputs
       ? Math.round(employees * absenceDaysPerEmployee * (avgSalary / WORKING_DAYS))
       : null;
 
@@ -228,13 +263,18 @@ export default function CurrentAssessmentCard() {
       : null;
 
   const productivityOpportunity =
-    employees > 0 && avgSalary > 0 && recoverableGapPercent != null
+    hasFinancialInputs && recoverableGapPercent != null
       ? Math.round(employees * avgSalary * recoverableGapPercent)
       : null;
 
-  const totalValueAtStake = Math.round(
-    (turnoverCost || 0) + (absenceCost || 0) + (productivityOpportunity || 0)
-  );
+  const totalValueAtStake =
+    hasFinancialInputs
+      ? Math.round(
+          (turnoverCost || 0) +
+            (absenceCost || 0) +
+            (productivityOpportunity || 0)
+        )
+      : null;
 
   const trendLabel = getTrendLabel(scoreChange);
   const trendTone = getTrendTone(scoreChange);
@@ -427,7 +467,9 @@ export default function CurrentAssessmentCard() {
                 {formatCurrency(totalValueAtStake)}
               </div>
               <div className="mutedSmall" style={{ marginTop: 6 }}>
-                Based on your current HRI score, this is the estimated financial exposure across your workforce.
+                {hasFinancialInputs
+                  ? "Based on your current HRI score, this is the estimated financial exposure across your workforce."
+                  : "Complete organisation metrics to unlock financial exposure and opportunity calculations."}
               </div>
             </div>
 
@@ -484,31 +526,6 @@ export default function CurrentAssessmentCard() {
 }
 
 function OrgMetricsCard({ metrics, loading }) {
-  const items = [
-    { k: "Organisation", v: metrics?.organisation_name || "Your organisation" },
-    { k: "Employees", v: metrics?.employees ?? "—" },
-    {
-      k: "Average salary",
-      v: metrics?.avg_salary ? `£${Number(metrics.avg_salary).toLocaleString()}` : "—",
-    },
-    {
-      k: "Turnover rate",
-      v: metrics?.turnover_rate ? `${metrics.turnover_rate}%` : "—",
-    },
-    {
-      k: "Absence days / employee",
-      v: metrics?.absence_days ?? "—",
-    },
-    {
-      k: "Annual wellbeing spend",
-      v: metrics?.wellbeing_spend ? `£${Number(metrics.wellbeing_spend).toLocaleString()}` : "—",
-    },
-    {
-      k: "Engagement score",
-      v: metrics?.engagement_score ? `${metrics.engagement_score}/100` : "—",
-    },
-  ];
-
   return (
     <div className="panel">
       <div className="panelHeader">
@@ -521,12 +538,52 @@ function OrgMetricsCard({ metrics, loading }) {
       </p>
 
       <div className="metricsGrid">
-        {items.map((it, i) => (
-          <div className="metric" key={i}>
-            <div className="metricK">{it.k}</div>
-            <div className="metricV">{it.v}</div>
+        <div className="metric">
+          <div className="metricK">Organisation</div>
+          <div className="metricV">
+            {metrics?.organisation_name || "Your organisation"}
           </div>
-        ))}
+        </div>
+
+        <div className="metric">
+          <div className="metricK">Employees</div>
+          <div className="metricV">{displayMetricValue(metrics?.employees)}</div>
+        </div>
+
+        <div className="metric">
+          <div className="metricK">Average salary</div>
+          <div className="metricV">
+            {displayMetricValue(metrics?.avg_salary, "currency")}
+          </div>
+        </div>
+
+        <div className="metric">
+          <div className="metricK">Turnover rate</div>
+          <div className="metricV">
+            {displayMetricValue(metrics?.turnover_rate, "percent")}
+          </div>
+        </div>
+
+        <div className="metric">
+          <div className="metricK">Absence days / employee</div>
+          <div className="metricV">
+            {displayMetricValue(metrics?.absence_days)}
+          </div>
+        </div>
+
+        <div className="metric">
+          <div className="metricK">Annual wellbeing spend</div>
+          <div className="metricV">
+            {displayMetricValue(metrics?.wellbeing_spend, "currency")}
+          </div>
+        </div>
+
+        <div className="metric">
+          <div className="metricK">Engagement score</div>
+          <div className="metricV">
+            {displayMetricValue(metrics?.engagement_score, "score100")}
+          </div>
+        </div>
       </div>
     </div>
   );
