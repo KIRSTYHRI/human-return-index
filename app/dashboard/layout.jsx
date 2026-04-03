@@ -39,5 +39,9 @@ export default function DashboardLayout({ children }) {
 
   if (!ready) return <div style={{ padding: 16 }}>Loading… {debug}</div>;
 
-  return <>{children}</>;
-}
+return (
+  <>
+    <LogoutButton />
+    {children}
+  </>
+);
