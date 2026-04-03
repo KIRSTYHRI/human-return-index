@@ -27,12 +27,6 @@ function num(v) {
   return Number.isFinite(n) ? n : null;
 }
 
-function isSessionMissing(res, data) {
-  if (res?.status !== 401) return false;
-  const msg = (data?.error || "").toLowerCase();
-  return msg.includes("auth session missing");
-}
-
 function formatCurrency(value) {
   const n = num(value);
   if (n == null) return "—";
@@ -116,33 +110,35 @@ export default function CurrentAssessmentCard() {
 
         if (cancelled) return;
 
-        if (isSessionMissing(res, data)) {
-          setError(null);
-          setOverview(data?.overview || data || {});
-        } else if (!res.ok) {
+        if (!res.ok) {
           setError(data?.error || "Failed to load overview");
           setOverview(null);
-        } else {
-          setOverview(data?.overview || data || null);
-          setError(null);
+          setMetrics(null);
+          setIsDemoMetrics(false);
+          return;
         }
+
+        setOverview(data?.overview || data || null);
+        setError(null);
 
         const metricsRes = await apiFetch("/api/org-metrics", { cache: "no-store" });
         const metricsData = await metricsRes.json();
 
         if (cancelled) return;
 
-        if (isSessionMissing(metricsRes, metricsData)) {
-          setMetrics(metricsData?.metrics || metricsData || {});
-          setIsDemoMetrics(metricsData?.demo === true);
-        } else if (!metricsRes.ok) {
+        if (!metricsRes.ok) {
           throw new Error(metricsData?.error || "Failed to load org metrics");
-        } else {
-          setMetrics(metricsData?.metrics || metricsData || null);
-          setIsDemoMetrics(metricsData?.demo === true);
         }
+
+        setMetrics(metricsData?.metrics || metricsData || null);
+        setIsDemoMetrics(metricsData?.demo === true);
       } catch (e) {
-        if (!cancelled) setError(e?.message || "Failed to load dashboard");
+        if (!cancelled) {
+          setError(e?.message || "Failed to load dashboard");
+          setOverview(null);
+          setMetrics(null);
+          setIsDemoMetrics(false);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -269,7 +265,7 @@ export default function CurrentAssessmentCard() {
       <div className="cardTop">
         <h2 className="cardTitle">Human Return Index™ Dashboard</h2>
         <span className={`chip ${loading ? "chipMuted" : "chipLive"}`}>
-          {loading ? "Loading…" : "LIVE PILOT"}
+          {loading ? "Loading…" : "LIVE"}
         </span>
       </div>
 
