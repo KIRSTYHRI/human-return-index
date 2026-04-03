@@ -1,9 +1,9 @@
 "use client";
 
-import LogoutButton from "@/app/components/LogoutButton";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "../../lib/supabase/browser";
+import LogoutButton from "@/app/components/LogoutButton";
 
 export const dynamic = "force-dynamic";
 
@@ -37,11 +37,14 @@ export default function DashboardLayout({ children }) {
     check();
   }, [router]);
 
-  if (!ready) return <div style={{ padding: 16 }}>Loading… {debug}</div>;
+  if (!ready) {
+    return <div style={{ padding: 16 }}>Loading… {debug}</div>;
+  }
 
-return (
-  <>
-    <LogoutButton />
-    {children}
-  </>
-);
+  return (
+    <>
+      <LogoutButton />
+      {children}
+    </>
+  );
+}
