@@ -2,10 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getAuthUser } from "@/lib/getAuthUser";
 
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
-
-const VERSION = "OVERVIEW__V15__WITH_HISTORY";
+const VERSION = "OVERVIEW__V16__PROFILE_ORG";
 
 function getServiceSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -35,53 +32,55 @@ function blendEqual(employeeValue, employerValue) {
   return null;
 }
 
-function noStoreJson(body, status = 200) {
-  return new NextResponse(JSON.stringify(body), {
-    status,
-    headers: {
-      "Content-Type": "application/json",
-      "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
-      Pragma: "no-cache",
-      Expires: "0",
-      "Surrogate-Control": "no-store",
-    },
-  });
-}
-
 export async function GET(req) {
   try {
     const demoOrgId = process.env.HRI_DEMO_ORG_ID || null;
     const { user, error } = await getAuthUser(req);
     const supabase = getServiceSupabase();
 
-    const { searchParams } = new URL(req.url);
-    const queryOrgId =
-      searchParams.get("organisation_id") ||
-      searchParams.get("organization_id") ||
-      null;
+    let organisation_id = null;
+    let profile = null;
 
-    const organisation_id = demoOrgId || queryOrgId || null;
+    if (!user) {
+      if (!demoOrgId) {
+        return NextResponse.json(
+          { ok: false, version: VERSION, error: error || "Auth session missing!" },
+          { status: 401 }
+        );
+      }
 
-    if (!user && !organisation_id) {
-      return noStoreJson(
-        { ok: false, version: VERSION, error: error || "Auth session missing!" },
-        401
-      );
+      organisation_id = demoOrgId;
+    } else {
+      const { data: profileRow, error: profileError } = await supabase
+        .from("profiles")
+        .select("organisation_id, role, full_name")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (profileError) {
+        return NextResponse.json(
+          { ok: false, version: VERSION, error: profileError.message, user_id: user.id },
+          { status: 500 }
+        );
+      }
+
+      profile = profileRow || null;
+      organisation_id = profile?.organisation_id || null;
+
+      if (!organisation_id) {
+        return NextResponse.json(
+          {
+            ok: false,
+            version: VERSION,
+            error: "No organisation linked to this user profile.",
+            user_id: user.id,
+            profile: profile || null,
+          },
+          { status: 400 }
+        );
+      }
     }
 
-    if (!organisation_id) {
-      return noStoreJson(
-        {
-          ok: false,
-          version: VERSION,
-          error:
-            "Missing organisation_id. Pass organisation_id in querystring or set HRI_DEMO_ORG_ID.",
-        },
-        400
-      );
-    }
-
-    // CURRENT LIVE SCORE
     const { data: hriRow, error: hriErr } = await supabase
       .from("hri_scores")
       .select("*")
@@ -91,48 +90,12 @@ export async function GET(req) {
       .maybeSingle();
 
     if (hriErr) {
-      return noStoreJson(
+      return NextResponse.json(
         { ok: false, version: VERSION, error: hriErr.message },
-        500
+        { status: 500 }
       );
     }
 
-    // SCORE HISTORY - latest two records
-    const { data: historyRows, error: historyErr } = await supabase
-      .from("hri_score_history")
-      .select("id, hri_score, created_at")
-      .eq("organisation_id", organisation_id)
-      .order("created_at", { ascending: false })
-      .limit(2);
-
-    if (historyErr) {
-      return noStoreJson(
-        { ok: false, version: VERSION, error: historyErr.message },
-        500
-      );
-    }
-
-    const currentHistoryRow = historyRows?.[0] || null;
-    const previousHistoryRow = historyRows?.[1] || null;
-
-    const currentScore =
-      hriRow?.hri_score != null
-        ? Number(hriRow.hri_score)
-        : currentHistoryRow?.hri_score != null
-        ? Number(currentHistoryRow.hri_score)
-        : null;
-
-    const previousScore =
-      previousHistoryRow?.hri_score != null
-        ? Number(previousHistoryRow.hri_score)
-        : null;
-
-    const scoreChange =
-      currentScore != null && previousScore != null
-        ? Math.round((currentScore - previousScore) * 10) / 10
-        : null;
-
-    // LATEST VALID EMPLOYER ASSESSMENTS
     const { data: assessmentRows, error: assessErr } = await supabase
       .from("hri_assessments")
       .select("id, org_id, title, overall_score, pillar_scores, created_at")
@@ -141,22 +104,20 @@ export async function GET(req) {
       .limit(10);
 
     if (assessErr) {
-      return noStoreJson(
+      return NextResponse.json(
         { ok: false, version: VERSION, error: assessErr.message },
-        500
+        { status: 500 }
       );
     }
 
-    const validAssessments = (assessmentRows || []).filter(
-      (row) =>
-        row?.overall_score != null &&
-        row?.pillar_scores &&
-        typeof row.pillar_scores === "object" &&
-        Object.keys(row.pillar_scores).length > 0
-    );
-
-    const latestAssessment = validAssessments[0] || null;
-    const previousAssessment = validAssessments[1] || null;
+    const latestAssessment =
+      (assessmentRows || []).find(
+        (row) =>
+          row?.overall_score != null &&
+          row?.pillar_scores &&
+          typeof row.pillar_scores === "object" &&
+          Object.keys(row.pillar_scores).length > 0
+      ) || null;
 
     const pillar_scores = hriRow
       ? {
@@ -183,22 +144,22 @@ export async function GET(req) {
         }
       : null;
 
-    return noStoreJson({
+    return NextResponse.json({
       ok: true,
       version: VERSION,
       demo: !user,
       organisation_id,
       user_id: user?.id || null,
+      role: profile?.role || null,
+      full_name: profile?.full_name || null,
       overview: {
-        overall_score: currentScore,
-        previous_score: previousScore,
-        score_change: scoreChange,
-        employer_score:
-          hriRow?.employer_score != null ? Number(hriRow.employer_score) : null,
-        employee_score:
-          hriRow?.employee_score != null ? Number(hriRow.employee_score) : null,
+        overall_score: hriRow?.hri_score != null ? Number(hriRow.hri_score) : null,
+        previous_score: hriRow?.previous_hri_score != null ? Number(hriRow.previous_hri_score) : null,
+        score_change: hriRow?.score_change != null ? Number(hriRow.score_change) : null,
+        employer_score: hriRow?.employer_score != null ? Number(hriRow.employer_score) : null,
+        employee_score: hriRow?.employee_score != null ? Number(hriRow.employee_score) : null,
+        updated_at: hriRow?.updated_at || null,
         badge: hriRow?.badge || null,
-        updated_at: hriRow?.updated_at || currentHistoryRow?.created_at || null,
         pillar_scores,
         latest_assessment: latestAssessment
           ? {
@@ -211,27 +172,12 @@ export async function GET(req) {
                   : null,
             }
           : null,
-        previous_assessment: previousAssessment
-          ? {
-              id: previousAssessment.id,
-              title: previousAssessment.title || "HRI Assessment",
-              created_at: previousAssessment.created_at,
-              overall_score:
-                previousAssessment.overall_score != null
-                  ? Number(previousAssessment.overall_score)
-                  : null,
-            }
-          : null,
       },
     });
   } catch (err) {
-    return noStoreJson(
-      {
-        ok: false,
-        version: VERSION,
-        error: err?.message || "Failed to load overview",
-      },
-      500
+    return NextResponse.json(
+      { ok: false, version: VERSION, error: err?.message || "Failed to load overview" },
+      { status: 500 }
     );
   }
 }
