@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "../../lib/supabase/browser";
-import LogoutButton from "@/app/components/LogoutButton";
+import LogoutButton from "../components/LogoutButton";
 
 export const dynamic = "force-dynamic";
 
