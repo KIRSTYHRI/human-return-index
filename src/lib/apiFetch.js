@@ -7,21 +7,23 @@ async function apiFetch(path, options = {}) {
   const opts = { ...(options || {}) };
   const headers = new Headers(opts.headers || {});
 
-  // always include cookies if available
   if (!opts.credentials) opts.credentials = "include";
 
   try {
     const supabase = supabaseBrowser();
-    const { data, error } = await supabase.auth.getSession();
 
-    if (error) {
-      console.warn("apiFetch getSession error:", error.message);
-    }
+    if (supabase) {
+      const { data, error } = await supabase.auth.getSession();
 
-    const token = data?.session?.access_token;
+      if (error) {
+        console.warn("apiFetch getSession error:", error.message);
+      }
 
-    if (token && !headers.has("Authorization")) {
-      headers.set("Authorization", `Bearer ${token}`);
+      const token = data?.session?.access_token;
+
+      if (token && !headers.has("Authorization")) {
+        headers.set("Authorization", `Bearer ${token}`);
+      }
     }
   } catch (err) {
     console.warn("apiFetch auth header fallback:", err?.message || err);
