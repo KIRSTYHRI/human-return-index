@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const VERSION = "ORG_METRICS__V5__REAL_ORG";
+const VERSION = "ORG_METRICS__V6__REAL_ORG_WITH_POST";
 
 function getServiceSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -21,6 +21,32 @@ function getServiceSupabase() {
   });
 }
 
+function toNumberOrNull(value) {
+  if (value === "" || value === null || value === undefined) return null;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
+async function getOrganisationIdForUser(supabase, userId) {
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("organisation_id")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (profileError) {
+    throw new Error(profileError.message);
+  }
+
+  const organisation_id = profile?.organisation_id || null;
+
+  if (!organisation_id) {
+    throw new Error("No organisation linked to this user profile.");
+  }
+
+  return organisation_id;
+}
+
 export async function GET(req) {
   try {
     const { user, error } = await getAuthUser(req);
@@ -33,30 +59,8 @@ export async function GET(req) {
     }
 
     const supabase = getServiceSupabase();
+    const organisation_id = await getOrganisationIdForUser(supabase, user.id);
 
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("organisation_id")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    if (profileError) {
-      return NextResponse.json(
-        { ok: false, version: VERSION, error: profileError.message },
-        { status: 500 }
-      );
-    }
-
-    const organisation_id = profile?.organisation_id || null;
-
-    if (!organisation_id) {
-      return NextResponse.json(
-        { ok: false, version: VERSION, error: "No organisation linked to this user profile." },
-        { status: 400 }
-      );
-    }
-
-    // Try to read from organisations table first
     const { data: orgRow, error: orgError } = await supabase
       .from("organisations")
       .select("*")
@@ -77,9 +81,9 @@ export async function GET(req) {
       organisation_id,
       metrics: {
         organisation_name:
-          orgRow?.name ||
-          orgRow?.organisation_name ||
-          "Your organisation",
+          orgRow?.name ??
+          orgRow?.organisation_name ??
+          "",
         employees:
           orgRow?.employees ??
           orgRow?.headcount ??
@@ -107,6 +111,82 @@ export async function GET(req) {
   } catch (err) {
     return NextResponse.json(
       { ok: false, version: VERSION, error: err?.message || "Failed to load org metrics" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(req) {
+  try {
+    const { user, error } = await getAuthUser(req);
+
+    if (!user) {
+      return NextResponse.json(
+        { ok: false, version: VERSION, error: error || "Auth session missing!" },
+        { status: 401 }
+      );
+    }
+
+    const supabase = getServiceSupabase();
+    const organisation_id = await getOrganisationIdForUser(supabase, user.id);
+
+    const body = await req.json().catch(() => ({}));
+
+    const organisation_name = (body?.organisation_name || "").trim();
+    const employees = toNumberOrNull(body?.employees);
+    const avg_salary = toNumberOrNull(body?.avg_salary);
+    const turnover_rate = toNumberOrNull(body?.turnover_rate);
+    const absence_days = toNumberOrNull(body?.absence_days);
+    const wellbeing_spend = toNumberOrNull(body?.wellbeing_spend);
+    const engagement_score = toNumberOrNull(body?.engagement_score);
+
+    if (engagement_score !== null && (engagement_score < 0 || engagement_score > 100)) {
+      return NextResponse.json(
+        { ok: false, version: VERSION, error: "Engagement score must be between 0 and 100." },
+        { status: 400 }
+      );
+    }
+
+    const updatePayload = {
+      name: organisation_name || null,
+      organisation_name: organisation_name || null,
+      employees,
+      headcount: employees,
+      avg_salary,
+      average_salary: avg_salary,
+      turnover_rate,
+      absence_days,
+      absence_days_per_employee: absence_days,
+      wellbeing_spend,
+      annual_wellbeing_spend: wellbeing_spend,
+      engagement_score,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { data, error: updateError } = await supabase
+      .from("organisations")
+      .update(updatePayload)
+      .eq("id", organisation_id)
+      .select("*")
+      .maybeSingle();
+
+    if (updateError) {
+      return NextResponse.json(
+        { ok: false, version: VERSION, error: updateError.message },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      ok: true,
+      version: VERSION,
+      organisation_id,
+      saved: true,
+      organisation: data || null,
+    });
+  } catch (err) {
+    return NextResponse.json(
+      { ok: false, version: VERSION, error: err?.message || "Failed to save org metrics" },
       { status: 500 }
     );
   }
