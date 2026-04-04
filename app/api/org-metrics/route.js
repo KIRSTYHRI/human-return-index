@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const VERSION = "ORG_METRICS__V7__SCHEMA_SAFE";
+const VERSION = "ORG_METRICS__V8__NO_ABSENCE_COLUMN";
 
 function getServiceSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -92,7 +92,7 @@ export async function GET(req) {
         employees: orgRow?.employees ?? null,
         avg_salary: orgRow?.average_salary ?? null,
         turnover_rate: orgRow?.turnover_rate ?? null,
-        absence_days: orgRow?.absence_days_per_employee ?? null,
+        absence_days: null,
         wellbeing_spend: orgRow?.annual_wellbeing_spend ?? null,
         engagement_score: orgRow?.engagement_score ?? null,
       },
@@ -133,7 +133,6 @@ export async function POST(req) {
     const employees = toNumberOrNull(body?.employees);
     const avg_salary = toNumberOrNull(body?.avg_salary);
     const turnover_rate = toNumberOrNull(body?.turnover_rate);
-    const absence_days = toNumberOrNull(body?.absence_days);
     const wellbeing_spend = toNumberOrNull(body?.wellbeing_spend);
     const engagement_score = toNumberOrNull(body?.engagement_score);
 
@@ -156,7 +155,6 @@ export async function POST(req) {
       employees,
       average_salary: avg_salary,
       turnover_rate,
-      absence_days_per_employee: absence_days,
       annual_wellbeing_spend: wellbeing_spend,
       engagement_score,
       updated_at: new Date().toISOString(),
