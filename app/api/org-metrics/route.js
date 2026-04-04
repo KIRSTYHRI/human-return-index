@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const VERSION = "ORG_METRICS__V6__REAL_ORG_WITH_POST";
+const VERSION = "ORG_METRICS__V7__SCHEMA_SAFE";
 
 function getServiceSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -17,7 +17,10 @@ function getServiceSupabase() {
   }
 
   return createClient(url, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
   });
 }
 
@@ -28,23 +31,21 @@ function toNumberOrNull(value) {
 }
 
 async function getOrganisationIdForUser(supabase, userId) {
-  const { data: profile, error: profileError } = await supabase
+  const { data: profile, error } = await supabase
     .from("profiles")
     .select("organisation_id")
     .eq("id", userId)
     .maybeSingle();
 
-  if (profileError) {
-    throw new Error(profileError.message);
+  if (error) {
+    throw new Error(error.message);
   }
 
-  const organisation_id = profile?.organisation_id || null;
-
-  if (!organisation_id) {
+  if (!profile?.organisation_id) {
     throw new Error("No organisation linked to this user profile.");
   }
 
-  return organisation_id;
+  return profile.organisation_id;
 }
 
 export async function GET(req) {
@@ -53,7 +54,11 @@ export async function GET(req) {
 
     if (!user) {
       return NextResponse.json(
-        { ok: false, version: VERSION, error: error || "Auth session missing!" },
+        {
+          ok: false,
+          version: VERSION,
+          error: error || "Auth session missing!",
+        },
         { status: 401 }
       );
     }
@@ -69,7 +74,11 @@ export async function GET(req) {
 
     if (orgError) {
       return NextResponse.json(
-        { ok: false, version: VERSION, error: orgError.message },
+        {
+          ok: false,
+          version: VERSION,
+          error: orgError.message,
+        },
         { status: 500 }
       );
     }
@@ -77,40 +86,24 @@ export async function GET(req) {
     return NextResponse.json({
       ok: true,
       version: VERSION,
-      demo: false,
       organisation_id,
       metrics: {
-        organisation_name:
-          orgRow?.name ??
-          orgRow?.organisation_name ??
-          "",
-        employees:
-          orgRow?.employees ??
-          orgRow?.headcount ??
-          null,
-        avg_salary:
-          orgRow?.avg_salary ??
-          orgRow?.average_salary ??
-          null,
-        turnover_rate:
-          orgRow?.turnover_rate ??
-          null,
-        absence_days:
-          orgRow?.absence_days ??
-          orgRow?.absence_days_per_employee ??
-          null,
-        wellbeing_spend:
-          orgRow?.wellbeing_spend ??
-          orgRow?.annual_wellbeing_spend ??
-          null,
-        engagement_score:
-          orgRow?.engagement_score ??
-          null,
+        organisation_name: orgRow?.organisation_name ?? "",
+        employees: orgRow?.employees ?? null,
+        avg_salary: orgRow?.average_salary ?? null,
+        turnover_rate: orgRow?.turnover_rate ?? null,
+        absence_days: orgRow?.absence_days_per_employee ?? null,
+        wellbeing_spend: orgRow?.annual_wellbeing_spend ?? null,
+        engagement_score: orgRow?.engagement_score ?? null,
       },
     });
   } catch (err) {
     return NextResponse.json(
-      { ok: false, version: VERSION, error: err?.message || "Failed to load org metrics" },
+      {
+        ok: false,
+        version: VERSION,
+        error: err?.message || "Failed to load org metrics",
+      },
       { status: 500 }
     );
   }
@@ -122,7 +115,11 @@ export async function POST(req) {
 
     if (!user) {
       return NextResponse.json(
-        { ok: false, version: VERSION, error: error || "Auth session missing!" },
+        {
+          ok: false,
+          version: VERSION,
+          error: error || "Auth session missing!",
+        },
         { status: 401 }
       );
     }
@@ -140,24 +137,26 @@ export async function POST(req) {
     const wellbeing_spend = toNumberOrNull(body?.wellbeing_spend);
     const engagement_score = toNumberOrNull(body?.engagement_score);
 
-    if (engagement_score !== null && (engagement_score < 0 || engagement_score > 100)) {
+    if (
+      engagement_score !== null &&
+      (engagement_score < 0 || engagement_score > 100)
+    ) {
       return NextResponse.json(
-        { ok: false, version: VERSION, error: "Engagement score must be between 0 and 100." },
+        {
+          ok: false,
+          version: VERSION,
+          error: "Engagement score must be between 0 and 100.",
+        },
         { status: 400 }
       );
     }
 
     const updatePayload = {
-      name: organisation_name || null,
       organisation_name: organisation_name || null,
       employees,
-      headcount: employees,
-      avg_salary,
       average_salary: avg_salary,
       turnover_rate,
-      absence_days,
       absence_days_per_employee: absence_days,
-      wellbeing_spend,
       annual_wellbeing_spend: wellbeing_spend,
       engagement_score,
       updated_at: new Date().toISOString(),
@@ -172,7 +171,11 @@ export async function POST(req) {
 
     if (updateError) {
       return NextResponse.json(
-        { ok: false, version: VERSION, error: updateError.message },
+        {
+          ok: false,
+          version: VERSION,
+          error: updateError.message,
+        },
         { status: 500 }
       );
     }
@@ -186,7 +189,11 @@ export async function POST(req) {
     });
   } catch (err) {
     return NextResponse.json(
-      { ok: false, version: VERSION, error: err?.message || "Failed to save org metrics" },
+      {
+        ok: false,
+        version: VERSION,
+        error: err?.message || "Failed to save org metrics",
+      },
       { status: 500 }
     );
   }
