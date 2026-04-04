@@ -28,8 +28,10 @@ export default function OrgMetricsPage() {
     async function loadMetrics() {
       try {
         setLoading(true);
+        setError(null);
+
         const res = await apiFetch("/api/org-metrics", { cache: "no-store" });
-        const json = await res.json();
+        const json = await res.json().catch(() => ({}));
 
         if (cancelled) return;
 
@@ -48,12 +50,14 @@ export default function OrgMetricsPage() {
           wellbeing_spend: metrics?.wellbeing_spend ?? "",
           engagement_score: metrics?.engagement_score ?? "",
         });
-
-        setError(null);
       } catch (e) {
-        if (!cancelled) setError(e?.message || "Failed to load organisation metrics");
+        if (!cancelled) {
+          setError(e?.message || "Failed to load organisation metrics");
+        }
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     }
 
@@ -68,6 +72,12 @@ export default function OrgMetricsPage() {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
+  function toNumberOrNull(value) {
+    if (value === "" || value === null || value === undefined) return null;
+    const num = Number(value);
+    return Number.isFinite(num) ? num : null;
+  }
+
   async function handleSave(e) {
     e.preventDefault();
 
@@ -76,12 +86,32 @@ export default function OrgMetricsPage() {
       setError(null);
       setSuccess(null);
 
+      const payload = {
+        organisation_name: form.organisation_name?.trim() || "",
+        employees: toNumberOrNull(form.employees),
+        avg_salary: toNumberOrNull(form.avg_salary),
+        turnover_rate: toNumberOrNull(form.turnover_rate),
+        absence_days: toNumberOrNull(form.absence_days),
+        wellbeing_spend: toNumberOrNull(form.wellbeing_spend),
+        engagement_score: toNumberOrNull(form.engagement_score),
+      };
+
+      if (
+        payload.engagement_score !== null &&
+        (payload.engagement_score < 0 || payload.engagement_score > 100)
+      ) {
+        throw new Error("Engagement score must be between 0 and 100.");
+      }
+
       const res = await apiFetch("/api/org-metrics", {
         method: "POST",
-        body: JSON.stringify(form),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
       });
 
-      const json = await res.json();
+      const json = await res.json().catch(() => ({}));
 
       if (!res.ok) {
         throw new Error(json?.error || "Failed to save organisation metrics");
@@ -128,6 +158,8 @@ export default function OrgMetricsPage() {
             onChange={(v) => updateField("employees", v)}
             placeholder="e.g. 260"
             type="number"
+            step="1"
+            min="0"
           />
 
           <Field
@@ -136,6 +168,8 @@ export default function OrgMetricsPage() {
             onChange={(v) => updateField("avg_salary", v)}
             placeholder="e.g. 40000"
             type="number"
+            step="0.01"
+            min="0"
           />
 
           <Field
@@ -145,6 +179,8 @@ export default function OrgMetricsPage() {
             placeholder="e.g. 15"
             type="number"
             step="0.1"
+            min="0"
+            max="100"
           />
 
           <Field
@@ -154,6 +190,7 @@ export default function OrgMetricsPage() {
             placeholder="e.g. 6.6"
             type="number"
             step="0.1"
+            min="0"
           />
 
           <Field
@@ -162,6 +199,8 @@ export default function OrgMetricsPage() {
             onChange={(v) => updateField("wellbeing_spend", v)}
             placeholder="e.g. 25000"
             type="number"
+            step="0.01"
+            min="0"
           />
 
           <Field
@@ -170,6 +209,9 @@ export default function OrgMetricsPage() {
             onChange={(v) => updateField("engagement_score", v)}
             placeholder="e.g. 72"
             type="number"
+            step="0.1"
+            min="0"
+            max="100"
           />
 
           <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
@@ -191,14 +233,25 @@ export default function OrgMetricsPage() {
   );
 }
 
-function Field({ label, value, onChange, placeholder, type = "text", step }) {
+function Field({
+  label,
+  value,
+  onChange,
+  placeholder,
+  type = "text",
+  step,
+  min,
+  max,
+}) {
   return (
     <label style={{ display: "grid", gap: 6 }}>
       <span style={{ fontSize: 14, fontWeight: 700 }}>{label}</span>
       <input
         type={type}
         step={step}
-        value={value}
+        min={min}
+        max={max}
+        value={value ?? ""}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
         style={{
