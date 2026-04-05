@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const VERSION = "ORG_METRICS__V8__NO_ABSENCE_COLUMN";
+const VERSION = "ORG_METRICS__V9__MATCHES_DB_SCHEMA";
 
 function getServiceSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -88,12 +88,12 @@ export async function GET(req) {
       version: VERSION,
       organisation_id,
       metrics: {
-        organisation_name: orgRow?.organisation_name ?? "",
-        employees: orgRow?.employees ?? null,
-        avg_salary: orgRow?.average_salary ?? null,
+        name: orgRow?.name ?? "",
+        employee_count: orgRow?.employee_count ?? null,
+        avg_salary: orgRow?.avg_salary ?? null,
         turnover_rate: orgRow?.turnover_rate ?? null,
-        absence_days: null,
-        wellbeing_spend: orgRow?.annual_wellbeing_spend ?? null,
+        absent_days_per_employee: orgRow?.absent_days_per_employee ?? null,
+        annual_wellbeing_spend: orgRow?.annual_wellbeing_spend ?? null,
         engagement_score: orgRow?.engagement_score ?? null,
       },
     });
@@ -129,11 +129,17 @@ export async function POST(req) {
 
     const body = await req.json().catch(() => ({}));
 
-    const organisation_name = (body?.organisation_name || "").trim();
-    const employees = toNumberOrNull(body?.employees);
-    const avg_salary = toNumberOrNull(body?.avg_salary);
+    // Accept both old frontend names and correct DB-aligned names
+    const name = (body?.name || body?.organisation_name || "").trim();
+    const employee_count = toNumberOrNull(body?.employee_count ?? body?.employees);
+    const avg_salary = toNumberOrNull(body?.avg_salary ?? body?.average_salary);
     const turnover_rate = toNumberOrNull(body?.turnover_rate);
-    const wellbeing_spend = toNumberOrNull(body?.wellbeing_spend);
+    const absent_days_per_employee = toNumberOrNull(
+      body?.absent_days_per_employee ?? body?.absence_days_per_employee ?? body?.absence_days
+    );
+    const annual_wellbeing_spend = toNumberOrNull(
+      body?.annual_wellbeing_spend ?? body?.wellbeing_spend
+    );
     const engagement_score = toNumberOrNull(body?.engagement_score);
 
     if (
@@ -151,13 +157,13 @@ export async function POST(req) {
     }
 
     const updatePayload = {
-      organisation_name: organisation_name || null,
-      employees,
-      average_salary: avg_salary,
+      name: name || null,
+      employee_count,
+      avg_salary,
       turnover_rate,
-      annual_wellbeing_spend: wellbeing_spend,
+      absent_days_per_employee,
+      annual_wellbeing_spend,
       engagement_score,
-      updated_at: new Date().toISOString(),
     };
 
     const { data, error: updateError } = await supabase
@@ -183,7 +189,15 @@ export async function POST(req) {
       version: VERSION,
       organisation_id,
       saved: true,
-      organisation: data || null,
+      metrics: {
+        name: data?.name ?? "",
+        employee_count: data?.employee_count ?? null,
+        avg_salary: data?.avg_salary ?? null,
+        turnover_rate: data?.turnover_rate ?? null,
+        absent_days_per_employee: data?.absent_days_per_employee ?? null,
+        annual_wellbeing_spend: data?.annual_wellbeing_spend ?? null,
+        engagement_score: data?.engagement_score ?? null,
+      },
     });
   } catch (err) {
     return NextResponse.json(
