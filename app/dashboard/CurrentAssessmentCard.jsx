@@ -507,8 +507,7 @@ function OrgMetricsCard({ metrics, loading, isDemoMetrics }) {
       v: metrics?.employees != null ? metrics.employees : "—",
     },
     {
-      k: "Average salary",
-      v: metrics?.avg_salary != null ? `£${Number(metrics.avg_salary).toLocaleString()}` : "—",
+     { k: "Average salary", v: metrics?.avg_salary != null ? `£${Number(metrics.avg_salary).toLocaleString()}` : "—" },
     },
     {
       k: "Turnover rate",
