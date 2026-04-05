@@ -97,7 +97,6 @@ export default function CurrentAssessmentCard() {
   const [loading, setLoading] = useState(true);
   const [overview, setOverview] = useState(null);
   const [metrics, setMetrics] = useState(null);
-  const [isDemoMetrics, setIsDemoMetrics] = useState(false);
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -114,7 +113,6 @@ export default function CurrentAssessmentCard() {
           setError(data?.error || "Failed to load overview");
           setOverview(null);
           setMetrics(null);
-          setIsDemoMetrics(false);
           return;
         }
 
@@ -131,13 +129,11 @@ export default function CurrentAssessmentCard() {
         }
 
         setMetrics(metricsData?.metrics || metricsData || null);
-        setIsDemoMetrics(metricsData?.demo === true);
       } catch (e) {
         if (!cancelled) {
           setError(e?.message || "Failed to load dashboard");
           setOverview(null);
           setMetrics(null);
-          setIsDemoMetrics(false);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -189,9 +185,6 @@ export default function CurrentAssessmentCard() {
       .sort((a, b) => b.value - a.value)[0] || null;
   }, [pillarList]);
 
-  // ==========================
-  // STANDARDISED HRI FINANCIAL MODEL
-  // ==========================
   const employees = num(metrics?.employees);
   const avgSalary = num(metrics?.avg_salary);
   const absenceDaysPerEmployee = num(metrics?.absence_days);
@@ -434,9 +427,7 @@ export default function CurrentAssessmentCard() {
                 {formatCurrency(totalValueAtStake)}
               </div>
               <div className="mutedSmall" style={{ marginTop: 6 }}>
-                {isDemoMetrics
-                  ? "Based on example organisation inputs for pilot demonstration. Replace with your own data to calculate your real financial exposure."
-                  : "Based on your current HRI score and organisation inputs, this is the estimated financial exposure across your workforce."}
+                Based on your current HRI score and organisation inputs, this is the estimated financial exposure across your workforce.
               </div>
             </div>
 
@@ -488,26 +479,28 @@ export default function CurrentAssessmentCard() {
             </div>
           </div>
 
-          <OrgMetricsCard
-            metrics={metrics}
-            loading={loading}
-            isDemoMetrics={isDemoMetrics}
-          />
+          <OrgMetricsCard metrics={metrics} loading={loading} />
         </div>
       )}
     </div>
   );
 }
 
-function OrgMetricsCard({ metrics, loading, isDemoMetrics }) {
+function OrgMetricsCard({ metrics, loading }) {
   const items = [
-    { k: "Organisation", v: metrics?.organisation_name || "Your organisation" },
+    {
+      k: "Organisation",
+      v: metrics?.organisation_name || "Your organisation",
+    },
     {
       k: "Employees",
       v: metrics?.employees != null ? metrics.employees : "—",
     },
     {
-     { k: "Average salary", v: metrics?.avg_salary != null ? `£${Number(metrics.avg_salary).toLocaleString()}` : "—" },
+      k: "Average salary",
+      v: metrics?.avg_salary != null
+        ? `£${Number(metrics.avg_salary).toLocaleString()}`
+        : "—",
     },
     {
       k: "Turnover rate",
@@ -519,7 +512,9 @@ function OrgMetricsCard({ metrics, loading, isDemoMetrics }) {
     },
     {
       k: "Annual wellbeing spend",
-      v: metrics?.wellbeing_spend != null ? `£${Number(metrics.wellbeing_spend).toLocaleString()}` : "—",
+      v: metrics?.wellbeing_spend != null
+        ? `£${Number(metrics.wellbeing_spend).toLocaleString()}`
+        : "—",
     },
     {
       k: "Engagement score",
@@ -530,28 +525,9 @@ function OrgMetricsCard({ metrics, loading, isDemoMetrics }) {
   return (
     <div className="panel">
       <div className="panelHeader">
-        <div className="panelTitle">
-          {isDemoMetrics ? "Example organisation metrics" : "Organisation metrics"}
-        </div>
+        <div className="panelTitle">Organisation metrics</div>
         <div className="panelMeta">{loading ? "Loading…" : "Core inputs"}</div>
       </div>
-
-      {isDemoMetrics && (
-        <div
-          style={{
-            marginTop: 10,
-            marginBottom: 12,
-            padding: 12,
-            borderRadius: 10,
-            background: "rgba(254,224,0,0.08)",
-            border: "1px solid rgba(254,224,0,0.25)",
-            fontSize: 13,
-            fontWeight: 600,
-          }}
-        >
-          Example data shown for illustration. Replace with your organisation inputs to calculate your real financial impact.
-        </div>
-      )}
 
       <p className="mutedSmall" style={{ marginTop: 8 }}>
         Core people and cost inputs used to model your HRI score and people risk.
@@ -568,7 +544,7 @@ function OrgMetricsCard({ metrics, loading, isDemoMetrics }) {
 
       <div style={{ marginTop: 16 }}>
         <Link href="/dashboard/org-metrics" className="linkChip">
-          Update your organisation data
+          Update organisation data
         </Link>
       </div>
     </div>
