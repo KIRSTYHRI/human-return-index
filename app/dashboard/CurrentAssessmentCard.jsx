@@ -185,9 +185,9 @@ export default function CurrentAssessmentCard() {
       .sort((a, b) => b.value - a.value)[0] || null;
   }, [pillarList]);
 
-  const employees = num(metrics?.employees);
+  const employees = num(metrics?.employee_count);
   const avgSalary = num(metrics?.avg_salary);
-  const absenceDaysPerEmployee = num(metrics?.absence_days);
+  const absenceDaysPerEmployee = num(metrics?.absent_days_per_employee);
   const turnoverRatePercent = num(metrics?.turnover_rate);
   const hriScoreInput = hriScore;
 
@@ -490,11 +490,11 @@ function OrgMetricsCard({ metrics, loading }) {
   const items = [
     {
       k: "Organisation",
-      v: metrics?.organisation_name || "Your organisation",
+      v: metrics?.name || "Your organisation",
     },
     {
       k: "Employees",
-      v: metrics?.employees != null ? metrics.employees : "—",
+      v: metrics?.employee_count != null ? metrics.employee_count : "—",
     },
     {
       k: "Average salary",
@@ -508,13 +508,17 @@ function OrgMetricsCard({ metrics, loading }) {
     },
     {
       k: "Absence days / employee",
-      v: metrics?.absence_days != null ? metrics.absence_days : "—",
+      v:
+        metrics?.absent_days_per_employee != null
+          ? metrics.absent_days_per_employee
+          : "—",
     },
     {
       k: "Annual wellbeing spend",
-      v: metrics?.wellbeing_spend != null
-        ? `£${Number(metrics.wellbeing_spend).toLocaleString()}`
-        : "—",
+      v:
+        metrics?.annual_wellbeing_spend != null
+          ? `£${Number(metrics.annual_wellbeing_spend).toLocaleString()}`
+          : "—",
     },
     {
       k: "Engagement score",
