@@ -22,19 +22,40 @@ function getServiceSupabase() {
 
 export async function POST(req) {
   try {
-    const demoOrgId = process.env.HRI_DEMO_ORG_ID || null;
-    const { user } = await getAuthUser(req);
     const supabase = getServiceSupabase();
+    const body = await req.json().catch(() => ({}));
 
-    const body = await req.json();
-    const answers = body?.answers || [];
+    let organisation_id = body?.organisation_id || null;
 
-    if (!answers.length) {
+    // Public pulse link can send organisation_id directly
+    // If not provided, fall back to logged-in user flow
+    if (!organisation_id) {
+      const { user, error } = await getAuthUser(req);
+
+      if (!user) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: error || "Auth session missing and no organisation_id supplied.",
+          },
+          { status: 401 }
+        );
+      }
+
+      organisation_id = await getOrganisationIdForUser(supabase, user.id);
+    }
+
+    const answers = body?.answers || {};
+
+    if (!organisation_id) {
       return NextResponse.json(
-        { ok: false, version: VERSION, error: "No answers provided." },
+        { ok: false, error: "Missing organisation_id." },
         { status: 400 }
       );
     }
+
+    // keep the rest of your existing insert / scoring logic below this
+    // but make sure it uses organisation_id from above
 
     const organisation_id = body?.organisation_id || demoOrgId || null;
 
