@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const VERSION = "EMPLOYEE_PULSE__PUBLIC_OR_AUTH__V2";
+const VERSION = "EMPLOYEE_PULSE__AUTO_HRI_V2";
 
 function getServiceSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -17,159 +17,153 @@ function getServiceSupabase() {
   }
 
   return createClient(url, key, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    },
+    auth: { persistSession: false, autoRefreshToken: false },
   });
 }
 
-async function getOrganisationIdForUser(supabase, userId) {
-  const { data: profile, error } = await supabase
-    .from("profiles")
-    .select("organisation_id")
-    .eq("id", userId)
-    .maybeSingle();
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  if (!profile?.organisation_id) {
-    throw new Error("No organisation linked to this user profile.");
-  }
-
-  return profile.organisation_id;
-}
-
 function normaliseAnswers(rawAnswers) {
-  if (!rawAnswers || typeof rawAnswers !== "object") return {};
+  if (!rawAnswers) return [];
 
-  const cleaned = {};
-
-  for (const [questionId, value] of Object.entries(rawAnswers)) {
-    const num = Number(value);
-    if (Number.isFinite(num)) {
-      cleaned[questionId] = num;
-    }
+  // Public pulse page sends: { questionId: value, ... }
+  if (!Array.isArray(rawAnswers) && typeof rawAnswers === "object") {
+    return Object.entries(rawAnswers).map(([question_id, value]) => ({
+      question_id,
+      value: Number(value),
+    }));
   }
 
-  return cleaned;
-}
+  // Internal/dashboard pulse page may send: [{ question_id, value }, ...]
+  if (Array.isArray(rawAnswers)) {
+    return rawAnswers.map((a) => ({
+      question_id: a?.question_id || a?.id || null,
+      value: Number(a?.value),
+    }));
+  }
 
-function calculatePulseScore(answers) {
-  const values = Object.values(answers)
-    .map((v) => Number(v))
-    .filter((v) => Number.isFinite(v));
-
-  if (!values.length) return null;
-
-  const average = values.reduce((sum, v) => sum + v, 0) / values.length;
-
-  // Convert 1–5 scale to 0–100
-  return Math.round(((average - 1) / 4) * 100);
+  return [];
 }
 
 export async function POST(req) {
   try {
+    const demoOrgId = process.env.HRI_DEMO_ORG_ID || null;
+    const { user } = await getAuthUser(req);
     const supabase = getServiceSupabase();
+
     const body = await req.json().catch(() => ({}));
-
-    let user_id = null;
-    let organisation_id = body?.organisation_id || null;
-
-    // Public pulse link can send organisation_id directly.
-    // If not provided, fall back to logged-in user flow.
-    if (!organisation_id) {
-      const { user, error } = await getAuthUser(req);
-
-      if (!user) {
-        return NextResponse.json(
-          {
-            ok: false,
-            version: VERSION,
-            error: error || "Auth session missing and no organisation_id supplied.",
-          },
-          { status: 401 }
-        );
-      }
-
-      user_id = user.id;
-      organisation_id = await getOrganisationIdForUser(supabase, user.id);
-    } else {
-      // Optional: if logged in as well, capture the user_id too
-      const { user } = await getAuthUser(req);
-      if (user?.id) {
-        user_id = user.id;
-      }
-    }
-
-    if (!organisation_id) {
-      return NextResponse.json(
-        {
-          ok: false,
-          version: VERSION,
-          error: "Missing organisation_id.",
-        },
-        { status: 400 }
-      );
-    }
-
     const answers = normaliseAnswers(body?.answers);
 
-    if (!Object.keys(answers).length) {
+    if (!answers.length) {
+      return NextResponse.json(
+        { ok: false, version: VERSION, error: "No answers provided." },
+        { status: 400 }
+      );
+    }
+
+    const organisation_id = body?.organisation_id || demoOrgId || null;
+
+    if (!organisation_id) {
       return NextResponse.json(
         {
           ok: false,
           version: VERSION,
-          error: "No answers submitted.",
+          error: "Missing organisation_id (and no HRI_DEMO_ORG_ID set).",
         },
         { status: 400 }
       );
     }
 
-    const pulse_score = calculatePulseScore(answers);
+    if (answers.length !== 10) {
+      return NextResponse.json(
+        { ok: false, version: VERSION, error: "Expected 10 answers." },
+        { status: 400 }
+      );
+    }
 
+    const values = answers.map((a) => Number(a.value));
+
+    if (values.some((v) => !Number.isFinite(v))) {
+      return NextResponse.json(
+        { ok: false, version: VERSION, error: "All answers must be valid numbers." },
+        { status: 400 }
+      );
+    }
+
+    const total_score = values.reduce((sum, v) => sum + v, 0);
+    const average_score = total_score / 10;
+
+    const pillar_1_score = (values[0] + values[1]) / 2;
+    const pillar_2_score = (values[2] + values[3]) / 2;
+    const pillar_3_score = (values[4] + values[5]) / 2;
+    const pillar_4_score = (values[6] + values[7]) / 2;
+    const pillar_5_score = (values[8] + values[9]) / 2;
+
+    // This is the table calculate-hri currently reads from
     const submission = {
-      user_id,
       organisation_id,
-      pulse_score,
-      answers,
-      created_at: new Date().toISOString(),
+      organization_id: String(organisation_id),
+      employee_email: body?.employee_email || null,
+      q1_leadership_vision: values[0],
+      q2_leadership_cares: values[1],
+      q3_work_life_balance: values[2],
+      q4_wellbeing_support: values[3],
+      q5_valued_included: values[4],
+      q6_treated_fairly: values[5],
+      q7_growth_opportunities: values[6],
+      q8_feedback_helps: values[7],
+      q9_trust_colleagues: values[8],
+      q10_clear_communication: values[9],
+      total_score,
+      average_score,
+      pillar_1_score,
+      pillar_2_score,
+      pillar_3_score,
+      pillar_4_score,
+      pillar_5_score,
+      submitted_at: new Date().toISOString(),
     };
 
-    const { data, error: insertError } = await supabase
-      .from("employee_pulses")
-      .insert(submission)
-      .select("*")
-      .maybeSingle();
+    const { error: submissionError } = await supabase
+      .from("pulse_check_submissions")
+      .insert(submission);
 
-    if (insertError) {
+    if (submissionError) {
       return NextResponse.json(
-        {
-          ok: false,
-          version: VERSION,
-          error: insertError.message,
-        },
+        { ok: false, version: VERSION, error: submissionError.message },
         { status: 500 }
       );
     }
 
+    // Optional: also keep a raw copy in employee_pulses
+    const pulse_score = Math.round(((average_score - 1) / 4) * 100);
+
+    await supabase.from("employee_pulses").insert({
+      user_id: user?.id || null,
+      organisation_id,
+      pulse_score,
+      answers: Object.fromEntries(answers.map((a) => [a.question_id || crypto.randomUUID(), a.value])),
+      created_at: new Date().toISOString(),
+    });
+
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || new URL(req.url).origin;
+
+    const calcRes = await fetch(
+      `${baseUrl}/api/calculate-hri?organisation_id=${organisation_id}`,
+      { method: "GET", cache: "no-store" }
+    );
+
+    const calcJson = await calcRes.json().catch(() => null);
+
     return NextResponse.json({
       ok: true,
       version: VERSION,
-      saved: true,
+      demo: !user,
+      message: "Pulse submitted successfully.",
       organisation_id,
-      pulse_score,
-      submission: data || null,
+      calculated: calcJson || null,
     });
   } catch (err) {
     return NextResponse.json(
-      {
-        ok: false,
-        version: VERSION,
-        error: err?.message || "Failed to submit employee pulse",
-      },
+      { ok: false, version: VERSION, error: err?.message || "Pulse submission failed" },
       { status: 500 }
     );
   }
