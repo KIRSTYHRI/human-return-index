@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const VERSION = "EMPLOYEE_PULSE__PUBLIC_OR_AUTH__V1";
+const VERSION = "EMPLOYEE_PULSE__PUBLIC_OR_AUTH__V2";
 
 function getServiceSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -57,11 +57,25 @@ function normaliseAnswers(rawAnswers) {
   return cleaned;
 }
 
+function calculatePulseScore(answers) {
+  const values = Object.values(answers)
+    .map((v) => Number(v))
+    .filter((v) => Number.isFinite(v));
+
+  if (!values.length) return null;
+
+  const average = values.reduce((sum, v) => sum + v, 0) / values.length;
+
+  // Convert 1–5 scale to 0–100
+  return Math.round(((average - 1) / 4) * 100);
+}
+
 export async function POST(req) {
   try {
     const supabase = getServiceSupabase();
     const body = await req.json().catch(() => ({}));
 
+    let user_id = null;
     let organisation_id = body?.organisation_id || null;
 
     // Public pulse link can send organisation_id directly.
@@ -80,7 +94,14 @@ export async function POST(req) {
         );
       }
 
+      user_id = user.id;
       organisation_id = await getOrganisationIdForUser(supabase, user.id);
+    } else {
+      // Optional: if logged in as well, capture the user_id too
+      const { user } = await getAuthUser(req);
+      if (user?.id) {
+        user_id = user.id;
+      }
     }
 
     if (!organisation_id) {
@@ -107,14 +128,18 @@ export async function POST(req) {
       );
     }
 
+    const pulse_score = calculatePulseScore(answers);
+
     const submission = {
+      user_id,
       organisation_id,
+      pulse_score,
       answers,
       created_at: new Date().toISOString(),
     };
 
     const { data, error: insertError } = await supabase
-      .from("employee_pulse")
+      .from("employee_pulses")
       .insert(submission)
       .select("*")
       .maybeSingle();
@@ -135,6 +160,7 @@ export async function POST(req) {
       version: VERSION,
       saved: true,
       organisation_id,
+      pulse_score,
       submission: data || null,
     });
   } catch (err) {
