@@ -154,7 +154,7 @@ export default function PublicPulseClient() {
                 }}
               >
                 <div style={{ fontWeight: 700, marginBottom: 12 }}>
-                  {idx + 1}. {q.question_text || q.label || q.question || "Question"}
+{idx + 1}. {q.text || q.question_text || q.label || q.question || "Question"}
                 </div>
 
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
