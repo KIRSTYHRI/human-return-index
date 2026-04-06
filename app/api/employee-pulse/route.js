@@ -2,10 +2,11 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getAuthUser } from "@/lib/getAuthUser";
 
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const VERSION = "EMPLOYEE_PULSE__SAVE_ONLY_V4";
+const VERSION = "EMPLOYEE_PULSE__PUBLIC_OR_AUTH__V1";
 
 function getServiceSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -16,8 +17,44 @@ function getServiceSupabase() {
   }
 
   return createClient(url, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
   });
+}
+
+async function getOrganisationIdForUser(supabase, userId) {
+  const { data: profile, error } = await supabase
+    .from("profiles")
+    .select("organisation_id")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (!profile?.organisation_id) {
+    throw new Error("No organisation linked to this user profile.");
+  }
+
+  return profile.organisation_id;
+}
+
+function normaliseAnswers(rawAnswers) {
+  if (!rawAnswers || typeof rawAnswers !== "object") return {};
+
+  const cleaned = {};
+
+  for (const [questionId, value] of Object.entries(rawAnswers)) {
+    const num = Number(value);
+    if (Number.isFinite(num)) {
+      cleaned[questionId] = num;
+    }
+  }
+
+  return cleaned;
 }
 
 export async function POST(req) {
@@ -27,8 +64,8 @@ export async function POST(req) {
 
     let organisation_id = body?.organisation_id || null;
 
-    // Public pulse link can send organisation_id directly
-    // If not provided, fall back to logged-in user flow
+    // Public pulse link can send organisation_id directly.
+    // If not provided, fall back to logged-in user flow.
     if (!organisation_id) {
       const { user, error } = await getAuthUser(req);
 
@@ -36,6 +73,7 @@ export async function POST(req) {
         return NextResponse.json(
           {
             ok: false,
+            version: VERSION,
             error: error || "Auth session missing and no organisation_id supplied.",
           },
           { status: 401 }
@@ -45,79 +83,49 @@ export async function POST(req) {
       organisation_id = await getOrganisationIdForUser(supabase, user.id);
     }
 
-    const answers = body?.answers || {};
-
-    if (!organisation_id) {
-      return NextResponse.json(
-        { ok: false, error: "Missing organisation_id." },
-        { status: 400 }
-      );
-    }
-
-    // keep the rest of your existing insert / scoring logic below this
-    // but make sure it uses organisation_id from above
-
-    const organisation_id = body?.organisation_id || demoOrgId || null;
-
     if (!organisation_id) {
       return NextResponse.json(
         {
           ok: false,
           version: VERSION,
-          error: "Missing organisation_id (and no HRI_DEMO_ORG_ID set).",
+          error: "Missing organisation_id.",
         },
         { status: 400 }
       );
     }
 
-    if (answers.length !== 10) {
+    const answers = normaliseAnswers(body?.answers);
+
+    if (!Object.keys(answers).length) {
       return NextResponse.json(
-        { ok: false, version: VERSION, error: "Expected 10 answers." },
+        {
+          ok: false,
+          version: VERSION,
+          error: "No answers submitted.",
+        },
         { status: 400 }
       );
     }
 
-    const values = answers.map((a) => Number(a.value));
-    const total_score = values.reduce((sum, v) => sum + v, 0);
-    const average_score = total_score / 10;
-
-    const pillar_1_score = (values[0] + values[1]) / 2;
-    const pillar_2_score = (values[2] + values[3]) / 2;
-    const pillar_3_score = (values[4] + values[5]) / 2;
-    const pillar_4_score = (values[6] + values[7]) / 2;
-    const pillar_5_score = (values[8] + values[9]) / 2;
-
     const submission = {
       organisation_id,
-      organization_id: String(organisation_id),
-      employee_email: body?.employee_email || null,
-      q1_leadership_vision: values[0],
-      q2_leadership_cares: values[1],
-      q3_work_life_balance: values[2],
-      q4_wellbeing_support: values[3],
-      q5_valued_included: values[4],
-      q6_treated_fairly: values[5],
-      q7_growth_opportunities: values[6],
-      q8_feedback_helps: values[7],
-      q9_trust_colleagues: values[8],
-      q10_clear_communication: values[9],
-      total_score,
-      average_score,
-      pillar_1_score,
-      pillar_2_score,
-      pillar_3_score,
-      pillar_4_score,
-      pillar_5_score,
-      submitted_at: new Date().toISOString(),
+      answers,
+      created_at: new Date().toISOString(),
     };
 
-    const { error: insertErr } = await supabase
-      .from("pulse_check_submissions")
-      .insert(submission);
+    const { data, error: insertError } = await supabase
+      .from("employee_pulse")
+      .insert(submission)
+      .select("*")
+      .maybeSingle();
 
-    if (insertErr) {
+    if (insertError) {
       return NextResponse.json(
-        { ok: false, version: VERSION, error: insertErr.message },
+        {
+          ok: false,
+          version: VERSION,
+          error: insertError.message,
+        },
         { status: 500 }
       );
     }
@@ -125,13 +133,17 @@ export async function POST(req) {
     return NextResponse.json({
       ok: true,
       version: VERSION,
-      demo: !user && !!demoOrgId,
+      saved: true,
       organisation_id,
-      message: "Pulse submitted successfully.",
+      submission: data || null,
     });
   } catch (err) {
     return NextResponse.json(
-      { ok: false, version: VERSION, error: err?.message || "Pulse submission failed" },
+      {
+        ok: false,
+        version: VERSION,
+        error: err?.message || "Failed to submit employee pulse",
+      },
       { status: 500 }
     );
   }
