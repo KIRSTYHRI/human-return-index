@@ -1,4 +1,3 @@
-import { getUserContext } from "@/src/lib/server/getUserContext";
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getAuthUser } from "@/lib/getAuthUser";
