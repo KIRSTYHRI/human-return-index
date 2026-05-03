@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/lib/apiFetch";
 
-async function readJsonSafe(res: Response, label: string) {
+async function readJsonSafe(res, label) {
   const text = await res.text();
 
   try {
@@ -15,12 +15,12 @@ async function readJsonSafe(res: Response, label: string) {
 
 export default function EmployeePulsePage() {
   const [loading, setLoading] = useState(true);
-  const [questions, setQuestions] = useState<any[]>([]);
-  const [answers, setAnswers] = useState<Record<string, number>>({});
+  const [questions, setQuestions] = useState([]);
+  const [answers, setAnswers] = useState({});
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
-  const [organisationId, setOrganisationId] = useState<string | null>(null);
+  const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null);
+  const [organisationId, setOrganisationId] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -30,7 +30,6 @@ export default function EmployeePulsePage() {
         setLoading(true);
         setError(null);
 
-        // IMPORTANT: your working route is /api/me/org
         const meRes = await apiFetch("/api/me/org", { cache: "no-store" });
         const meJson = await readJsonSafe(meRes, "/api/me/org");
 
@@ -70,7 +69,7 @@ export default function EmployeePulsePage() {
         }
 
         setQuestions(loadedQuestions);
-      } catch (err: any) {
+      } catch (err) {
         if (!cancelled) {
           setError(err?.message || "Failed to load pulse page.");
         }
@@ -131,9 +130,7 @@ export default function EmployeePulsePage() {
       }
 
       const calcRes = await apiFetch(
-        `/api/calculate-hri?organisation_id=${encodeURIComponent(
-          organisationId
-        )}`,
+        `/api/calculate-hri?organisation_id=${encodeURIComponent(organisationId)}`,
         {
           method: "GET",
           cache: "no-store",
@@ -149,7 +146,7 @@ export default function EmployeePulsePage() {
       }
 
       setSuccess("Pulse submitted successfully. The company HRI score has been updated.");
-    } catch (err: any) {
+    } catch (err) {
       setError(err?.message || "Submission failed.");
     } finally {
       setSubmitting(false);
@@ -162,17 +159,10 @@ export default function EmployeePulsePage() {
 
   return (
     <div style={{ padding: "2rem" }}>
-      <h1 style={{ marginBottom: 6 }}>Employee Pulse</h1>
-
-      <p style={{ opacity: 0.85, marginTop: 0 }}>
-        Quick pulse check to understand how your people are doing right now.
-      </p>
+      <h1>Employee Pulse</h1>
 
       {error && <p style={{ color: "red", fontWeight: 700 }}>{error}</p>}
-
-      {success && (
-        <p style={{ color: "green", fontWeight: 700 }}>{success}</p>
-      )}
+      {success && <p style={{ color: "green", fontWeight: 700 }}>{success}</p>}
 
       {organisationId && (
         <p style={{ opacity: 0.65, fontSize: 12 }}>
@@ -180,9 +170,7 @@ export default function EmployeePulsePage() {
         </p>
       )}
 
-      {questions.length === 0 && !error && (
-        <p>No pulse questions found.</p>
-      )}
+      {questions.length === 0 && !error && <p>No pulse questions found.</p>}
 
       {questions.length > 0 && (
         <>
@@ -238,10 +226,6 @@ export default function EmployeePulsePage() {
                     );
                   })}
                 </div>
-
-                <p style={{ opacity: 0.65, fontSize: 12 }}>
-                  1 = strongly disagree · 5 = strongly agree
-                </p>
               </div>
             ))}
           </div>
