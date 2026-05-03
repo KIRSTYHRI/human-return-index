@@ -24,13 +24,35 @@ export default function DashboardLayout({ children }) {
         return;
       }
 
-      if (!data?.session) {
+      const user = data?.session?.user;
+
+      if (!user) {
         setDebug("No session");
         router.replace("/login");
         return;
       }
 
-      setDebug("Session OK");
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("id, role, organisation_id")
+        .eq("id", user.id)
+        .single();
+
+      if (profileError || !profile) {
+        setDebug("Profile not found");
+        router.replace("/login");
+        return;
+      }
+
+      const isEmployer = profile.role === "owner" || profile.role === "admin";
+
+      if (!isEmployer) {
+        setDebug("Employee account - redirecting to pulse");
+        router.replace("/pulse");
+        return;
+      }
+
+      setDebug("Employer session OK");
       setReady(true);
     }
 
