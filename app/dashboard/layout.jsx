@@ -13,50 +13,53 @@ export default function DashboardLayout({ children }) {
   const [debug, setDebug] = useState("Checking session…");
 
   useEffect(() => {
+    let cancelled = false;
     const supabase = supabaseBrowser();
 
     async function check() {
       const { data, error } = await supabase.auth.getSession();
 
-      if (error) {
-        setDebug(`Session error: ${error.message}`);
+      if (cancelled) return;
+
+      if (error || !data?.session?.user) {
+        setDebug("No valid session — redirecting to login");
         router.replace("/login");
         return;
       }
 
-      const user = data?.session?.user;
-
-      if (!user) {
-        setDebug("No session");
-        router.replace("/login");
-        return;
-      }
+      const user = data.session.user;
 
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
         .select("id, role, organisation_id")
         .eq("id", user.id)
-        .single();
+        .maybeSingle();
+
+      if (cancelled) return;
 
       if (profileError || !profile) {
-        setDebug("Profile not found");
+        setDebug("Profile not found — redirecting to login");
         router.replace("/login");
         return;
       }
 
-      const isEmployer = profile.role === "owner" || profile.role === "admin";
+      const role = String(profile.role || "").trim().toLowerCase();
 
-      if (!isEmployer) {
-        setDebug("Employee account - redirecting to pulse");
+      if (role !== "owner" && role !== "admin") {
+        setDebug(`Role is ${role || "missing"} — redirecting to pulse`);
         router.replace("/pulse");
         return;
       }
 
-      setDebug("Employer session OK");
+      setDebug(`Role is ${role} — dashboard allowed`);
       setReady(true);
     }
 
     check();
+
+    return () => {
+      cancelled = true;
+    };
   }, [router]);
 
   if (!ready) {
