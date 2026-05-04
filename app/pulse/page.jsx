@@ -30,16 +30,23 @@ export default function EmployeePulsePage() {
         setLoading(true);
         setError(null);
 
-        const meRes = await apiFetch("/api/me/org", { cache: "no-store" });
-        const meJson = await readJsonSafe(meRes, "/api/me/org");
+        const urlParams = new URLSearchParams(window.location.search);
+        const orgFromUrl = urlParams.get("org");
 
-        if (cancelled) return;
+        let orgId = orgFromUrl;
 
-        if (!meRes.ok) {
-          throw new Error(meJson?.error || "Failed to load employee organisation.");
+        if (!orgId) {
+          const meRes = await apiFetch("/api/me/org", { cache: "no-store" });
+          const meJson = await readJsonSafe(meRes, "/api/me/org");
+
+          if (!meRes.ok) {
+            throw new Error(meJson?.error || "Failed to load employee organisation.");
+          }
+
+          orgId = meJson?.organisation_id;
         }
 
-        const orgId = meJson?.organisation_id;
+        if (cancelled) return;
 
         if (!orgId) {
           throw new Error("Missing organisation link. Please contact your employer.");
