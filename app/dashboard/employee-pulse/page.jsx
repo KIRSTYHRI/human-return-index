@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/lib/apiFetch";
+import LogoutButton from "../../components/LogoutButton";
 
 async function readJsonSafe(res, label) {
   const text = await res.text();
@@ -99,7 +100,6 @@ export default function EmployeePulsePage() {
         value: Number(answers[q.id]),
       }));
 
-      // 1) save pulse
       const pulseRes = await apiFetch("/api/employee-pulse", {
         method: "POST",
         body: JSON.stringify({
@@ -114,7 +114,6 @@ export default function EmployeePulsePage() {
         throw new Error(pulseJson?.error || "Pulse submission failed");
       }
 
-      // 2) trigger HRI recalculation from browser
       const calcRes = await apiFetch(
         `/api/calculate-hri?organisation_id=${encodeURIComponent(organisationId)}`,
         {
@@ -141,6 +140,10 @@ export default function EmployeePulsePage() {
 
   return (
     <div style={{ padding: "2rem" }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 20 }}>
+        <LogoutButton />
+      </div>
+
       <h1 style={{ marginBottom: 6 }}>Employee Pulse</h1>
       <p style={{ opacity: 0.85, marginTop: 0 }}>
         Quick pulse check to understand how your people are doing right now.
