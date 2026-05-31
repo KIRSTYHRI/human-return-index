@@ -495,26 +495,22 @@ export default function CurrentAssessmentCard() {
                 <div className="pillLabel">Turnover cost</div>
                 <div className="pillValue">{formatCurrency(turnoverCost)}</div>
                 <div className="mutedSmall" style={{ marginTop: 6 }}>
-                  Employees × Turnover Rate × Average Salary × 30%
-                </div>
-              </div>
+  Estimated annual turnover exposure based on your workforce profile and current people-risk indicators.
+</div>
 
               <div className="pillBox">
                 <div className="pillLabel">Absence cost</div>
                 <div className="pillValue">{formatCurrency(absenceCost)}</div>
                 <div className="mutedSmall" style={{ marginTop: 6 }}>
-                  Employees × Absence Days × (Average Salary ÷ 260)
-                </div>
-              </div>
+  Estimated annual absence-related cost across your workforce based on current organisational data.
+</div>
 
               <div className="pillBox">
                 <div className="pillLabel">Productivity opportunity</div>
                 <div className="pillValue">{formatCurrency(productivityOpportunity)}</div>
                 <div className="mutedSmall" style={{ marginTop: 6 }}>
-                  Employees × Average Salary × Recoverable Gap %
-                </div>
-              </div>
-            </div>
+  Estimated productivity opportunity available through improvements in workforce experience, engagement and performance.
+</div>
 
             <div className="linkRow">
               <Link className="linkChip" href="/dashboard/hri-assessment">
