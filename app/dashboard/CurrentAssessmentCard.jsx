@@ -272,6 +272,27 @@ export default function CurrentAssessmentCard() {
         </span>
       </div>
 
+      <div
+  style={{
+    display: "flex",
+    justifyContent: "flex-end",
+    marginBottom: 16,
+  }}
+>
+  <button
+    onClick={() => window.print()}
+    className="linkChip"
+    style={{
+      cursor: "pointer",
+      border: "1px solid rgba(255,255,255,.15)",
+      background: "rgba(254,224,0,.12)",
+      color: "inherit",
+    }}
+  >
+    Download Executive Report
+  </button>
+</div>
+
       <p className="pageSub" style={{ marginTop: 0 }}>
         Real-time view of how your people are doing — and what that means for performance, risk and ROI.
       </p>
