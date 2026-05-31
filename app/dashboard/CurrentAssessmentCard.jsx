@@ -185,6 +185,16 @@ export default function CurrentAssessmentCard() {
       .sort((a, b) => b.value - a.value)[0] || null;
   }, [pillarList]);
 
+  const actionPriorities = weakestPillar?.label
+    ? [
+        `Focus first on ${weakestPillar.label}, as this is currently your lowest scoring area.`,
+        "Review leadership communication, listening channels and employee feedback loops.",
+        "Use the next employee pulse to track whether action is improving the HRI score.",
+      ]
+    : [
+        "Complete both employer and employee assessments to unlock recommended priorities.",
+      ];
+
   const employees = num(metrics?.employee_count);
   const avgSalary = num(metrics?.avg_salary);
   const absenceDaysPerEmployee = num(metrics?.absent_days_per_employee);
@@ -390,6 +400,28 @@ export default function CurrentAssessmentCard() {
               </div>
               <div style={{ fontSize: 16, fontWeight: 700 }}>{hriInsightText}</div>
               <div className="mutedSmall" style={{ marginTop: 6 }}>{boardSummary}</div>
+            </div>
+
+            <div
+              style={{
+                marginBottom: 16,
+                padding: 14,
+                borderRadius: 12,
+                border: "1px solid rgba(254,224,0,.25)",
+                background: "rgba(254,224,0,.06)",
+              }}
+            >
+              <div className="pillLabel" style={{ marginBottom: 8 }}>
+                Recommended Priorities
+              </div>
+
+              <ol style={{ margin: 0, paddingLeft: 18 }}>
+                {actionPriorities.map((item, idx) => (
+                  <li key={idx} style={{ marginBottom: 6, fontSize: 14, fontWeight: 650 }}>
+                    {item}
+                  </li>
+                ))}
+              </ol>
             </div>
 
             <div className="panelTitle" style={{ marginBottom: 10 }}>
